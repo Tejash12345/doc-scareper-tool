@@ -1009,7 +1009,7 @@ class OnboardingApp {
     this.activeDocPreview = docId;
     document.querySelectorAll(".doc-tab").forEach(t => t.classList.toggle("active", t.dataset.doc === docId));
     const pdfBtn = document.getElementById("btnDownloadPdf");
-    if (pdfBtn) pdfBtn.style.display = docId === "onboarding" ? "" : "none";
+    if (pdfBtn) pdfBtn.style.display = "";
     const previewEl = document.getElementById("previewContent");
     const renderers = {
       onboarding: () => this.renderOnboardingPreview(),
@@ -1022,7 +1022,14 @@ class OnboardingApp {
   }
 
   downloadCurrentPdf() {
-    if (this.activeDocPreview === "onboarding") this.downloadPdf();
+    const map = {
+      onboarding: () => this.downloadPdf(),
+      authSignatory: () => this.downloadAuthSignatoryPdf(),
+      beneficialOwnership: () => this.downloadBeneficialOwnershipPdf(),
+      corporateProfile: () => this.downloadCorporateProfilePdf(),
+      mou: () => this.downloadMouPdf(),
+    };
+    if (map[this.activeDocPreview]) map[this.activeDocPreview]();
   }
 
   downloadCurrentDocx() {
@@ -1452,6 +1459,468 @@ class OnboardingApp {
     document.body.removeChild(a);
     URL.revokeObjectURL(url);
     this.showToast("PDF downloaded successfully!", "success");
+  }
+
+  triggerPdfDownload(pdf, filename) {
+    const blob = pdf.build();
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = filename;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    URL.revokeObjectURL(url);
+    this.showToast("PDF downloaded successfully!", "success");
+  }
+
+  pdfDrawParagraph(pdf, text, x, y, maxW, fontSize, lineH) {
+    const lines = pdf.wrapText(text, maxW, fontSize);
+    lines.forEach((ln, i) => { pdf.drawText(ln, x, y - (i * lineH)); });
+    return y - lines.length * lineH;
+  }
+
+  downloadAuthSignatoryPdf() {
+    const companyName = this.getFormValue("registeredName") || "";
+    const sigName = this.getFormValue("signatoryName") || this.getFormValue("kmpName") || "";
+    const sigDesig = this.getFormValue("signatoryDesignation") || this.getFormValue("contactDesignation") || "";
+    const contactName = this.getFormValue("contactName") || sigName;
+    const contactDesig = this.getFormValue("contactDesignation") || sigDesig;
+    const ceoName = this.getFormValue("ceoName") || sigName;
+    const today = this.todayStr();
+
+    const pdf = new PdfBuilder();
+    const m = 50, w = 495, lineH = 14, pageTop = 780;
+    pdf.addPage();
+
+    pdf.setFont(10, false);
+    pdf.drawTextCentered("(To be obtained on the Company/Firms Letter Head)", pageTop);
+
+    pdf.setFont(10, false);
+    pdf.drawText(`Date: ${today}`, 420, pageTop - 30);
+
+    let y = pageTop - 60;
+    pdf.setFont(10, false);
+    pdf.drawText("The Manager", m, y);
+    pdf.drawText("Capital India Finance Limited", m, y - lineH);
+    y -= lineH * 3;
+
+    pdf.setFont(11, true);
+    y = this.pdfDrawParagraph(pdf, "Sub: Authority to Place Request / Authorized Signatory for Purchase / Sales of Foreign Exchange", m, y, w, 11, 15);
+    y -= 10;
+
+    pdf.setFont(10, false);
+    pdf.drawText("Dear Sir,", m, y);
+    y -= lineH * 2;
+
+    pdf.setFont(9.5, false);
+    const bodyText = `I/We, ${companyName} (hereinafter referred to as "APPLICANT") have authorized the following person(s) as an authorized representative(s) of the APPLICANT to execute foreign exchange transactions with M/s Capital India Finance Limited (CIFL), from time to time, and to purchase Foreign Exchange for and on behalf of the APPLICANT against Cheque issued by the APPLICANT or against credit. We have specifically authorized the person(s) named herein below to sign request letter for purchase / surrender of foreign exchange for the employees of the APPLICANT travelling abroad for and on behalf of the APPLICANT. We hereby take the complete responsibility for any transaction undertaken by the said authorized representative(s) with CIFL.`;
+    y = this.pdfDrawParagraph(pdf, bodyText, m, y, w, 9.5, 13);
+    y -= 16;
+
+    pdf.setFont(10, true);
+    pdf.drawText("The Signature of the authorized person(s)/representative(s) is attested below:", m, y);
+    y -= 20;
+
+    const colW = [50, 190, 140, 115];
+    const headers = ["Sr. No", "Name", "Designation", "Signature"];
+    pdf.drawRect(m, y - 22, w, 22, "#2D3494");
+    pdf.setTextColor(255, 255, 255);
+    pdf.setFont(9, true);
+    let cx = m;
+    headers.forEach((h, i) => { pdf.drawText(h, cx + 6, y - 6); pdf.drawCellBorder(cx, y - 22, colW[i], 22); cx += colW[i]; });
+    pdf.setTextColor(0, 0, 0);
+    y -= 22;
+
+    const tRows = [["1", contactName, contactDesig, ""], ["2", ceoName, sigDesig, ""]];
+    tRows.forEach((row, ri) => {
+      const rh = 24;
+      if (ri % 2 === 0) pdf.drawRect(m, y - rh, w, rh, "#F2F4F8");
+      cx = m;
+      pdf.setFont(9, false);
+      row.forEach((cell, ci) => { pdf.drawText(cell, cx + 6, y - 8); pdf.drawCellBorder(cx, y - rh, colW[ci], rh); cx += colW[ci]; });
+      y -= rh;
+    });
+
+    y -= 16;
+    pdf.setFont(9, false);
+    const closingText = "This authority is irrevocable and binding on the APPLICANT as long as the APPLICANT continues to deal with CIFL for its Foreign Exchange requirements. Further the APPLICANT is responsible to make payment for the foreign exchange released to the APPLICANT and its employees by CIFL from time to time under the instructions of our aforesaid authorized representative(s).";
+    y = this.pdfDrawParagraph(pdf, closingText, m, y, w, 9, 12);
+    y -= 10;
+    const closingText2 = "In the event, we wish to change our authorized representative(s) for any reason whatsoever, it shall be mandatory on our part to inform the same in writing to CIFL and such writing must be acknowledged by the authorized representative(s) of CIFL.";
+    y = this.pdfDrawParagraph(pdf, closingText2, m, y, w, 9, 12);
+
+    if (y < 160) { pdf.addPage(); y = pageTop; }
+    y -= 30;
+    pdf.setFont(10, true);
+    pdf.drawText(`For ${companyName}`, 350, y);
+    y -= 40;
+    pdf.drawLine(350, y + 10, 540, y + 10, 0.5);
+    pdf.setFont(10, false);
+    pdf.drawText(`Name: ${sigName}`, 350, y - 4);
+    pdf.drawText(`Designation: ${sigDesig}`, 350, y - 18);
+
+    this.triggerPdfDownload(pdf, `Authorised_Signatory_Letter_${companyName.replace(/\s+/g, "_")}.pdf`);
+  }
+
+  downloadBeneficialOwnershipPdf() {
+    const companyName = this.getFormValue("registeredName") || "";
+    const address = this.getFormValue("registeredAddress") || "";
+    const sigName = this.getFormValue("signatoryName") || this.getFormValue("kmpName") || "";
+    const ownerName = this.getFormValue("kmpName") || this.getFormValue("contactName") || sigName;
+    const sigDesig = this.getFormValue("signatoryDesignation") || "Director / Company Secretary";
+    const today = this.todayStr();
+
+    const pdf = new PdfBuilder();
+    const m = 50, w = 495, lineH = 14, pageTop = 780;
+    pdf.addPage();
+
+    pdf.setFont(16, true);
+    pdf.drawTextCentered("Annexure 3 - Beneficial Ownership Details", pageTop);
+    pdf.setFont(11, false);
+    pdf.drawTextCentered("(Limited & Private Limited)", pageTop - 22);
+    pdf.drawLine(m, pageTop - 34, m + w, pageTop - 34, 2);
+
+    let y = pageTop - 52;
+    pdf.setFont(10, false);
+    pdf.drawText(`Date: ${today}`, 420, y);
+    y -= 30;
+    pdf.drawText("To,", m, y);
+    pdf.drawText("The Manager", m, y - lineH);
+    pdf.drawText("Capital India Finance Limited", m, y - lineH * 2);
+    y -= lineH * 4;
+
+    pdf.setFont(10, true);
+    pdf.drawText("Sub: Beneficial Ownership Details", m, y);
+    y -= lineH * 2;
+
+    pdf.setFont(9.5, false);
+    const bodyText = `I, ${sigName}, authorized signatory of M/s ${companyName}, a company incorporated under the Companies Act, 1956 and having its registered office at ${address}, hereby declare and state that the following natural person of our company holds more than 10% of the shares or capital or profits of the company which falls within the definition of Beneficial ownership as defined under PMLA, 2002.`;
+    y = this.pdfDrawParagraph(pdf, bodyText, m, y, w, 9.5, 13);
+    y -= 16;
+
+    const colW = [40, 175, 90, 75, 115];
+    const headers = ["Sr.", "Name & Address", "Designation", "% Shares", "ID (PAN/Aadhaar)"];
+    pdf.drawRect(m, y - 22, w, 22, "#2D3494");
+    pdf.setTextColor(255, 255, 255);
+    pdf.setFont(8, true);
+    let cx = m;
+    headers.forEach((h, i) => { pdf.drawText(h, cx + 4, y - 6); pdf.drawCellBorder(cx, y - 22, colW[i], 22); cx += colW[i]; });
+    pdf.setTextColor(0, 0, 0);
+    y -= 22;
+
+    const ownerAddr = `${ownerName}, ${address}`;
+    const ownerLines = pdf.wrapText(ownerAddr, colW[1] - 8, 8);
+    const row1H = Math.max(ownerLines.length * 11 + 8, 24);
+
+    pdf.drawRect(m, y - row1H, w, row1H, "#F2F4F8");
+    pdf.setFont(8, false);
+    cx = m;
+    pdf.drawText("1", cx + 4, y - 10); pdf.drawCellBorder(cx, y - row1H, colW[0], row1H); cx += colW[0];
+    ownerLines.forEach((ln, i) => pdf.drawText(ln, cx + 4, y - 10 - i * 11)); pdf.drawCellBorder(cx, y - row1H, colW[1], row1H); cx += colW[1];
+    pdf.drawText(this.getFormValue("contactDesignation") || "Proprietor", cx + 4, y - 10); pdf.drawCellBorder(cx, y - row1H, colW[2], row1H); cx += colW[2];
+    pdf.drawText("100%", cx + 4, y - 10); pdf.drawCellBorder(cx, y - row1H, colW[3], row1H); cx += colW[3];
+    pdf.drawText(this.getFormValue("panNo") || "", cx + 4, y - 10); pdf.drawCellBorder(cx, y - row1H, colW[4], row1H);
+    y -= row1H;
+
+    for (let i = 2; i <= 3; i++) {
+      cx = m;
+      pdf.setFont(8, false);
+      pdf.drawText(String(i), cx + 4, y - 10); pdf.drawCellBorder(cx, y - 24, colW[0], 24); cx += colW[0];
+      colW.slice(1).forEach(cw => { pdf.drawCellBorder(cx, y - 24, cw, 24); cx += cw; });
+      y -= 24;
+    }
+
+    y -= 16;
+    pdf.setFont(9.5, false);
+    y = this.pdfDrawParagraph(pdf, "I further declare, in case of changes in the beneficial ownership structure of the company, I hereby undertake to furnish the details to you.", m, y, w, 9.5, 13);
+
+    if (y < 140) { pdf.addPage(); y = pageTop; }
+    y -= 40;
+    pdf.setFont(10, true);
+    pdf.drawText(`For M/s ${companyName}`, 330, y);
+    y -= 40;
+    pdf.drawLine(330, y + 10, 540, y + 10, 0.5);
+    pdf.setFont(10, false);
+    pdf.drawText(`Name: ${sigName}`, 330, y - 4);
+    pdf.drawText(`Designation: ${sigDesig}`, 330, y - 18);
+
+    this.triggerPdfDownload(pdf, `Beneficial_Ownership_${companyName.replace(/\s+/g, "_")}.pdf`);
+  }
+
+  downloadCorporateProfilePdf() {
+    const companyName = this.getFormValue("registeredName") || "";
+    const legalStatus = this.getRadioValue("legalStatusGroup") || "";
+    const products = this.getCheckedValues("productsGroup");
+    const productStr = products.length > 0 ? products.join(", ") : "";
+    const stockExchange = this.getRadioValue("stockExchangeGroup") || "No";
+    const sigName = this.getFormValue("signatoryName") || this.getFormValue("kmpName") || "";
+    const sigDesig = this.getFormValue("signatoryDesignation") || legalStatus;
+    const today = this.todayStr();
+
+    const pdf = new PdfBuilder();
+    const m = 50, w = 495, lineH = 14, pageTop = 780, pageBottom = 80;
+    pdf.addPage();
+
+    pdf.setFont(15, true);
+    pdf.drawTextCentered("Annexure 2 - Corporate Profile", pageTop);
+    pdf.setFont(10, false);
+    pdf.drawTextCentered("Customer Profile - Money Changing Activities", pageTop - 20);
+    pdf.drawTextCentered("(For Corporate, Goods & Services & Franchisees)", pageTop - 34);
+    pdf.drawLine(m, pageTop - 44, m + w, pageTop - 44, 2);
+
+    let y = pageTop - 60;
+    pdf.setFont(8, false);
+    y = this.pdfDrawParagraph(pdf, 'Note: Each supporting document has to be certified as "True Copy" by an authorized person indicating his name and designation.', m, y, w, 8, 11);
+    y -= 12;
+
+    const kycRows = [
+      ["1", "Name of corporate entity", companyName],
+      ["2", "Registered Office address", this.getFormValue("registeredAddress")],
+      ["3", "Principal Place of Business", this.getFormValue("principalPlace") || this.getFormValue("registeredAddress")],
+      ["4", "Date of Incorporation", this.getFormValue("dateOfIncorporation")],
+      ["5", "PAN of the entity", this.getFormValue("panNo") || "-"],
+      ["6", "Nature of business / type of activity", this.getFormValue("natureOfBusiness")],
+      ["7", "Products offered / nature of services", productStr],
+      ["8", "Location of branches", this.getFormValue("registeredAddress")],
+      ["9", "Information about clients' business", "Travel and Tour Operations"],
+      ["10", "Listed on stock exchange(s)", stockExchange],
+    ];
+
+    const colW = [35, 185, 275];
+    const drawTableHeader = (yy, headers) => {
+      pdf.drawRect(m, yy - 20, w, 20, "#2D3494");
+      pdf.setTextColor(255, 255, 255);
+      pdf.setFont(9, true);
+      let cx = m;
+      headers.forEach((h, i) => { pdf.drawText(h, cx + 6, yy - 6); pdf.drawCellBorder(cx, yy - 20, colW[i], 20); cx += colW[i]; });
+      pdf.setTextColor(0, 0, 0);
+      return yy - 20;
+    };
+
+    y = drawTableHeader(y, ["Sr.", "KYC Particulars", "Details"]);
+
+    const fontSize = 8.5;
+    for (let r = 0; r < kycRows.length; r++) {
+      const [sr, label, value] = kycRows[r];
+      const valLines = pdf.wrapText(value || "", colW[2] - 12, fontSize);
+      const labelLines = pdf.wrapText(label, colW[1] - 12, fontSize);
+      const textRows = Math.max(valLines.length, labelLines.length, 1);
+      const rowH = textRows * 12 + 10;
+
+      if (y - rowH < pageBottom) { pdf.addPage(); y = pageTop; y = drawTableHeader(y, ["Sr.", "KYC Particulars", "Details"]); }
+      if (r % 2 === 0) pdf.drawRect(m, y - rowH, w, rowH, "#F2F4F8");
+      let cx = m;
+      pdf.drawCellBorder(cx, y - rowH, colW[0], rowH); pdf.drawCellBorder(cx + colW[0], y - rowH, colW[1], rowH); pdf.drawCellBorder(cx + colW[0] + colW[1], y - rowH, colW[2], rowH);
+      pdf.setFont(fontSize, true);
+      pdf.drawText(sr, cx + 6, y - 10);
+      labelLines.forEach((ln, i) => pdf.drawText(ln, cx + colW[0] + 6, y - 10 - i * 12));
+      pdf.setFont(fontSize, false);
+      valLines.forEach((ln, i) => pdf.drawText(ln, cx + colW[0] + colW[1] + 6, y - 10 - i * 12));
+      y -= rowH;
+    }
+
+    y -= 20;
+    if (y < 300) { pdf.addPage(); y = pageTop; }
+    pdf.setFont(12, true);
+    pdf.drawText("Management & Control Details", m, y);
+    y -= 18;
+
+    const mgmtColW = [35, 225, 235];
+    const mgmtRows = [
+      ["Ownership and control structure", `${legalStatus} - ${this.getFormValue("kmpName") || this.getFormValue("contactName")}`],
+      ["Natural persons controlling entity", this.getFormValue("kmpName") || this.getFormValue("contactName")],
+      ["Purpose of business relationship", "Foreign Exchange Purchase / TT for Tour Operations"],
+      ["Name of Chairman", this.getFormValue("kmpName") || this.getFormValue("ceoName")],
+      ["Name of MD / Partner / Trustee", this.getFormValue("mdName") || this.getFormValue("kmpName")],
+      ["Name of CEO", this.getFormValue("ceoName") || this.getFormValue("kmpName")],
+      ["Other directors / partners", this.getFormValue("directors")],
+      ["Officials authorized for FX", this.getFormValue("authorizedOfficials") || this.getFormValue("contactName")],
+      ["Names of bankers", this.getFormValue("bankName")],
+      ["Sources of funds", "Business Revenue"],
+      ["Annual estimated FX (INR)", this.getFormValue("annualFx")],
+    ];
+
+    pdf.drawRect(m, y - 20, w, 20, "#2D3494");
+    pdf.setTextColor(255, 255, 255);
+    pdf.setFont(9, true);
+    pdf.drawText("Particular", m + 41, y - 6);
+    pdf.drawText("Details", m + 260 + 6, y - 6);
+    pdf.drawCellBorder(m, y - 20, 260, 20);
+    pdf.drawCellBorder(m + 260, y - 20, 235, 20);
+    pdf.setTextColor(0, 0, 0);
+    y -= 20;
+
+    for (let r = 0; r < mgmtRows.length; r++) {
+      const [label, value] = mgmtRows[r];
+      const valLines = pdf.wrapText(value || "", 223, 8.5);
+      const labelLines = pdf.wrapText(label, 248, 8.5);
+      const textRows = Math.max(valLines.length, labelLines.length, 1);
+      const rowH = textRows * 12 + 10;
+      if (y - rowH < pageBottom) { pdf.addPage(); y = pageTop; }
+      if (r % 2 === 0) pdf.drawRect(m, y - rowH, w, rowH, "#F2F4F8");
+      pdf.drawCellBorder(m, y - rowH, 260, rowH);
+      pdf.drawCellBorder(m + 260, y - rowH, 235, rowH);
+      pdf.setFont(8.5, true);
+      labelLines.forEach((ln, i) => pdf.drawText(ln, m + 6, y - 10 - i * 12));
+      pdf.setFont(8.5, false);
+      valLines.forEach((ln, i) => pdf.drawText(ln, m + 266, y - 10 - i * 12));
+      y -= rowH;
+    }
+
+    y -= 24;
+    if (y < 160) { pdf.addPage(); y = pageTop; }
+    pdf.setFont(11, true);
+    pdf.drawText("Declaration", m, y);
+    y -= 16;
+    pdf.setFont(8.5, false);
+    y = this.pdfDrawParagraph(pdf, "We hereby certify and declare that all our transactions are bonafide transactions and that we will abide by the prevailing RBI rules, regulations, directives and notifications.", m, y, w, 8.5, 12);
+
+    y -= 40;
+    if (y < 120) { pdf.addPage(); y = pageTop; }
+    pdf.setFont(10, true);
+    pdf.drawText("Authorized Signatory", 360, y);
+    y -= 35;
+    pdf.drawLine(360, y + 10, 540, y + 10, 0.5);
+    pdf.setFont(10, false);
+    pdf.drawText(`Name: ${sigName}`, 360, y - 4);
+    pdf.drawText(`Designation: ${sigDesig}`, 360, y - 18);
+    pdf.drawText(`Date: ${this.getFormValue("signatoryDate") || today}`, 360, y - 32);
+    pdf.setFont(9, false);
+    pdf.drawText("(Round Seal)", 360, y - 50);
+
+    this.triggerPdfDownload(pdf, `Corporate_Profile_KYC_${companyName.replace(/\s+/g, "_")}.pdf`);
+  }
+
+  downloadMouPdf() {
+    const companyName = this.getFormValue("registeredName") || "[Company Name]";
+    const address = this.getFormValue("registeredAddress") || "[Company Address]";
+    const sigName = this.getFormValue("signatoryName") || this.getFormValue("kmpName") || "";
+    const sigDesig = this.getFormValue("signatoryDesignation") || "";
+    const today = this.todayStr();
+
+    const pdf = new PdfBuilder();
+    const m = 50, w = 495, pageTop = 780, pageBottom = 80;
+    pdf.addPage();
+
+    let y = pageTop;
+    pdf.setFont(16, true);
+    pdf.drawTextCentered("MEMORANDUM OF UNDERSTANDING (MOU)", y);
+    pdf.drawLine(m, y - 12, m + w, y - 12, 2);
+    y -= 32;
+
+    pdf.setFont(9.5, false);
+    y = this.pdfDrawParagraph(pdf, `This MOU is made on this ${today} ("Effective Date") by and between`, m, y, w, 9.5, 13);
+    y -= 8;
+
+    y = this.pdfDrawParagraph(pdf, `Capital India Finance Limited, a company incorporated under the laws of India and having its registered office at 701, 7th floor, Aggarwal Corporate Tower, Plot No. 23, District Centre, Rajendra Place, New Delhi - 110008, hereinafter referred to as "CIFL"`, m, y, w, 9.5, 13);
+    y -= 8;
+
+    pdf.setFont(11, true);
+    pdf.drawTextCentered("AND", y);
+    y -= 18;
+
+    pdf.setFont(9.5, false);
+    y = this.pdfDrawParagraph(pdf, `${companyName}, a company/legal entity incorporated under the applicable laws of India and having its registered office at ${address}, carrying out the business of Travels and Tour Operator, hereinafter referred to as "Client"`, m, y, w, 9.5, 13);
+    y -= 12;
+
+    pdf.setFont(11, true);
+    pdf.drawText("WHEREAS:", m, y);
+    y -= 16;
+    pdf.setFont(9.5, false);
+    y = this.pdfDrawParagraph(pdf, `A. CIFL is holding an Authorized Dealer Category II Money Changer License issued by the Reserve Bank of India ("RBI") and is inter-alia engaged in the business of dealing in Foreign Exchange.`, m, y, w, 9.5, 13);
+    y -= 4;
+    y = this.pdfDrawParagraph(pdf, `B. ${companyName} is in the business of Overseas Tour Management.`, m, y, w, 9.5, 13);
+    y -= 4;
+    y = this.pdfDrawParagraph(pdf, `C. ${companyName} desires to avail the services of CIFL for sale/purchase of foreign exchange and telegraphic transfer for its customers.`, m, y, w, 9.5, 13);
+    y -= 12;
+
+    const sections = [
+      { title: "1. SCOPE OF SERVICES", items: [
+        "1.1 The Client hereby appoints CIFL for providing foreign exchange services including sale/purchase of foreign currency and telegraphic transfers.",
+        "1.2 The Client shall provide an Authorization Letter authorizing specific persons to transact on behalf of the Client.",
+        "1.3 Service Requests shall be made via email or in person at CIFL branches.",
+        "1.4 The Client shall provide all KYC documents as per AML/PMLA requirements.",
+        "1.5 Foreign exchange shall be handed only to identified Customer representatives.",
+        "1.6 For telegraphic transfers, TCS/tax collection responsibility shall be on the Client.",
+        "1.7 The Client shall comply with all RBI/KYC/FEMA regulations.",
+        "1.8 Payment shall be against clear funds only.",
+        `1.9 The Client shall verify "Source of Funds" for all transactions.`,
+      ]},
+      { title: "2. KYC AND AML REQUIREMENTS", items: [
+        "2.1 The Client shall provide all KYC documents as required under PMLA and RBI regulations.",
+        "2.2 CIFL may request fresh KYC documents periodically.",
+        "2.3 The Client shall notify CIFL immediately of any IATA/license revocations or regulatory actions.",
+      ]},
+      { title: "3. TERM AND TERMINATION", items: [
+        "3.1 This MOU shall be effective for an initial term of 1 (one) year from the Effective Date and shall auto-renew for successive periods of 1 (one) year each.",
+        "3.2 Either party may terminate this MOU by providing 30 days written notice.",
+        "3.3 CIFL may immediately terminate this MOU in the event of any legal or compliance violation by the Client.",
+      ]},
+      { title: "4. LIMITATION OF LIABILITY", items: [
+        "4.1 CIFL shall not be liable for: fraudulent transactions after delivery, third-party service failures, rejected service requests, delays in overseas disbursement, intermediary bank charges, incorrect client information, or remitting bank refusals.",
+      ]},
+    ];
+
+    for (const sec of sections) {
+      if (y < 100) { pdf.addPage(); y = pageTop; }
+      pdf.setFont(11, true);
+      pdf.drawText(sec.title, m, y);
+      y -= 16;
+      pdf.setFont(9, false);
+      for (const item of sec.items) {
+        if (y < pageBottom) { pdf.addPage(); y = pageTop; }
+        y = this.pdfDrawParagraph(pdf, item, m, y, w, 9, 12);
+        y -= 4;
+      }
+      y -= 8;
+    }
+
+    if (y < 180) { pdf.addPage(); y = pageTop; }
+    y -= 10;
+    const halfW = 240;
+    pdf.setFont(9, true);
+    pdf.drawText("FOR AND ON BEHALF OF", m, y);
+    pdf.drawText("FOR AND ON BEHALF OF", m + halfW + 15, y);
+    y -= 14;
+    pdf.drawText("Capital India Finance Limited", m, y);
+    pdf.drawText(companyName, m + halfW + 15, y);
+    y -= 30;
+    pdf.setFont(9, false);
+    pdf.drawText("Signature: _______________", m, y);
+    pdf.drawText("Signature: _______________", m + halfW + 15, y);
+    y -= 16;
+    pdf.drawText("Name:", m, y);
+    pdf.drawText(`Name: ${sigName}`, m + halfW + 15, y);
+    y -= 14;
+    pdf.drawText("Designation:", m, y);
+    pdf.drawText(`Designation: ${sigDesig}`, m + halfW + 15, y);
+    y -= 14;
+    pdf.drawText("Witness: _______________", m, y);
+    pdf.drawText("Witness: _______________", m + halfW + 15, y);
+
+    y -= 30;
+    if (y < 160) { pdf.addPage(); y = pageTop; }
+    pdf.setFont(10, true);
+    pdf.drawText("ANNEXURE A - Tour Remittance Transaction Documents:", m, y);
+    y -= 18;
+    pdf.setFont(9, false);
+    const annexItems = [
+      "1. FORM A2 and Application cum declaration signed by the Authorised signatory",
+      "2. Attested copy of Invoice from overseas beneficiary",
+      "3. List of Passengers in excel sheet for whom the remittance is being made",
+      "4. Self-attested Passport copies & PAN copies of passengers travelling abroad",
+      "5. Air Ticket Copies and Visa Copies of passengers travelling abroad",
+      "6. TCS Declaration",
+      "7. Any other documentation as may be required by the remitting bank",
+    ];
+    for (const item of annexItems) {
+      if (y < pageBottom) { pdf.addPage(); y = pageTop; }
+      pdf.drawText(item, m, y);
+      y -= 14;
+    }
+
+    this.triggerPdfDownload(pdf, `Tour_Operator_MOU_${companyName.replace(/\s+/g, "_")}.pdf`);
   }
 
   downloadDocx() {
