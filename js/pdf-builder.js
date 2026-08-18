@@ -39,9 +39,18 @@ class PdfBuilder {
     this.currentPage.stream.push(`${fontRef} ${size} Tf`);
   }
 
+  setTextColor(r, g, b) {
+    this.textR = r / 255;
+    this.textG = g / 255;
+    this.textB = b / 255;
+  }
+
   drawText(text, x, y) {
     const safe = this.escPdf(text);
-    this.currentPage.stream.push(`BT 0 0 0 rg ${x.toFixed(2)} ${y.toFixed(2)} Td (${safe}) Tj ET`);
+    const r = (this.textR || 0).toFixed(3);
+    const g = (this.textG || 0).toFixed(3);
+    const b = (this.textB || 0).toFixed(3);
+    this.currentPage.stream.push(`BT ${r} ${g} ${b} rg ${x.toFixed(2)} ${y.toFixed(2)} Td (${safe}) Tj ET`);
   }
 
   drawTextCentered(text, y) {

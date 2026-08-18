@@ -1111,82 +1111,98 @@ class OnboardingApp {
     ];
 
     const pdf = new PdfBuilder();
+    const margin = 50;
+    const tableW = 495;
+    const colWidths = [40, 170, 285];
+    const startX = margin;
+    const fontSize = 10;
+    const lineH = 14;
+    const cellPad = 12;
+    const pageTop = 780;
+    const pageBottom = 80;
+
+    const addHeader = (yPos) => {
+      pdf.setFont(10, true);
+      pdf.drawRect(startX, yPos - 20, colWidths[0], 26, "#2D3494");
+      pdf.drawRect(startX + colWidths[0], yPos - 20, colWidths[1], 26, "#2D3494");
+      pdf.drawRect(startX + colWidths[0] + colWidths[1], yPos - 20, colWidths[2], 26, "#2D3494");
+      pdf.setTextColor(255, 255, 255);
+      pdf.drawText("Sr.", startX + 8, yPos - 4);
+      pdf.drawText("Particulars", startX + colWidths[0] + 8, yPos - 4);
+      pdf.drawText("Details", startX + colWidths[0] + colWidths[1] + 8, yPos - 4);
+      pdf.setTextColor(0, 0, 0);
+      return yPos - 26;
+    };
+
     pdf.addPage();
 
-    // Title
-    pdf.setFont(16, true);
-    pdf.drawTextCentered("Client Onboarding Form", 770);
-    pdf.setFont(11, false);
-    pdf.drawTextCentered("(Corporates & Tour Operators)", 752);
+    pdf.setFont(18, true);
+    pdf.drawTextCentered("Client Onboarding Form", pageTop);
+    pdf.setFont(12, false);
+    pdf.drawTextCentered("(Corporates & Tour Operators)", pageTop - 22);
+    pdf.drawLine(margin, pageTop - 36, margin + tableW, pageTop - 36, 2);
 
-    // Line
-    pdf.drawLine(50, 740, 545, 740, 1.5);
+    let y = pageTop - 52;
+    y = addHeader(y);
 
-    // Table
-    const colWidths = [35, 155, 305];
-    const startX = 50;
-    let y = 720;
-
-    // Header row
-    pdf.setFont(9, true);
-    pdf.drawRect(startX, y - 16, colWidths[0], 20, "#D9E2F3");
-    pdf.drawRect(startX + colWidths[0], y - 16, colWidths[1], 20, "#D9E2F3");
-    pdf.drawRect(startX + colWidths[0] + colWidths[1], y - 16, colWidths[2], 20, "#D9E2F3");
-    pdf.drawText("Sr.", startX + 4, y - 2);
-    pdf.drawText("Particulars", startX + colWidths[0] + 4, y - 2);
-    pdf.drawText("Details", startX + colWidths[0] + colWidths[1] + 4, y - 2);
-    y -= 20;
-
-    // Data rows
-    pdf.setFont(8.5, false);
-    for (const [sr, label, value] of rows) {
+    for (let r = 0; r < rows.length; r++) {
+      const [sr, label, value] = rows[r];
       const safeVal = (value || "").replace(/[\r\n]+/g, ", ");
-      const lines = pdf.wrapText(safeVal, colWidths[2] - 8, 8.5);
-      const labelLines = pdf.wrapText(label, colWidths[1] - 8, 8.5);
-      const rowH = Math.max(lines.length, labelLines.length, 1) * 12 + 6;
+      const valLines = pdf.wrapText(safeVal, colWidths[2] - 16, fontSize);
+      const labelLines = pdf.wrapText(label, colWidths[1] - 16, fontSize);
+      const textRows = Math.max(valLines.length, labelLines.length, 1);
+      const rowH = textRows * lineH + cellPad;
 
-      if (y - rowH < 60) {
+      if (y - rowH < pageBottom) {
         pdf.addPage();
-        y = 780;
+        y = pageTop;
+        y = addHeader(y);
       }
 
-      pdf.drawCellBorder(startX, y - rowH + 4, colWidths[0], rowH);
-      pdf.drawCellBorder(startX + colWidths[0], y - rowH + 4, colWidths[1], rowH);
-      pdf.drawCellBorder(startX + colWidths[0] + colWidths[1], y - rowH + 4, colWidths[2], rowH);
+      const isEven = r % 2 === 0;
+      if (isEven) {
+        pdf.drawRect(startX, y - rowH, colWidths[0] + colWidths[1] + colWidths[2], rowH, "#F2F4F8");
+      }
 
-      pdf.setFont(8.5, true);
-      pdf.drawText(sr, startX + 4, y - 2);
-      pdf.setFont(8.5, true);
-      labelLines.forEach((ln, i) => pdf.drawText(ln, startX + colWidths[0] + 4, y - 2 - (i * 12)));
-      pdf.setFont(8.5, false);
-      lines.forEach((ln, i) => pdf.drawText(ln, startX + colWidths[0] + colWidths[1] + 4, y - 2 - (i * 12)));
+      pdf.drawCellBorder(startX, y - rowH, colWidths[0], rowH);
+      pdf.drawCellBorder(startX + colWidths[0], y - rowH, colWidths[1], rowH);
+      pdf.drawCellBorder(startX + colWidths[0] + colWidths[1], y - rowH, colWidths[2], rowH);
+
+      const textY = y - lineH + 2;
+
+      pdf.setFont(fontSize, true);
+      pdf.drawText(sr, startX + 8, textY);
+      labelLines.forEach((ln, i) => pdf.drawText(ln, startX + colWidths[0] + 8, textY - (i * lineH)));
+      pdf.setFont(fontSize, false);
+      valLines.forEach((ln, i) => pdf.drawText(ln, startX + colWidths[0] + colWidths[1] + 8, textY - (i * lineH)));
 
       y -= rowH;
     }
 
-    // Declaration
-    y -= 20;
-    if (y < 180) { pdf.addPage(); y = 780; }
-    pdf.setFont(10, true);
-    pdf.drawText("Declaration", 50, y);
-    y -= 16;
-    pdf.setFont(7.5, false);
-    const declText = "We hereby certify and declare that all our transactions are Bonafide transactions and that we will abide by the prevailing RBI rules, regulations, directives and notifications. We hereby indemnify CIFL and agree to keep it always indemnified against any claims, losses, damages, fines, penalties, cost, expenses, that may accrue or arise to CIFL because of our non-compliance to such regulatory requirements. We irrevocably agree and undertake to provide additional details of any transactions if so desired by the CIFL or that may be required by any government/regulatory authority from time to time. We hereby confirm and present that the person signing herein below has full authority to do so and execution hereof by him creates a legal, valid binding and enforceable obligation on us.";
-    const declLines = pdf.wrapText(declText, 490, 7.5);
-    declLines.forEach((ln, i) => { pdf.drawText(ln, 52, y - (i * 11)); });
-    y -= declLines.length * 11 + 30;
-
-    // Signature
-    if (y < 100) { pdf.addPage(); y = 780; }
-    pdf.setFont(9, true);
-    pdf.drawText("Authorized Signatory", 380, y);
     y -= 30;
-    pdf.drawLine(380, y + 8, 540, y + 8, 0.5);
+    if (y < 220) { pdf.addPage(); y = pageTop; }
+    pdf.drawLine(margin, y + 10, margin + tableW, y + 10, 1);
+    y -= 6;
+    pdf.setFont(12, true);
+    pdf.drawText("Declaration", margin, y);
+    y -= 18;
+    pdf.setFont(8.5, false);
+    const declText = "We hereby certify and declare that all our transactions are Bonafide transactions and that we will abide by the prevailing RBI rules, regulations, directives and notifications. We hereby indemnify CIFL and agree to keep it always indemnified against any claims, losses, damages, fines, penalties, cost, expenses, that may accrue or arise to CIFL because of our non-compliance to such regulatory requirements. We irrevocably agree and undertake to provide additional details of any transactions if so desired by the CIFL or that may be required by any government/regulatory authority from time to time. We hereby confirm and present that the person signing herein below has full authority to do so and execution hereof by him creates a legal, valid binding and enforceable obligation on us.";
+    const declLines = pdf.wrapText(declText, tableW - 10, 8.5);
+    declLines.forEach((ln, i) => { pdf.drawText(ln, margin + 4, y - (i * 12)); });
+    y -= declLines.length * 12 + 40;
+
+    if (y < 120) { pdf.addPage(); y = pageTop; }
+    pdf.setFont(10, true);
+    pdf.drawText("Authorized Signatory", 360, y);
+    y -= 35;
+    pdf.drawLine(360, y + 10, 540, y + 10, 0.5);
+    pdf.setFont(10, false);
+    pdf.drawText(`Name: ${this.getFormValue("signatoryName")}`, 360, y - 4);
+    pdf.drawText(`Designation: ${this.getFormValue("signatoryDesignation")}`, 360, y - 20);
+    pdf.drawText(`Date: ${this.getFormValue("signatoryDate")}`, 360, y - 36);
     pdf.setFont(9, false);
-    pdf.drawText(`Name: ${this.getFormValue("signatoryName")}`, 380, y - 6);
-    pdf.drawText(`Designation: ${this.getFormValue("signatoryDesignation")}`, 380, y - 20);
-    pdf.drawText(`Date: ${this.getFormValue("signatoryDate")}`, 380, y - 34);
-    pdf.drawText("(Round Seal)", 380, y - 52);
+    pdf.drawText("(Company Seal)", 360, y - 56);
 
     // Download
     const blob = pdf.build();
