@@ -652,6 +652,40 @@ body {
 .btn-sm { padding: 6px 14px; font-size: 0.8rem; }
 .btn-lg { padding: 14px 32px; font-size: 1rem; }
 
+.doc-tabs {
+  display: flex;
+  overflow-x: auto;
+  gap: 0;
+  border-bottom: 2px solid var(--border);
+  scrollbar-width: thin;
+}
+
+.doc-tab {
+  flex-shrink: 0;
+  padding: 10px 16px;
+  font-size: 0.78rem;
+  font-weight: 500;
+  background: none;
+  border: none;
+  border-bottom: 2px solid transparent;
+  margin-bottom: -2px;
+  color: var(--text-secondary);
+  cursor: pointer;
+  white-space: nowrap;
+  transition: all 0.15s;
+}
+
+.doc-tab:hover {
+  color: var(--primary);
+  background: rgba(99,102,241,0.06);
+}
+
+.doc-tab.active {
+  color: var(--primary);
+  border-bottom-color: var(--primary);
+  font-weight: 600;
+}
+
 .preview-container {
   background: white;
   color: #111;

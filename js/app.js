@@ -416,19 +416,32 @@ class OnboardingApp {
         <div class="card no-print" style="margin-bottom:16px">
           <div class="card-body" style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:12px">
             <div>
-              <div class="section-title">Form Preview</div>
-              <div class="section-desc" style="margin-bottom:0">Review the filled form before downloading</div>
+              <div class="section-title">Preview & Download Forms</div>
+              <div class="section-desc" style="margin-bottom:0">Select a document to preview, then download</div>
             </div>
             <div style="display:flex;gap:8px;flex-wrap:wrap">
               <button class="btn btn-secondary btn-sm" onclick="app.prevStep()">
                 <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>
                 Edit
               </button>
-              <button class="btn btn-primary btn-sm" onclick="app.downloadPdf()">
+            </div>
+          </div>
+        </div>
+        <div class="card no-print" style="margin-bottom:16px">
+          <div class="card-body" style="padding:0">
+            <div id="docTabs" class="doc-tabs">
+              <button class="doc-tab active" data-doc="onboarding" onclick="app.switchDocPreview('onboarding')">Client Onboarding</button>
+              <button class="doc-tab" data-doc="authSignatory" onclick="app.switchDocPreview('authSignatory')">Auth Signatory Letter</button>
+              <button class="doc-tab" data-doc="beneficialOwnership" onclick="app.switchDocPreview('beneficialOwnership')">Beneficial Ownership</button>
+              <button class="doc-tab" data-doc="corporateProfile" onclick="app.switchDocPreview('corporateProfile')">Corporate Profile / KYC</button>
+              <button class="doc-tab" data-doc="mou" onclick="app.switchDocPreview('mou')">Tour Operator MOU</button>
+            </div>
+            <div style="padding:12px 16px;display:flex;gap:8px;border-top:1px solid var(--border)" id="docDownloadBar">
+              <button class="btn btn-primary btn-sm" onclick="app.downloadCurrentPdf()" id="btnDownloadPdf" style="justify-content:center;flex:1">
                 <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
                 Download PDF
               </button>
-              <button class="btn btn-success btn-sm" onclick="app.downloadDocx()">
+              <button class="btn btn-success btn-sm" onclick="app.downloadCurrentDocx()" id="btnDownloadDocx" style="justify-content:center;flex:1">
                 <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
                 Download DOCX
               </button>
@@ -988,23 +1001,61 @@ class OnboardingApp {
   }
 
   renderPreview() {
+    this.activeDocPreview = "onboarding";
+    this.switchDocPreview("onboarding");
+  }
+
+  switchDocPreview(docId) {
+    this.activeDocPreview = docId;
+    document.querySelectorAll(".doc-tab").forEach(t => t.classList.toggle("active", t.dataset.doc === docId));
+    const pdfBtn = document.getElementById("btnDownloadPdf");
+    if (pdfBtn) pdfBtn.style.display = docId === "onboarding" ? "" : "none";
+    const previewEl = document.getElementById("previewContent");
+    const renderers = {
+      onboarding: () => this.renderOnboardingPreview(),
+      authSignatory: () => this.renderAuthSignatoryPreview(),
+      beneficialOwnership: () => this.renderBeneficialOwnershipPreview(),
+      corporateProfile: () => this.renderCorporateProfilePreview(),
+      mou: () => this.renderMouPreview(),
+    };
+    previewEl.innerHTML = renderers[docId]();
+  }
+
+  downloadCurrentPdf() {
+    if (this.activeDocPreview === "onboarding") this.downloadPdf();
+  }
+
+  downloadCurrentDocx() {
+    const map = {
+      onboarding: () => this.downloadDocx(),
+      authSignatory: () => this.downloadAuthSignatoryDocx(),
+      beneficialOwnership: () => this.downloadBeneficialOwnershipDocx(),
+      corporateProfile: () => this.downloadCorporateProfileDocx(),
+      mou: () => this.downloadMouDocx(),
+    };
+    if (map[this.activeDocPreview]) map[this.activeDocPreview]();
+  }
+
+  pRow(label, value) {
+    return `<tr><td style="width:260px;font-weight:500;background:#f9f9f9">${label}</td><td>${value || "—"}</td></tr>`;
+  }
+
+  renderOnboardingPreview() {
     const products = this.getCheckedValues("productsGroup");
     const productStr = products.length > 0 ? products.join(", ") : "Not specified";
     const stockListed = this.getRadioValue("stockExchangeGroup");
     const stockDetail = stockListed === "Yes" ? ` (${this.getFormValue("stockExchangeName")})` : "";
     const caseReg = this.getRadioValue("caseRegisteredGroup");
     const caseDetail = caseReg === "Yes" ? `\n${this.getFormValue("caseDetails")}` : "";
-
     const bankDetails = [
-      this.getFormValue("bankName"),
-      this.getFormValue("bankBranch"),
+      this.getFormValue("bankName"), this.getFormValue("bankBranch"),
       `Account: ${this.getFormValue("accountName")}`,
       `A/c No: ${this.getFormValue("accountNumber")}`,
       `Type: ${this.getFormValue("accountType")}`,
       `IFSC: ${this.getFormValue("ifscCode")}`
     ].filter(Boolean).join("\n");
 
-    document.getElementById("previewContent").innerHTML = `
+    return `
       <div class="preview-container">
         <div class="preview-header">
           <h1>Client Onboarding Form</h1>
@@ -1024,35 +1075,10 @@ class OnboardingApp {
             <tr><th></th><td>MSME/Udyam Number</td><td>${this.getFormValue("udyamNumber") || "—"}</td></tr>
             <tr><th>9</th><td>Products to be Availed</td><td>${productStr}</td></tr>
             <tr><th>10</th><td>Annual Estimated FX (INR)</td><td>${this.getFormValue("annualFx") || "—"}</td></tr>
-            <tr>
-              <th>11</th>
-              <td>Contact Person</td>
-              <td>
-                Name: ${this.getFormValue("contactName")}<br>
-                Designation: ${this.getFormValue("contactDesignation")}<br>
-                Mobile: ${this.getFormValue("contactMobile")}<br>
-                Email: ${this.getFormValue("contactEmail")}
-              </td>
-            </tr>
+            <tr><th>11</th><td>Contact Person</td><td>Name: ${this.getFormValue("contactName")}<br>Designation: ${this.getFormValue("contactDesignation")}<br>Mobile: ${this.getFormValue("contactMobile")}<br>Email: ${this.getFormValue("contactEmail")}</td></tr>
             <tr><th>12</th><td>Key Managerial Person (KMP)</td><td>${this.getFormValue("kmpName")}</td></tr>
-            <tr>
-              <th>13</th>
-              <td>CEO Details</td>
-              <td>
-                Name: ${this.getFormValue("ceoName")}<br>
-                Mobile: ${this.getFormValue("ceoMobile")}<br>
-                Email: ${this.getFormValue("ceoEmail")}
-              </td>
-            </tr>
-            <tr>
-              <th>14</th>
-              <td>MD / Partner / Trustee</td>
-              <td>
-                Name: ${this.getFormValue("mdName")}<br>
-                Mobile: ${this.getFormValue("mdMobile")}<br>
-                Email: ${this.getFormValue("mdEmail")}
-              </td>
-            </tr>
+            <tr><th>13</th><td>CEO Details</td><td>Name: ${this.getFormValue("ceoName")}<br>Mobile: ${this.getFormValue("ceoMobile")}<br>Email: ${this.getFormValue("ceoEmail")}</td></tr>
+            <tr><th>14</th><td>MD / Partner / Trustee</td><td>Name: ${this.getFormValue("mdName")}<br>Mobile: ${this.getFormValue("mdMobile")}<br>Email: ${this.getFormValue("mdEmail")}</td></tr>
             <tr><th>15</th><td>Directors / Partners</td><td style="white-space:pre-line">${this.getFormValue("directors")}</td></tr>
             <tr><th>16</th><td>Authorized Officials for FX</td><td style="white-space:pre-line">${this.getFormValue("authorizedOfficials")}</td></tr>
             <tr><th>17</th><td>Banking Details</td><td style="white-space:pre-line">${bankDetails}</td></tr>
@@ -1076,8 +1102,219 @@ class OnboardingApp {
             <div style="margin-top:12px;font-size:0.85rem;color:#666">(Round Seal)</div>
           </div>
         </div>
-      </div>
-    `;
+      </div>`;
+  }
+
+  renderAuthSignatoryPreview() {
+    const companyName = this.getFormValue("registeredName") || "";
+    const sigName = this.getFormValue("signatoryName") || this.getFormValue("kmpName") || "";
+    const sigDesig = this.getFormValue("signatoryDesignation") || this.getFormValue("contactDesignation") || "";
+    const contactName = this.getFormValue("contactName") || sigName;
+    const contactDesig = this.getFormValue("contactDesignation") || sigDesig;
+    const ceoName = this.getFormValue("ceoName") || sigName;
+    const today = this.todayFormatted();
+
+    return `
+      <div class="preview-container">
+        <div class="preview-header">
+          <h1>Authorised Signatory Letter</h1>
+          <p>(On Company/Firm's Letter Head)</p>
+        </div>
+        <p style="text-align:right"><strong>Date:</strong> ${today}</p>
+        <p>The Manager<br>Capital India Finance Limited</p>
+        <p><strong>Sub: Authority to Place Request / Authorized Signatory for Purchase / Sales of Foreign Exchange</strong></p>
+        <p>Dear Sir,</p>
+        <p>I/We, <strong>${companyName}</strong> (hereinafter referred to as "APPLICANT") have authorized the following person(s) as an authorized representative(s) of the APPLICANT to execute foreign exchange transactions with M/s Capital India Finance Limited (CIFL), from time to time, and to purchase Foreign Exchange for and on behalf of the APPLICANT against Cheque issued by the APPLICANT or against credit.</p>
+        <p><strong>The Signature of the authorized person(s)/representative(s) is attested below:</strong></p>
+        <table class="preview-table">
+          <thead><tr><th>Sr.</th><td><strong>Name</strong></td><td><strong>Designation</strong></td><td><strong>Signature</strong></td></tr></thead>
+          <tbody>
+            <tr><th>1</th><td>${contactName}</td><td>${contactDesig}</td><td style="height:40px"></td></tr>
+            <tr><th>2</th><td>${ceoName}</td><td>${sigDesig}</td><td style="height:40px"></td></tr>
+          </tbody>
+        </table>
+        <p style="margin-top:16px">This authority is irrevocable and binding on the APPLICANT as long as the APPLICANT continues to deal with CIFL for its Foreign Exchange requirements.</p>
+        <div class="preview-signature">
+          <div class="signature-block">
+            <div style="height:50px"></div>
+            <div class="signature-line">For <strong>${companyName}</strong></div>
+            <div>Name: <strong>${sigName}</strong></div>
+            <div>Designation: ${sigDesig}</div>
+          </div>
+        </div>
+      </div>`;
+  }
+
+  renderBeneficialOwnershipPreview() {
+    const companyName = this.getFormValue("registeredName") || "";
+    const address = this.getFormValue("registeredAddress") || "";
+    const sigName = this.getFormValue("signatoryName") || this.getFormValue("kmpName") || "";
+    const ownerName = this.getFormValue("kmpName") || this.getFormValue("contactName") || sigName;
+    const sigDesig = this.getFormValue("signatoryDesignation") || "";
+    const today = this.todayFormatted();
+
+    return `
+      <div class="preview-container">
+        <div class="preview-header">
+          <h1>Annexure 3 - Beneficial Ownership Details</h1>
+          <p>(Limited & Private Limited)</p>
+        </div>
+        <p style="text-align:right"><strong>Date:</strong> ${today}</p>
+        <p>To,<br>The Manager<br>Capital India Finance Limited</p>
+        <p><strong style="text-decoration:underline">Sub: Beneficial Ownership Details</strong></p>
+        <p>I, <strong>${sigName}</strong>, authorized signatory of M/s <strong>${companyName}</strong>, a company incorporated under the Companies Act, 1956 and having its registered office at <strong>${address}</strong>, hereby declare and state that the following natural person of our company holds more than 10% of the shares or capital or profits of the company which falls within the definition of Beneficial ownership as defined under PMLA, 2002.</p>
+        <table class="preview-table">
+          <thead><tr><th>Sr.</th><td><strong>Name & Address</strong></td><td><strong>Designation</strong></td><td><strong>% Shares</strong></td><td><strong>ID (PAN/Aadhaar)</strong></td></tr></thead>
+          <tbody>
+            <tr><th>1</th><td>${ownerName}, ${address}</td><td>${this.getFormValue("contactDesignation") || "Proprietor"}</td><td>100%</td><td>${this.getFormValue("panNo") || ""}</td></tr>
+            <tr><th>2</th><td></td><td></td><td></td><td></td></tr>
+            <tr><th>3</th><td></td><td></td><td></td><td></td></tr>
+          </tbody>
+        </table>
+        <p style="margin-top:16px">I further declare, in case of changes in the beneficial ownership structure of the company, I hereby undertake to furnish the details to you.</p>
+        <div class="preview-signature">
+          <div class="signature-block">
+            <div style="height:50px"></div>
+            <div class="signature-line">For M/s <strong>${companyName}</strong></div>
+            <div>Name: <strong>${sigName}</strong></div>
+            <div>Designation: ${sigDesig || "Director / Company Secretary"}</div>
+          </div>
+        </div>
+      </div>`;
+  }
+
+  renderCorporateProfilePreview() {
+    const companyName = this.getFormValue("registeredName") || "";
+    const legalStatus = this.getRadioValue("legalStatusGroup") || "";
+    const products = this.getCheckedValues("productsGroup");
+    const productStr = products.length > 0 ? products.join(", ") : "";
+    const stockExchange = this.getRadioValue("stockExchangeGroup") || "No";
+    const sigName = this.getFormValue("signatoryName") || this.getFormValue("kmpName") || "";
+    const sigDesig = this.getFormValue("signatoryDesignation") || legalStatus;
+    const today = this.todayFormatted();
+
+    return `
+      <div class="preview-container">
+        <div class="preview-header">
+          <h1>Annexure 2 - Corporate Profile</h1>
+          <p>Customer Profile - Money Changing Activities<br>(For Corporate, Goods & Services & Franchisees)</p>
+        </div>
+        <p style="font-size:0.8rem;color:#666;margin-bottom:16px"><em>Note: Each supporting document has to be certified as "True Copy" by an authorized person indicating his name and designation.</em></p>
+        <table class="preview-table">
+          <thead><tr><th>Sr.</th><td><strong>KYC Particulars</strong></td><td><strong>Details</strong></td></tr></thead>
+          <tbody>
+            <tr><th>1</th><td>Name of corporate entity</td><td><strong>${companyName}</strong></td></tr>
+            <tr><th>2</th><td>Registered Office address</td><td>${this.getFormValue("registeredAddress")}</td></tr>
+            <tr><th>3</th><td>Principal Place of Business</td><td>${this.getFormValue("principalPlace") || this.getFormValue("registeredAddress")}</td></tr>
+            <tr><th>4</th><td>Date of Incorporation</td><td>${this.getFormValue("dateOfIncorporation")}</td></tr>
+            <tr><th>5</th><td>PAN of the entity</td><td>${this.getFormValue("panNo") || "—"}</td></tr>
+            <tr><th>6</th><td>Nature of business / type of activity</td><td>${this.getFormValue("natureOfBusiness")}</td></tr>
+            <tr><th>7</th><td>Products offered / nature of services</td><td>${productStr}</td></tr>
+            <tr><th>8</th><td>Location of branches</td><td>${this.getFormValue("registeredAddress")}</td></tr>
+            <tr><th>9</th><td>Information about clients' business</td><td>Travel and Tour Operations</td></tr>
+            <tr><th>10</th><td>Listed on stock exchange(s)</td><td>${stockExchange}</td></tr>
+          </tbody>
+        </table>
+        <h3 style="margin:20px 0 12px;font-size:1rem">Management & Control Details</h3>
+        <table class="preview-table">
+          <tbody>
+            ${this.pRow("Ownership and control structure", `${legalStatus} - ${this.getFormValue("kmpName") || this.getFormValue("contactName")}`)}
+            ${this.pRow("Names of natural persons controlling entity", this.getFormValue("kmpName") || this.getFormValue("contactName"))}
+            ${this.pRow("Purpose of business relationship", "Foreign Exchange Purchase / TT for Tour Operations")}
+            ${this.pRow("Name of Chairman", this.getFormValue("kmpName") || this.getFormValue("ceoName"))}
+            ${this.pRow("Name of Managing Director / Partner / Trustee", this.getFormValue("mdName") || this.getFormValue("kmpName"))}
+            ${this.pRow("Name of Chief Executive Officer", this.getFormValue("ceoName") || this.getFormValue("kmpName"))}
+            ${this.pRow("Names of other directors / partners", this.getFormValue("directors"))}
+            ${this.pRow("Names of officials authorized for FX", this.getFormValue("authorizedOfficials") || this.getFormValue("contactName"))}
+            ${this.pRow("Names of bankers", this.getFormValue("bankName"))}
+            ${this.pRow("Sources of funds", "Business Revenue")}
+            ${this.pRow("Annual estimated FX required (INR)", this.getFormValue("annualFx"))}
+          </tbody>
+        </table>
+        <div class="preview-declaration">
+          <strong>Declaration</strong><br><br>
+          We hereby certify and declare that all our transactions are bonafide transactions and that we will abide by the prevailing RBI rules, regulations, directives and notifications.
+        </div>
+        <div class="preview-signature">
+          <div class="signature-block">
+            <div style="height:50px"></div>
+            <div class="signature-line">Authorized Signatory</div>
+            <div>Name: <strong>${sigName}</strong></div>
+            <div>Designation: ${sigDesig}</div>
+            <div>Date: ${this.getFormValue("signatoryDate") || today}</div>
+            <div style="margin-top:8px;font-size:0.85rem;color:#666">(Round Seal)</div>
+          </div>
+        </div>
+      </div>`;
+  }
+
+  renderMouPreview() {
+    const companyName = this.getFormValue("registeredName") || "[Company Name]";
+    const address = this.getFormValue("registeredAddress") || "[Company Address]";
+    const sigName = this.getFormValue("signatoryName") || this.getFormValue("kmpName") || "";
+    const sigDesig = this.getFormValue("signatoryDesignation") || "";
+    const today = this.todayFormatted();
+
+    return `
+      <div class="preview-container">
+        <div class="preview-header">
+          <h1>MEMORANDUM OF UNDERSTANDING (MOU)</h1>
+          <p>Overseas Tour Operator - CIFL - RemitX</p>
+        </div>
+        <p>This MOU is made on this <strong>${today}</strong> ("Effective Date") by and between</p>
+        <p><strong>Capital India Finance Limited</strong>, a company incorporated under the laws of India and having its registered office at 701, 7th floor, Aggarwal Corporate Tower, Plot No. 23, District Centre, Rajendra Place, New Delhi - 110008, hereinafter referred to as <strong>"CIFL"</strong></p>
+        <p style="text-align:center"><strong>AND</strong></p>
+        <p><strong>${companyName}</strong>, a company/legal entity incorporated under the applicable laws of India and having its registered office at <strong>${address}</strong>, carrying out the business of Travels and Tour Operator, hereinafter referred to as <strong>"Client"</strong></p>
+
+        <h3 style="margin:20px 0 8px">WHEREAS:</h3>
+        <p>A. CIFL is holding an Authorized Dealer Category II Money Changer License issued by RBI and is engaged in dealing in Foreign Exchange.</p>
+        <p>B. <strong>${companyName}</strong> is in the business of Overseas Tour Management.</p>
+        <p>C. <strong>${companyName}</strong> desires to avail the services of CIFL for sale/purchase of foreign exchange and telegraphic transfer for its customers.</p>
+
+        <h3 style="margin:20px 0 8px">1. SCOPE OF SERVICES</h3>
+        <p>1.1 The Client hereby appoints CIFL for providing foreign exchange services including sale/purchase of foreign currency and telegraphic transfers.</p>
+        <p>1.2 The Client shall provide an Authorization Letter authorizing specific persons to transact on behalf of the Client.</p>
+        <p>1.3 Service Requests shall be made via email or in person at CIFL branches.</p>
+        <p>1.4 The Client shall provide all KYC documents as per AML/PMLA requirements.</p>
+
+        <h3 style="margin:20px 0 8px">2. KYC AND AML REQUIREMENTS</h3>
+        <p>2.1 The Client shall provide all KYC documents as required under PMLA and RBI regulations.</p>
+        <p>2.2 CIFL may request fresh KYC documents periodically.</p>
+        <p>2.3 The Client shall notify CIFL immediately of any IATA/license revocations or regulatory actions.</p>
+
+        <h3 style="margin:20px 0 8px">3. TERM AND TERMINATION</h3>
+        <p>3.1 This MOU shall be effective for an initial term of 1 year from the Effective Date and shall auto-renew for successive periods of 1 year each.</p>
+        <p>3.2 Either party may terminate this MOU by providing 30 days written notice.</p>
+
+        <h3 style="margin:20px 0 8px">4. LIMITATION OF LIABILITY</h3>
+        <p>4.1 CIFL shall not be liable for: fraudulent transactions after delivery, third-party service failures, rejected service requests, delays in overseas disbursement, intermediary bank charges, incorrect client information, or remitting bank refusals.</p>
+
+        <table class="preview-table" style="margin-top:24px">
+          <tbody>
+            <tr>
+              <td style="width:50%;vertical-align:top;padding:16px">
+                <strong>FOR AND ON BEHALF OF</strong><br>
+                <strong>Capital India Finance Limited</strong><br><br>
+                Signature: _______________<br>
+                Name:<br>
+                Designation:
+              </td>
+              <td style="width:50%;vertical-align:top;padding:16px">
+                <strong>FOR AND ON BEHALF OF</strong><br>
+                <strong>${companyName}</strong><br><br>
+                Signature: _______________<br>
+                Name: <strong>${sigName}</strong><br>
+                Designation: ${sigDesig}
+              </td>
+            </tr>
+          </tbody>
+        </table>
+      </div>`;
+  }
+
+  todayFormatted() {
+    const d = new Date();
+    return `${d.getDate().toString().padStart(2,"0")}/${(d.getMonth()+1).toString().padStart(2,"0")}/${d.getFullYear()}`;
   }
 
   downloadPdf() {
@@ -1367,11 +1604,416 @@ class OnboardingApp {
     });
   }
 
+  docxContentTypes() {
+    return `<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types">
+  <Default Extension="rels" ContentType="application/vnd.openxmlformats-package.relationships+xml"/>
+  <Default Extension="xml" ContentType="application/xml"/>
+  <Override PartName="/word/document.xml" ContentType="application/vnd.openxmlformats-officedocument.wordprocessingml.document.main+xml"/>
+  <Override PartName="/word/styles.xml" ContentType="application/vnd.openxmlformats-officedocument.wordprocessingml.styles+xml"/>
+  <Override PartName="/word/settings.xml" ContentType="application/vnd.openxmlformats-officedocument.wordprocessingml.settings+xml"/>
+</Types>`;
+  }
+
+  docxRels() {
+    return `<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">
+  <Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/officeDocument" Target="word/document.xml"/>
+</Relationships>`;
+  }
+
+  docxWordRels() {
+    return `<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">
+  <Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/styles" Target="styles.xml"/>
+  <Relationship Id="rId2" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/settings" Target="settings.xml"/>
+</Relationships>`;
+  }
+
+  docxStyles() {
+    return `<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<w:styles xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main">
+  <w:style w:type="table" w:styleId="TableGrid">
+    <w:name w:val="Table Grid"/>
+    <w:tblPr>
+      <w:tblBorders>
+        <w:top w:val="single" w:sz="4" w:space="0" w:color="000000"/>
+        <w:left w:val="single" w:sz="4" w:space="0" w:color="000000"/>
+        <w:bottom w:val="single" w:sz="4" w:space="0" w:color="000000"/>
+        <w:right w:val="single" w:sz="4" w:space="0" w:color="000000"/>
+        <w:insideH w:val="single" w:sz="4" w:space="0" w:color="000000"/>
+        <w:insideV w:val="single" w:sz="4" w:space="0" w:color="000000"/>
+      </w:tblBorders>
+    </w:tblPr>
+  </w:style>
+</w:styles>`;
+  }
+
+  docxSettings() {
+    return `<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<w:settings xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main">
+  <w:compat><w:compatSetting w:name="compatibilityMode" w:uri="http://schemas.microsoft.com/office/word" w:val="15"/></w:compat>
+</w:settings>`;
+  }
+
+  buildAndDownloadDocx(bodyXml, filename) {
+    const docXml = `<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<w:document xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main">
+<w:body>${bodyXml}</w:body></w:document>`;
+    this.createDocxZip({
+      "[Content_Types].xml": this.docxContentTypes(),
+      "_rels/.rels": this.docxRels(),
+      "word/_rels/document.xml.rels": this.docxWordRels(),
+      "word/document.xml": docXml,
+      "word/styles.xml": this.docxStyles(),
+      "word/settings.xml": this.docxSettings(),
+    }, filename);
+  }
+
+  wp(text, opts = {}) {
+    const rpr = [];
+    if (opts.bold) rpr.push("<w:b/>");
+    if (opts.size) rpr.push(`<w:sz w:val="${opts.size}"/>`);
+    if (opts.underline) rpr.push(`<w:u w:val="single"/>`);
+    const rprStr = rpr.length ? `<w:rPr>${rpr.join("")}</w:rPr>` : "";
+    const ppr = [];
+    if (opts.align) ppr.push(`<w:jc w:val="${opts.align}"/>`);
+    if (opts.spacing) ppr.push(`<w:spacing w:after="${opts.spacing}"/>`);
+    const pprStr = ppr.length ? `<w:pPr>${ppr.join("")}</w:pPr>` : "";
+    return `<w:p>${pprStr}<w:r>${rprStr}<w:t xml:space="preserve">${this.escXml(text)}</w:t></w:r></w:p>`;
+  }
+
+  wtc(text, width, opts = {}) {
+    const rpr = [];
+    if (opts.bold) rpr.push("<w:b/>");
+    if (opts.size) rpr.push(`<w:sz w:val="${opts.size}"/>`);
+    const rprStr = rpr.length ? `<w:rPr>${rpr.join("")}</w:rPr>` : "";
+    return `<w:tc><w:tcPr><w:tcW w:w="${width}" w:type="dxa"/></w:tcPr><w:p><w:r>${rprStr}<w:t xml:space="preserve">${this.escXml(text)}</w:t></w:r></w:p></w:tc>`;
+  }
+
+  wtr(cells) { return `<w:tr>${cells.join("")}</w:tr>`; }
+
+  wtbl(rows) {
+    return `<w:tbl><w:tblPr><w:tblStyle w:val="TableGrid"/><w:tblW w:w="9500" w:type="dxa"/></w:tblPr>${rows.join("")}</w:tbl>`;
+  }
+
+  todayStr() {
+    const d = new Date();
+    return `${d.getDate().toString().padStart(2,"0")}/${(d.getMonth()+1).toString().padStart(2,"0")}/${d.getFullYear()}`;
+  }
+
+  downloadAuthSignatoryDocx() {
+    const e = (k) => this.escXml(this.getFormValue(k));
+    const companyName = this.getFormValue("registeredName") || "";
+    const sigName = this.getFormValue("signatoryName") || this.getFormValue("kmpName") || "";
+    const sigDesig = this.getFormValue("signatoryDesignation") || this.getFormValue("contactDesignation") || "";
+    const contactName = this.getFormValue("contactName") || sigName;
+    const contactDesig = this.getFormValue("contactDesignation") || sigDesig;
+    const ceoName = this.getFormValue("ceoName") || sigName;
+
+    const body = [
+      this.wp("(To be obtained on the Company/Firms Letter Head)", {align: "center", size: 18}),
+      this.wp(""),
+      this.wp(`Date: ${this.todayStr()}`, {align: "right"}),
+      this.wp(""),
+      this.wp("The Manager"),
+      this.wp("Capital India Finance Limited"),
+      this.wp(""),
+      this.wp("Sub: Authority to Place Request / Authorized Signatory for Purchase / Sales of Foreign Exchange", {bold: true, size: 22}),
+      this.wp(""),
+      this.wp("Dear Sir,"),
+      this.wp(""),
+      this.wp(`I/We, ${companyName} (hereinafter referred to as "APPLICANT") have authorized the following person(s) as an authorized representative(s) of the APPLICANT to execute foreign exchange transactions with M/s Capital India Finance Limited (CIFL), from time to time, and to purchase Foreign Exchange for and on behalf of the APPLICANT against Cheque issued by the APPLICANT or against credit. We have specifically authorized the person(s) named herein below to sign request letter for purchase / surrender of foreign exchange for the employees of the APPLICANT travelling abroad for and on behalf of the APPLICANT. We hereby take the complete responsibility for any transaction undertaken by the said authorized representative(s) with CIFL.`, {size: 20}),
+      this.wp(""),
+      this.wp("The Signature of the authorized person(s)/representative(s) is attested below:", {bold: true}),
+      this.wp(""),
+      this.wtbl([
+        this.wtr([
+          this.wtc("Sr. No", 800, {bold: true, size: 20}),
+          this.wtc("Name", 3400, {bold: true, size: 20}),
+          this.wtc("Designation", 2800, {bold: true, size: 20}),
+          this.wtc("Signature", 2500, {bold: true, size: 20}),
+        ]),
+        this.wtr([
+          this.wtc("1", 800, {size: 20}),
+          this.wtc(contactName, 3400, {size: 20}),
+          this.wtc(contactDesig, 2800, {size: 20}),
+          this.wtc("", 2500, {size: 20}),
+        ]),
+        this.wtr([
+          this.wtc("2", 800, {size: 20}),
+          this.wtc(ceoName, 3400, {size: 20}),
+          this.wtc(sigDesig, 2800, {size: 20}),
+          this.wtc("", 2500, {size: 20}),
+        ]),
+      ]),
+      this.wp(""),
+      this.wp("This authority is irrevocable and binding on the APPLICANT as long as the APPLICANT continues to deal with CIFL for its Foreign Exchange requirements. Further the APPLICANT is responsible to make payment for the foreign exchange released to the APPLICANT and its employees by CIFL from time to time under the instructions of our aforesaid authorized representative(s).", {size: 20}),
+      this.wp(""),
+      this.wp("In the event, we wish to change our authorized representative(s) for any reason whatsoever, it shall be mandatory on our part to inform the same in writing to CIFL and such writing must be acknowledged by the authorized representative(s) of CIFL. However, we specifically admit that any transaction undertaken by our aforesaid authorized representative(s) with CIFL, prior to the receipt of our written communication intimating the aforesaid modification for change of the APPLICANT's 'authorized representative(s)' shall be binding on us. We further declare that the undersigned has the approval from Board to give this letter of authority on behalf of the APPLICANT.", {size: 20}),
+      this.wp(""),
+      this.wp("The identity proofs of the aforesaid authorized person(s) and for the undersigned are enclosed herewith.", {size: 20}),
+      this.wp(""),
+      this.wp(`For ${companyName}`, {bold: true}),
+      this.wp(""),
+      this.wp(""),
+      this.wp("Signature: ___________________________"),
+      this.wp(`Name: ${sigName}`),
+      this.wp(`Designation: ${sigDesig}`),
+      this.wp(""),
+      this.wp("Encl.: Officially valid documents of"),
+      this.wp("1. PAN Card"),
+      this.wp("2. Aadhaar Card"),
+    ];
+
+    this.buildAndDownloadDocx(body.join(""), `Authorised_Signatory_Letter_${companyName.replace(/\s+/g,"_")}.docx`);
+  }
+
+  downloadBeneficialOwnershipDocx() {
+    const companyName = this.getFormValue("registeredName") || "";
+    const address = this.getFormValue("registeredAddress") || "";
+    const sigName = this.getFormValue("signatoryName") || this.getFormValue("kmpName") || "";
+    const ownerName = this.getFormValue("kmpName") || this.getFormValue("contactName") || sigName;
+
+    const body = [
+      this.wp("Annexure 3 - Beneficial Ownership Details", {bold: true, align: "center", size: 24}),
+      this.wp("(Limited & Private Limited)", {align: "center", size: 20}),
+      this.wp(""),
+      this.wp(`Date: ${this.todayStr()}`, {align: "right"}),
+      this.wp(""),
+      this.wp("To,"),
+      this.wp("The Manager"),
+      this.wp("Capital India Finance Limited"),
+      this.wp(""),
+      this.wp("Dear Sir,"),
+      this.wp(""),
+      this.wp("Sub: Beneficial Ownership Details", {bold: true, underline: true}),
+      this.wp(""),
+      this.wp(`I, ${sigName}, authorized signatory of M/s ${companyName}, a company incorporated under the Companies Act, 1956 and having its registered office at ${address}, hereby declare and state that the following natural person of our company holds more than 10% of the shares or capital or profits of the company which falls within the definition of Beneficial ownership as defined under PMLA, 2002.`, {size: 20}),
+      this.wp(""),
+      this.wtbl([
+        this.wtr([
+          this.wtc("Sr.No.", 600, {bold: true, size: 20}),
+          this.wtc("Name and address of the natural person/s", 3200, {bold: true, size: 20}),
+          this.wtc("Designation", 1600, {bold: true, size: 20}),
+          this.wtc("% of shares held", 1400, {bold: true, size: 20}),
+          this.wtc("ID No (PAN/Aadhaar)", 2700, {bold: true, size: 20}),
+        ]),
+        this.wtr([
+          this.wtc("1", 600, {size: 20}),
+          this.wtc(`${ownerName}, ${address}`, 3200, {size: 20}),
+          this.wtc(this.getFormValue("contactDesignation") || "Proprietor", 1600, {size: 20}),
+          this.wtc("100%", 1400, {size: 20}),
+          this.wtc(this.getFormValue("panNo") || "", 2700, {size: 20}),
+        ]),
+        this.wtr([
+          this.wtc("2", 600, {size: 20}),
+          this.wtc("", 3200, {size: 20}),
+          this.wtc("", 1600, {size: 20}),
+          this.wtc("", 1400, {size: 20}),
+          this.wtc("", 2700, {size: 20}),
+        ]),
+        this.wtr([
+          this.wtc("3", 600, {size: 20}),
+          this.wtc("", 3200, {size: 20}),
+          this.wtc("", 1600, {size: 20}),
+          this.wtc("", 1400, {size: 20}),
+          this.wtc("", 2700, {size: 20}),
+        ]),
+      ]),
+      this.wp(""),
+      this.wp("I further declare, in case of changes in the beneficial ownership structure of the company, I hereby undertake to furnish the details to you.", {size: 20}),
+      this.wp(""),
+      this.wp(""),
+      this.wp(`For M/s ${companyName}`, {bold: true}),
+      this.wp(""),
+      this.wp(""),
+      this.wp(`Name: ${sigName}`),
+      this.wp(`Designation: ${this.getFormValue("signatoryDesignation") || "Director / Company Secretary"}`),
+    ];
+
+    this.buildAndDownloadDocx(body.join(""), `Beneficial_Ownership_${companyName.replace(/\s+/g,"_")}.docx`);
+  }
+
+  downloadCorporateProfileDocx() {
+    const e = (k) => this.getFormValue(k) || "";
+    const companyName = e("registeredName");
+    const legalStatus = this.getRadioValue("legalStatusGroup") || "";
+    const stockExchange = this.getRadioValue("stockExchangeGroup") || "No";
+    const products = this.getCheckedValues("productsGroup");
+    const productStr = products.length > 0 ? products.join(", ") : "";
+
+    const kycRows = [
+      ["1", "Name of corporate entity", companyName],
+      ["2", "Registered Office address", e("registeredAddress")],
+      ["3", "Principal Place of Business", e("principalPlace") || e("registeredAddress")],
+      ["4", "Date of Incorporation", e("dateOfIncorporation")],
+      ["5", "PAN of the entity", e("panNo")],
+      ["6", "Nature of business / type of activity", e("natureOfBusiness")],
+      ["7", "Products offered / nature of services", productStr],
+      ["8", "Location of branches", e("registeredAddress")],
+      ["9", "Information about clients' business", "Travel and Tour Operations"],
+      ["10", "Listed on stock exchange(s)", stockExchange],
+    ];
+
+    const mgmtRows = [
+      ["Ownership and control structure", `${legalStatus} - ${e("kmpName") || e("contactName")}`],
+      ["Names of natural persons controlling entity", e("kmpName") || e("contactName")],
+      ["Purpose of business relationship", "Foreign Exchange Purchase / Telegraphic Transfer for Tour Operations"],
+      ["Name of Chairman", e("kmpName") || e("ceoName")],
+      ["Name of Managing Director / Partner / Trustee", e("mdName") || e("kmpName")],
+      ["Name of Chief Executive Officer", e("ceoName") || e("kmpName")],
+      ["Names of other directors / partners", e("directors")],
+      ["Names of officials authorized for FX", e("authorizedOfficials") || e("contactName")],
+      ["Names of bankers", e("bankName")],
+      ["Sources of funds", "Business Revenue"],
+      ["Annual estimated FX required (INR)", e("annualFx")],
+    ];
+
+    const body = [
+      this.wp("Annexure 2 - Corporate Profile", {bold: true, align: "center", size: 26}),
+      this.wp("Customer Profile - Money Changing Activities", {align: "center", size: 22}),
+      this.wp("(For Corporate, Goods & Services & Franchisees)", {align: "center", size: 18}),
+      this.wp(""),
+      this.wp("Note: Each supporting document has to be certified as \"True Copy\" by an authorized person indicating his name and designation.", {size: 18}),
+      this.wp(""),
+      this.wtbl([
+        this.wtr([
+          this.wtc("Sr. No.", 700, {bold: true, size: 20}),
+          this.wtc("KYC Particulars", 4000, {bold: true, size: 20}),
+          this.wtc("Details", 4800, {bold: true, size: 20}),
+        ]),
+        ...kycRows.map(([sr, label, val]) =>
+          this.wtr([
+            this.wtc(sr, 700, {size: 20}),
+            this.wtc(label, 4000, {size: 20}),
+            this.wtc(val, 4800, {size: 20}),
+          ])
+        ),
+      ]),
+      this.wp(""),
+      this.wp("Management & Control Details", {bold: true, size: 22}),
+      this.wp(""),
+      this.wtbl([
+        this.wtr([
+          this.wtc("Particular", 4500, {bold: true, size: 20}),
+          this.wtc("Details", 5000, {bold: true, size: 20}),
+        ]),
+        ...mgmtRows.map(([label, val]) =>
+          this.wtr([
+            this.wtc(label, 4500, {size: 20}),
+            this.wtc(val, 5000, {size: 20}),
+          ])
+        ),
+      ]),
+      this.wp(""),
+      this.wp("Declaration", {bold: true, size: 22}),
+      this.wp("We hereby certify and declare that all our transactions are bonafide transactions and that we will abide by the prevailing RBI rules, regulations, directives and notifications.", {size: 20}),
+      this.wp(""),
+      this.wp(""),
+      this.wp("Authorized Signatory", {bold: true, align: "right"}),
+      this.wp(`Name: ${e("signatoryName") || e("kmpName")}`, {align: "right"}),
+      this.wp(`Designation: ${e("signatoryDesignation") || legalStatus}`, {align: "right"}),
+      this.wp(`Date: ${e("signatoryDate") || this.todayStr()}`, {align: "right"}),
+      this.wp("(Round Seal)", {align: "right"}),
+    ];
+
+    this.buildAndDownloadDocx(body.join(""), `Corporate_Profile_KYC_${companyName.replace(/\s+/g,"_")}.docx`);
+  }
+
+  downloadMouDocx() {
+    const companyName = this.getFormValue("registeredName") || "[Company Name]";
+    const address = this.getFormValue("registeredAddress") || "[Company Address]";
+    const sigName = this.getFormValue("signatoryName") || this.getFormValue("kmpName") || "";
+    const sigDesig = this.getFormValue("signatoryDesignation") || "";
+    const today = this.todayStr();
+
+    const body = [
+      this.wp("MEMORANDUM OF UNDERSTANDING (MOU)", {bold: true, align: "center", size: 28}),
+      this.wp(""),
+      this.wp(`This MOU is made on this ${today} ("Effective Date") by and between`, {size: 20}),
+      this.wp(""),
+      this.wp("Capital India Finance Limited, a company incorporated under the laws of India and having its registered office at 701, 7th floor, Aggarwal Corporate Tower, Plot No. 23, District Centre, Rajendra Place, New Delhi - 110008, hereinafter referred to as \"CIFL\"", {size: 20, bold: false}),
+      this.wp(""),
+      this.wp("AND", {bold: true, align: "center", size: 22}),
+      this.wp(""),
+      this.wp(`${companyName}, a company/legal entity incorporated under the applicable laws of India and having its registered office at ${address}, carrying out the business of Travels and Tour Operator, hereinafter referred to as "Client"`, {size: 20}),
+      this.wp(""),
+      this.wp("WHEREAS:", {bold: true, size: 22}),
+      this.wp(`A. CIFL is holding an Authorized Dealer Category II Money Changer License issued by the Reserve Bank of India ("RBI") and is inter-alia engaged in the business of dealing in Foreign Exchange.`, {size: 20}),
+      this.wp(`B. ${companyName} is in the business of Overseas Tour Management.`, {size: 20}),
+      this.wp(`C. ${companyName} desires to avail the services of CIFL for sale/purchase of foreign exchange and telegraphic transfer for its customers.`, {size: 20}),
+      this.wp(""),
+      this.wp("1. SCOPE OF SERVICES", {bold: true, size: 22}),
+      this.wp(`1.1 The Client hereby appoints CIFL for providing foreign exchange services including sale/purchase of foreign currency and telegraphic transfers.`, {size: 20}),
+      this.wp(`1.2 The Client shall provide an Authorization Letter authorizing specific persons to transact on behalf of the Client.`, {size: 20}),
+      this.wp(`1.3 Service Requests shall be made via email or in person at CIFL branches.`, {size: 20}),
+      this.wp(`1.4 The Client shall provide all KYC documents as per AML/PMLA requirements.`, {size: 20}),
+      this.wp(`1.5 Foreign exchange shall be handed only to identified Customer representatives.`, {size: 20}),
+      this.wp(`1.6 For telegraphic transfers, TCS/tax collection responsibility shall be on the Client.`, {size: 20}),
+      this.wp(`1.7 The Client shall comply with all RBI/KYC/FEMA regulations.`, {size: 20}),
+      this.wp(`1.8 Payment shall be against clear funds only.`, {size: 20}),
+      this.wp(`1.9 The Client shall verify "Source of Funds" for all transactions.`, {size: 20}),
+      this.wp(""),
+      this.wp("2. KYC AND AML REQUIREMENTS", {bold: true, size: 22}),
+      this.wp(`2.1 The Client shall provide all KYC documents as required under PMLA and RBI regulations.`, {size: 20}),
+      this.wp(`2.2 CIFL may request fresh KYC documents periodically.`, {size: 20}),
+      this.wp(`2.3 The Client shall notify CIFL immediately of any IATA/license revocations or regulatory actions.`, {size: 20}),
+      this.wp(""),
+      this.wp("3. TERM AND TERMINATION", {bold: true, size: 22}),
+      this.wp(`3.1 This MOU shall be effective for an initial term of 1 (one) year from the Effective Date and shall auto-renew for successive periods of 1 (one) year each.`, {size: 20}),
+      this.wp(`3.2 Either party may terminate this MOU by providing 30 days written notice.`, {size: 20}),
+      this.wp(`3.3 CIFL may immediately terminate this MOU in the event of any legal or compliance violation by the Client.`, {size: 20}),
+      this.wp(""),
+      this.wp("4. LIMITATION OF LIABILITY", {bold: true, size: 22}),
+      this.wp(`4.1 CIFL shall not be liable for: fraudulent transactions after delivery, third-party service failures, rejected service requests, delays in overseas disbursement, intermediary bank charges, incorrect client information, or remitting bank refusals.`, {size: 20}),
+      this.wp(""),
+      this.wp(""),
+      this.wtbl([
+        this.wtr([
+          this.wtc("FOR AND ON BEHALF OF", 4750, {bold: true, size: 20}),
+          this.wtc("FOR AND ON BEHALF OF", 4750, {bold: true, size: 20}),
+        ]),
+        this.wtr([
+          this.wtc("Capital India Finance Limited", 4750, {bold: true, size: 20}),
+          this.wtc(companyName, 4750, {bold: true, size: 20}),
+        ]),
+        this.wtr([
+          this.wtc("Signature: _______________", 4750, {size: 20}),
+          this.wtc("Signature: _______________", 4750, {size: 20}),
+        ]),
+        this.wtr([
+          this.wtc("Name:", 4750, {size: 20}),
+          this.wtc(`Name: ${sigName}`, 4750, {size: 20}),
+        ]),
+        this.wtr([
+          this.wtc("Designation:", 4750, {size: 20}),
+          this.wtc(`Designation: ${sigDesig}`, 4750, {size: 20}),
+        ]),
+        this.wtr([
+          this.wtc("Witness: _______________", 4750, {size: 20}),
+          this.wtc("Witness: _______________", 4750, {size: 20}),
+        ]),
+      ]),
+      this.wp(""),
+      this.wp("ANNEXURE A - Tour Remittance Transaction Documents:", {bold: true, size: 22}),
+      this.wp("1. FORM A2 and Application cum declaration signed by the Authorised signatory", {size: 20}),
+      this.wp("2. Attested copy of Invoice from overseas beneficiary", {size: 20}),
+      this.wp("3. List of Passengers in excel sheet for whom the remittance is being made", {size: 20}),
+      this.wp("4. Self-attested Passport copies & PAN copies of passengers travelling abroad", {size: 20}),
+      this.wp("5. Air Ticket Copies and Visa Copies of passengers travelling abroad", {size: 20}),
+      this.wp("6. TCS Declaration", {size: 20}),
+      this.wp("7. Any other documentation as may be required by the remitting bank", {size: 20}),
+    ];
+
+    this.buildAndDownloadDocx(body.join(""), `Tour_Operator_MOU_${companyName.replace(/\s+/g,"_")}.docx`);
+  }
+
   escXml(str) {
     return String(str || "").replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;");
   }
 
-  createDocxZip(files) {
+  createDocxZip(files, filename) {
     const encoder = new TextEncoder();
     const parts = [];
     const centralDir = [];
@@ -1445,12 +2087,12 @@ class OnboardingApp {
     const url = URL.createObjectURL(blob);
     const a = document.createElement("a");
     a.href = url;
-    a.download = `Corporate_Client_Onboarding_${this.getFormValue("registeredName").replace(/\s+/g, "_") || "Form"}.docx`;
+    a.download = filename || `Corporate_Client_Onboarding_${this.getFormValue("registeredName").replace(/\s+/g, "_") || "Form"}.docx`;
     document.body.appendChild(a);
     a.click();
     document.body.removeChild(a);
     URL.revokeObjectURL(url);
-    this.showToast("DOCX file downloaded successfully!", "success");
+    this.showToast(`${a.download} downloaded!`, "success");
   }
 
   crc32(data) {
