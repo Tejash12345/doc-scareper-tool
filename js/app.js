@@ -338,15 +338,21 @@ class OnboardingApp {
             </div>
             <div class="sub-card">
               <div class="sub-card-title">15. Directors / Partners</div>
-              <div class="form-grid single">
-                <div class="form-group"><label class="form-label">Names (as per MCA)</label><textarea class="form-textarea" id="directors" rows="2" placeholder="List all directors/partners"></textarea></div>
+              <div id="directorRows">
+                <div class="kmp-row form-grid single">
+                  <div class="form-group"><label class="form-label">Name (as per MCA)</label><input class="form-input director-input" type="text" id="directorName1" placeholder="Director/Partner name"></div>
+                </div>
               </div>
+              <button class="btn btn-outline btn-sm" type="button" onclick="app.addDirectorRow()">+ Add New Row</button>
             </div>
             <div class="sub-card">
               <div class="sub-card-title">16. Authorized Officials for FX Transactions</div>
-              <div class="form-grid single">
-                <div class="form-group"><label class="form-label">Names of authorized officials</label><textarea class="form-textarea" id="authorizedOfficials" rows="2" placeholder="Officials authorized to transact FX on behalf of company"></textarea></div>
+              <div id="officialRows">
+                <div class="kmp-row form-grid single">
+                  <div class="form-group"><label class="form-label">Name of authorized official</label><input class="form-input official-input" type="text" id="officialName1" placeholder="Official name"></div>
+                </div>
               </div>
+              <button class="btn btn-outline btn-sm" type="button" onclick="app.addOfficialRow()">+ Add New Row</button>
             </div>
             <div class="form-actions">
               <button class="btn btn-secondary" onclick="app.prevStep()">
@@ -376,9 +382,8 @@ class OnboardingApp {
                 17. Banking Details
                 <span class="source-badge" id="badge_bankName"></span>
               </div>
-              <div class="form-grid">
+              <div class="form-grid single">
                 <div class="form-group"><label class="form-label">Bank Name</label><input class="form-input" type="text" id="bankName" placeholder="Bank name"></div>
-                <div class="form-group"><label class="form-label">Account Name (Company)</label><input class="form-input" type="text" id="accountName" placeholder="Company name on bank account"></div>
               </div>
             </div>
             <div class="sub-card">
@@ -538,12 +543,31 @@ class OnboardingApp {
       setVal("mdName", fm.mdPartnerTrustee.name, "UDYAM");
       setVal("mdMobile", fm.mdPartnerTrustee.mobile, "UDYAM");
       setVal("mdEmail", fm.mdPartnerTrustee.email, "UDYAM");
-      setVal("directors", fm.directors, "UDYAM");
-      setVal("authorizedOfficials", fm.authorizedOfficials, "UDYAM");
+      // Fill director rows from UDYAM
+      if (fm.directors) {
+        const dirNames = fm.directors.split("\n").map(n => n.trim()).filter(Boolean);
+        const dirInput1 = document.getElementById("directorName1");
+        if (dirInput1 && dirNames[0]) { dirInput1.value = dirNames[0]; dirInput1.classList.add("auto-filled"); }
+        for (let i = 1; i < dirNames.length; i++) {
+          this.addDirectorRow();
+          const rows = document.querySelectorAll("#directorRows .director-input");
+          if (rows[i]) { rows[i].value = dirNames[i]; rows[i].classList.add("auto-filled"); }
+        }
+      }
+      // Fill official rows from UDYAM
+      if (fm.authorizedOfficials) {
+        const offNames = fm.authorizedOfficials.split(",").map(n => n.trim()).filter(Boolean);
+        const offInput1 = document.getElementById("officialName1");
+        if (offInput1 && offNames[0]) { offInput1.value = offNames[0]; offInput1.classList.add("auto-filled"); }
+        for (let i = 1; i < offNames.length; i++) {
+          this.addOfficialRow();
+          const rows = document.querySelectorAll("#officialRows .official-input");
+          if (rows[i]) { rows[i].value = offNames[i]; rows[i].classList.add("auto-filled"); }
+        }
+      }
 
       setVal("bankName", bs.bankName, "BANK");
       setVal("bankBranch", bs.branchAddress, "BANK");
-      setVal("accountName", bs.accountName, "BANK");
       setVal("accountNumber", bs.accountNumber, "BANK");
       setVal("accountType", bs.accountType, "BANK");
       setVal("ifscCode", bs.ifsc, "BANK");
@@ -556,6 +580,9 @@ class OnboardingApp {
       this.setBadge("legalStatus", "UDYAM");
       this.selectRadio("stockExchangeGroup", fm.listedOnStockExchange);
       this.selectRadio("caseRegisteredGroup", fm.caseRegistered);
+      this.selectCheckbox("productsGroup", ["Telegraphic Transfer", "Forex Prepaid Cards", "Foreign Currency Notes"]);
+      if (!document.getElementById("companyWebsite")?.value) setVal("companyWebsite", "NA", "AUTO");
+      if (!document.getElementById("annualFx")?.value) setVal("annualFx", "NA", "AUTO");
 
       this.uploadedFiles = [
         { id: "pre-1", name: "Bank Statement (Union Bank of India)", status: "success", docType: "Bank Statement", fieldsExtracted: 8 },
@@ -627,9 +654,67 @@ class OnboardingApp {
       reader.onerror = () => reject(new Error("Failed to read file"));
       reader.readAsArrayBuffer(file);
     });
-    const extractor = new PdfTextExtractor();
-    const text = await extractor.extract(arrayBuffer);
+
+    let text = "";
+
+    if (typeof pdfjsLib !== "undefined") {
+      try {
+        pdfjsLib.GlobalWorkerOptions.workerSrc = "https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js";
+        const pdf = await pdfjsLib.getDocument({ data: new Uint8Array(arrayBuffer) }).promise;
+        const pages = [];
+        for (let i = 1; i <= pdf.numPages; i++) {
+          const page = await pdf.getPage(i);
+          const content = await page.getTextContent();
+          const pageText = content.items.map(item => item.str).join(" ");
+          pages.push(pageText);
+        }
+        text = pages.join("\n").replace(/\s+/g, " ").trim();
+      } catch (e) {
+        console.warn("PDF.js extraction failed, falling back:", e.message);
+      }
+    }
+
+    if (text.length < 50) {
+      try {
+        const extractor = new PdfTextExtractor();
+        const fallback = await extractor.extract(arrayBuffer);
+        if (fallback.length > text.length) text = fallback;
+      } catch (e) {}
+    }
+
+    if (text.length < 30 && typeof Tesseract !== "undefined") {
+      try {
+        this.showLoading("Running OCR on scanned document...");
+        const ocrText = await this.ocrPdf(arrayBuffer);
+        if (ocrText.length > text.length) text = ocrText;
+      } catch (e) {
+        console.warn("Tesseract OCR failed:", e.message);
+      }
+    }
+
     return text;
+  }
+
+  async ocrPdf(arrayBuffer) {
+    if (typeof pdfjsLib === "undefined" || typeof Tesseract === "undefined") return "";
+    pdfjsLib.GlobalWorkerOptions.workerSrc = "https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js";
+    const pdf = await pdfjsLib.getDocument({ data: new Uint8Array(arrayBuffer) }).promise;
+    const maxPages = Math.min(pdf.numPages, 5);
+    const texts = [];
+    const worker = await Tesseract.createWorker("eng");
+    for (let i = 1; i <= maxPages; i++) {
+      const page = await pdf.getPage(i);
+      const viewport = page.getViewport({ scale: 2.0 });
+      const canvas = document.createElement("canvas");
+      canvas.width = viewport.width;
+      canvas.height = viewport.height;
+      const ctx = canvas.getContext("2d");
+      await page.render({ canvasContext: ctx, viewport }).promise;
+      const { data } = await worker.recognize(canvas);
+      if (data.text.trim()) texts.push(data.text.trim());
+    }
+    await worker.terminate();
+    return texts.join("\n").replace(/\s+/g, " ").trim();
   }
 
   detectDocumentType(text) {
@@ -937,6 +1022,23 @@ class OnboardingApp {
         }
       }
 
+      const gstEmailM = t.match(/(?:E[\-\s]?mail|Email\s*(?:Address|ID)?)\s*[:\-]?\s*([a-zA-Z0-9._%+\-]+@[a-zA-Z0-9.\-]+\.[a-zA-Z]{2,})/i);
+      if (gstEmailM) fields.gstEmail = gstEmailM[1].toLowerCase();
+      const gstMobileM = t.match(/(?:Mobile|Phone|Contact|Telephone)\s*(?:No\.?|Number)?\s*[:\-]?\s*(?:\+?91[\s\-]?)?(\d{10})/i);
+      if (gstMobileM) fields.gstMobile = gstMobileM[1];
+      if (!gstMobileM) {
+        const mob10 = t.match(/\b([6-9]\d{9})\b/);
+        if (mob10) fields.gstMobile = mob10[1];
+      }
+
+      const desigBlock = (fields.gstPartners || fields.gstDirectors || []).length > 0 ? t : "";
+      if (desigBlock) {
+        const desigMatches = desigBlock.match(/(?:Designation)\s*[:\-]?\s*(Partner|Director|Proprietor|Managing\s*Partner|Designated\s*Partner|Karta|Trustee|Managing\s*Director|Whole\s*Time\s*Director)/gi);
+        if (desigMatches && desigMatches.length > 0) {
+          fields.gstPersonDesignations = desigMatches.map(d => d.replace(/^Designation\s*[:\-]?\s*/i, "").trim());
+        }
+      }
+
       if (!fields.gstAddress) {
         const fullAddr = this.buildAddress(fields);
         if (fullAddr) fields.gstAddress = fullAddr;
@@ -994,10 +1096,10 @@ class OnboardingApp {
     const cleanName = personName.replace(/^(MR|MS|MRS|SHRI|SMT|M\/S)\s+/i, "").trim();
     const nameSource = d.ownerName ? "UDYAM" : d.panHolderName ? "PAN" : personNames.length > 0 ? "GST" : d.bankAccountHolderName ? "BANK" : "";
 
-    const mobile = d.udyamMobile || d.extractedMobile || "";
-    const mobileSource = d.udyamMobile ? "UDYAM" : d.extractedMobile ? "DOC" : "";
-    const email = d.udyamEmail || d.extractedEmail || "";
-    const emailSource = d.udyamEmail ? "UDYAM" : d.extractedEmail ? "DOC" : "";
+    const mobile = d.udyamMobile || d.gstMobile || d.extractedMobile || "";
+    const mobileSource = d.udyamMobile ? "UDYAM" : d.gstMobile ? "GST" : d.extractedMobile ? "DOC" : "";
+    const email = d.udyamEmail || d.gstEmail || d.extractedEmail || "";
+    const emailSource = d.udyamEmail ? "UDYAM" : d.gstEmail ? "GST" : d.extractedEmail ? "DOC" : "";
 
     setVal("registeredName", companyName, companySource);
     setVal("registeredAddress", address, addrSource);
@@ -1041,19 +1143,38 @@ class OnboardingApp {
 
     if (personNames.length > 0) {
       const pSource = d.gstPartners ? "GST" : d.gstDirectors ? "GST" : nameSource;
-      setVal("directors", personNames.map(n => `${n} (${desig})`).join("\n"), pSource);
-      setVal("authorizedOfficials", personNames.join(", "), pSource);
+      const personDesigs = d.gstPersonDesignations || [];
+      const dirLabel = (name, idx) => {
+        const pd = personDesigs[idx] || desig;
+        return pd ? name + " (" + pd + ")" : name;
+      };
+      const dirInput1 = document.getElementById("directorName1");
+      if (dirInput1 && personNames[0]) { dirInput1.value = dirLabel(personNames[0], 0); dirInput1.classList.add("auto-filled"); }
+      for (let i = 1; i < personNames.length; i++) {
+        this.addDirectorRow();
+        const rows = document.querySelectorAll("#directorRows .director-input");
+        if (rows[i]) { rows[i].value = dirLabel(personNames[i], i); rows[i].classList.add("auto-filled"); }
+      }
+      // Fill official rows
+      const offInput1 = document.getElementById("officialName1");
+      if (offInput1 && personNames[0]) { offInput1.value = personNames[0]; offInput1.classList.add("auto-filled"); }
+      for (let i = 1; i < personNames.length; i++) {
+        this.addOfficialRow();
+        const rows = document.querySelectorAll("#officialRows .official-input");
+        if (rows[i]) { rows[i].value = personNames[i]; rows[i].classList.add("auto-filled"); }
+      }
       if (!cleanName) {
         setVal("signatoryName", personNames[0], pSource);
         setVal("signatoryDesignation", desig, pSource);
       }
     } else if (cleanName) {
-      setVal("directors", `${cleanName} (${desig})`, nameSource);
-      setVal("authorizedOfficials", cleanName, nameSource);
+      const dirInput1 = document.getElementById("directorName1");
+      if (dirInput1) { dirInput1.value = cleanName; dirInput1.classList.add("auto-filled"); }
+      const offInput1 = document.getElementById("officialName1");
+      if (offInput1) { offInput1.value = cleanName; offInput1.classList.add("auto-filled"); }
     }
 
     setVal("bankName", d.bankName, "BANK");
-    setVal("accountName", d.bankAccountName || companyName, d.bankAccountName ? "BANK" : companySource);
 
     const legalStatus = this.detectLegalStatus(d, companyName);
     if (legalStatus) {
@@ -1063,6 +1184,16 @@ class OnboardingApp {
     }
     this.selectRadio("stockExchangeGroup", "No");
     this.selectRadio("caseRegisteredGroup", "No");
+
+    this.selectCheckbox("productsGroup", ["Telegraphic Transfer", "Forex Prepaid Cards", "Foreign Currency Notes"]);
+    this.setBadge("products", "AUTO");
+
+    if (!document.getElementById("companyWebsite")?.value) {
+      setVal("companyWebsite", "NA", "AUTO");
+    }
+    if (!document.getElementById("annualFx")?.value) {
+      setVal("annualFx", "NA", "AUTO");
+    }
   }
 
   setBadge(fieldId, source) {
@@ -1110,7 +1241,46 @@ class OnboardingApp {
     if (row) row.remove();
   }
 
+  addDirectorRow() {
+    const container = document.getElementById("directorRows");
+    const count = container.querySelectorAll(".kmp-row").length + 1;
+    const row = document.createElement("div");
+    row.className = "kmp-row form-grid single";
+    row.innerHTML = '<div class="form-group kmp-row-group"><label class="form-label">Director/Partner ' + count + '</label><div class="kmp-input-wrap"><input class="form-input director-input" type="text" placeholder="Director/Partner name"><button class="btn-remove-kmp" type="button" onclick="app.removeDirectorRow(this)" title="Remove">&times;</button></div></div>';
+    container.appendChild(row);
+  }
+
+  removeDirectorRow(btn) {
+    const row = btn.closest(".kmp-row");
+    if (row) row.remove();
+  }
+
+  addOfficialRow() {
+    const container = document.getElementById("officialRows");
+    const count = container.querySelectorAll(".kmp-row").length + 1;
+    const row = document.createElement("div");
+    row.className = "kmp-row form-grid single";
+    row.innerHTML = '<div class="form-group kmp-row-group"><label class="form-label">Official ' + count + '</label><div class="kmp-input-wrap"><input class="form-input official-input" type="text" placeholder="Official name"><button class="btn-remove-kmp" type="button" onclick="app.removeOfficialRow(this)" title="Remove">&times;</button></div></div>';
+    container.appendChild(row);
+  }
+
+  removeOfficialRow(btn) {
+    const row = btn.closest(".kmp-row");
+    if (row) row.remove();
+  }
+
+  getDirectorNames() {
+    const inputs = document.querySelectorAll("#directorRows .director-input");
+    return Array.from(inputs).map(i => i.value.trim()).filter(Boolean);
+  }
+
+  getOfficialNames() {
+    const inputs = document.querySelectorAll("#officialRows .official-input");
+    return Array.from(inputs).map(i => i.value.trim()).filter(Boolean);
+  }
+
   detectDesignation(d, companyName) {
+    if (d.gstPersonDesignations && d.gstPersonDesignations.length > 0) return d.gstPersonDesignations[0];
     if (d.gstDirectors) return "Director";
     if (d.gstPartners) return "Partner";
     if (d.gstConstitution) {
@@ -1181,6 +1351,18 @@ class OnboardingApp {
     });
   }
 
+  selectCheckbox(groupId, values) {
+    const group = document.getElementById(groupId);
+    if (!group || !values || values.length === 0) return;
+    group.querySelectorAll(".checkbox-item").forEach(item => {
+      if (values.includes(item.dataset.value)) {
+        item.classList.add("checked");
+        const input = item.querySelector("input");
+        if (input) input.checked = true;
+      }
+    });
+  }
+
   updateAccuracy() {
     const allInputs = document.querySelectorAll(".form-input, .form-textarea");
     let filled = 0, total = 0;
@@ -1195,6 +1377,12 @@ class OnboardingApp {
     radioGroups.forEach(g => {
       total++;
       if (g.querySelector(".radio-item.selected")) filled++;
+    });
+
+    const checkboxGroups = document.querySelectorAll(".checkbox-group");
+    checkboxGroups.forEach(g => {
+      total++;
+      if (g.querySelector(".checkbox-item.checked")) filled++;
     });
 
     this.totalFields = total;
@@ -1342,13 +1530,168 @@ class OnboardingApp {
 
   downloadCurrentDocx() {
     const map = {
-      onboarding: () => this.downloadDocx(),
-      authSignatory: () => this.downloadAuthSignatoryDocx(),
-      beneficialOwnership: () => this.downloadBeneficialOwnershipDocx(),
-      corporateProfile: () => this.downloadCorporateProfileDocx(),
-      mou: () => this.downloadMouDocx(),
+      onboarding: () => this.downloadTemplateDocx("onboarding"),
+      authSignatory: () => this.downloadTemplateDocx("authSignatory"),
+      beneficialOwnership: () => this.downloadTemplateDocx("beneficialOwnership"),
+      corporateProfile: () => this.downloadTemplateDocx("corporateProfile"),
+      mou: () => this.downloadTemplateDocx("mou"),
     };
     if (map[this.activeDocPreview]) map[this.activeDocPreview]();
+  }
+
+  async downloadTemplateDocx(type) {
+    const templateMap = {
+      onboarding: "templates/onboarding.docx",
+      authSignatory: "templates/auth-signatory.docx",
+      beneficialOwnership: "templates/beneficial-ownership.docx",
+      corporateProfile: "templates/corporate-profile.docx",
+      mou: "templates/mou.docx",
+    };
+    const filenameMap = {
+      onboarding: "Client_Onboarding_Form",
+      authSignatory: "Authorised_Signatory_Letter",
+      beneficialOwnership: "Beneficial_Ownership",
+      corporateProfile: "Corporate_Profile",
+      mou: "Tour_Operator_MOU",
+    };
+
+    this.showLoading("Generating DOCX from template...");
+    try {
+      const engine = new DocxTemplateEngine();
+      await engine.loadTemplate(templateMap[type]);
+      let xml = await engine.getDocumentXml();
+
+      const v = (id) => this.getFormValue(id) || "NA";
+      const today = new Date().toLocaleDateString("en-IN");
+      const companyName = this.getFormValue("registeredName") || "NA";
+      const sigName = this.getFormValue("signatoryName") || this.getFormValue("kmpName") || "NA";
+      const sigDesig = this.getFormValue("signatoryDesignation") || this.getFormValue("contactDesignation") || "NA";
+      const contactName = this.getFormValue("contactName") || sigName;
+      const legalStatus = this.getRadioValue("legalStatusGroup") || "NA";
+      const products = this.getCheckedValues("productsGroup");
+      const productStr = products.length > 0 ? products.join(", ") : "NA";
+      const directors = typeof this.getDirectorNames === "function" ? this.getDirectorNames() : [];
+      const officials = typeof this.getOfficialNames === "function" ? this.getOfficialNames() : [];
+      const kmpNames = this.getKmpNames();
+      const stockListed = this.getRadioValue("stockExchangeGroup") || "No";
+      const caseReg = this.getRadioValue("caseRegisteredGroup") || "No";
+
+      if (type === "onboarding") {
+        xml = engine.fillByLabel(xml, "Registered Name", companyName);
+        xml = engine.fillByLabelFull(xml, "Legal Status", legalStatus);
+        xml = engine.fillByLabel(xml, "Registered Office Address", v("registeredAddress"));
+        xml = engine.fillByLabel(xml, "Principal Place of Undertaking", this.getFormValue("principalPlace") || v("registeredAddress"));
+        xml = engine.fillByLabel(xml, "Date of Incorporation", v("dateOfIncorporation"));
+        xml = engine.fillByLabel(xml, "PAN no", v("panNo"));
+        xml = engine.fillByLabel(xml, "Nature of business", v("natureOfBusiness"));
+        xml = engine.fillByLabel(xml, "Whether listed on recognized stock", stockListed === "Yes" ? "Yes - " + v("stockExchangeName") : "No");
+        xml = engine.fillByLabel(xml, "Company Website", this.getFormValue("companyWebsite") || "NA");
+        xml = engine.fillByLabelFull(xml, "Products to be availed", productStr);
+        xml = engine.fillByLabel(xml, "Annual estimated Foreign Exchange", this.getFormValue("annualFx") || "NA");
+        xml = engine.fillByLabelMulti(xml, "Contact Person Name", {
+          "Name": contactName,
+          "Designation": this.getFormValue("contactDesignation") || "NA",
+          "Mobile No": this.getFormValue("contactMobile") || "NA",
+          "Email ID": this.getFormValue("contactEmail") || "NA"
+        });
+        xml = engine.fillByLabel(xml, "Key Managerial Person", kmpNames.length > 0 ? kmpNames.join(", ") : "NA");
+        xml = engine.fillByLabelMulti(xml, "Chief Executive Officer", {
+          "Name": v("ceoName"),
+          "Mobile No": this.getFormValue("ceoMobile") || "NA",
+          "Email ID": this.getFormValue("ceoEmail") || "NA"
+        });
+        xml = engine.fillByLabelMulti(xml, "Managing Director", {
+          "Name": v("mdName"),
+          "Mobile No": this.getFormValue("mdMobile") || "NA",
+          "Email ID": this.getFormValue("mdEmail") || "NA"
+        });
+        xml = engine.fillByLabel(xml, "Name of Directors", directors.length > 0 ? directors.join(", ") : "NA");
+        xml = engine.fillByLabel(xml, "Names of officials who are authorized", officials.length > 0 ? officials.join(", ") : "NA");
+        xml = engine.fillByLabel(xml, "Names of bankers", v("bankName"));
+        xml = engine.fillByLabelFull(xml, "Confirm whether any case", caseReg === "Yes" ? "Yes - " + v("caseDetails") : "No");
+      }
+
+      else if (type === "authSignatory") {
+        xml = xml.replace(/_{10,}/, engine.escXml(companyName));
+        xml = xml.replace(/>Date:-<\/w:t>/, ">Date: " + engine.escXml(today) + "</w:t>");
+        const authPersons = officials.length > 0 ? officials : (directors.length > 0 ? directors : [contactName]);
+        if (authPersons[0]) {
+          xml = engine.fillTableCell(xml, 1, 1, authPersons[0]);
+          xml = engine.fillTableCell(xml, 1, 2, sigDesig);
+        }
+        if (authPersons.length > 1) {
+          xml = engine.fillTableCell(xml, 2, 1, authPersons[1]);
+          xml = engine.fillTableCell(xml, 2, 2, sigDesig);
+        }
+        xml = xml.replace(/For\s+_{5,}/, "For " + engine.escXml(companyName));
+        xml = xml.replace(/>Name:<\/w:t>/, ">Name: " + engine.escXml(sigName) + "</w:t>");
+      }
+
+      else if (type === "beneficialOwnership") {
+        xml = xml.replace(/>Date:<\/w:t>/i, ">Date: " + engine.escXml(today) + "</w:t>");
+        const boPersons = directors.length > 0 ? directors : [contactName];
+        xml = xml.replace(/_{5,}(\s*authorized|\s*<\/w:t>[\s\S]*?authorized)/i, engine.escXml(sigName) + "$1");
+        xml = xml.replace(/M\/s\s*_{5,}/i, "M/s " + engine.escXml(companyName));
+        xml = xml.replace(/registered office at\s*_{5,}/i, "registered office at " + engine.escXml(v("registeredAddress")));
+        if (boPersons[0]) {
+          xml = engine.fillTableCell(xml, 1, 1, boPersons[0]);
+          xml = engine.fillTableCell(xml, 1, 2, sigDesig);
+          xml = engine.fillTableCell(xml, 1, 4, v("panNo"));
+        }
+        if (boPersons.length > 1) {
+          xml = engine.fillTableCell(xml, 2, 1, boPersons[1]);
+          xml = engine.fillTableCell(xml, 2, 2, sigDesig);
+        }
+        if (boPersons.length > 2) {
+          xml = engine.fillTableCell(xml, 3, 1, boPersons[2]);
+          xml = engine.fillTableCell(xml, 3, 2, sigDesig);
+        }
+        let msM;
+        while ((msM = xml.match(/M\/s\s*_{3,}/))) { xml = xml.replace(msM[0], "M/s " + engine.escXml(companyName)); }
+        xml = xml.replace(/>Name:<\/w:t>/i, ">Name: " + engine.escXml(sigName) + "</w:t>");
+        xml = xml.replace(/>Designation:<\/w:t>/i, ">Designation: " + engine.escXml(sigDesig) + "</w:t>");
+      }
+
+      else if (type === "corporateProfile") {
+        xml = engine.fillByLabel(xml, "Name of corporate entity", companyName);
+        xml = engine.fillByLabel(xml, "Registered Office address", v("registeredAddress"));
+        xml = engine.fillByLabel(xml, "Principal Place of Undertaking", this.getFormValue("principalPlace") || v("registeredAddress"));
+        xml = engine.fillByLabel(xml, "Date of Incorporation", v("dateOfIncorporation"));
+        xml = engine.fillByLabel(xml, "PAN of the entity", v("panNo"));
+        xml = engine.fillByLabel(xml, "Nature of business", v("natureOfBusiness"));
+        xml = engine.fillByLabel(xml, "Products offered by the entity", productStr);
+        xml = engine.fillByLabel(xml, "Location of branches", v("registeredAddress"));
+        xml = engine.fillByLabel(xml, "Information about clients", "NA");
+        xml = engine.fillByLabel(xml, "Whether listed on recognized stock", stockListed === "Yes" ? "Yes" : "No");
+        xml = engine.fillByLabel(xml, "Ownership and control structure", legalStatus + " - " + companyName);
+        xml = engine.fillByLabel(xml, "Names of natural persons controlling", kmpNames.length > 0 ? kmpNames.join(", ") : contactName);
+        xml = engine.fillByLabel(xml, "Purpose and intended nature", "Foreign Exchange Transactions");
+        xml = engine.fillByLabel(xml, "Name of Chairman", kmpNames.length > 0 ? kmpNames[0] : contactName);
+        xml = engine.fillByLabel(xml, "Name of Managing Director", v("mdName"));
+        xml = engine.fillByLabel(xml, "Name of Chief Executive Officer", v("ceoName"));
+        xml = engine.fillByLabel(xml, "Names of another directors", directors.length > 0 ? directors.join(", ") : "NA");
+        xml = engine.fillByLabel(xml, "Names of relevant person holding senior", kmpNames.length > 0 ? kmpNames.join(", ") : "NA");
+        xml = engine.fillByLabel(xml, "Names of officials who are authorized", officials.length > 0 ? officials.join(", ") : "NA");
+        xml = engine.fillByLabel(xml, "Names of bankers", v("bankName"));
+        xml = engine.fillByLabel(xml, "Annual estimated foreign exchange", this.getFormValue("annualFx") || "NA");
+        xml = xml.replace(/>Date:<\/w:t>/i, ">Date: " + engine.escXml(today) + "</w:t>");
+      }
+
+      else if (type === "mou") {
+        xml = engine.replaceText(xml, "[Company Name]", companyName);
+        xml = engine.replaceText(xml, "[ Company registered Address]", v("registeredAddress"));
+      }
+
+      await engine.setDocumentXml(xml);
+      const company = companyName.replace(/[^A-Za-z0-9]/g, "_").substring(0, 30);
+      await engine.download(`${filenameMap[type]}_${company}.docx`);
+      this.hideLoading();
+      this.showToast("DOCX downloaded successfully!", "success");
+    } catch (e) {
+      this.hideLoading();
+      this.showToast("DOCX generation failed: " + e.message, "error");
+      console.error(e);
+    }
   }
 
   pRow(label, value) {
@@ -1357,44 +1700,41 @@ class OnboardingApp {
 
   renderOnboardingPreview() {
     const products = this.getCheckedValues("productsGroup");
-    const productStr = products.length > 0 ? products.join(", ") : "Not specified";
+    const productStr = products.length > 0 ? products.join(", ") : "NA";
     const stockListed = this.getRadioValue("stockExchangeGroup");
-    const stockDetail = stockListed === "Yes" ? ` (${this.getFormValue("stockExchangeName")})` : "";
+    const stockDetail = stockListed === "Yes" ? "Yes - " + (this.getFormValue("stockExchangeName") || "") : "No";
     const caseReg = this.getRadioValue("caseRegisteredGroup");
-    const caseDetail = caseReg === "Yes" ? `\n${this.getFormValue("caseDetails")}` : "";
-    const bankDetails = [
-      this.getFormValue("bankName"),
-      `Account: ${this.getFormValue("accountName")}`
-    ].filter(Boolean).join("\n");
+    const caseDetail = caseReg === "Yes" ? "Yes - " + (this.getFormValue("caseDetails") || "") : "No";
+    const v = (id) => this.getFormValue(id) || "NA";
 
     return `
       <div class="preview-container">
         <div class="preview-header">
           <h1>Client Onboarding Form</h1>
-          <p>(Corporates & Tour Operators)</p>
+          <p>(Corporates &amp; Tour Operators)</p>
         </div>
         <table class="preview-table">
+          <thead><tr><th style="width:40px">Sr. No.</th><td><strong>Particulars</strong></td><td><strong>Details</strong></td></tr></thead>
           <tbody>
-            <tr><th>1</th><td>Registered Name</td><td><strong>${this.getFormValue("registeredName")}</strong></td></tr>
-            <tr><th>2</th><td>Legal Status</td><td>${this.getRadioValue("legalStatusGroup")}</td></tr>
-            <tr><th>2</th><td>Registered Office Address</td><td>${this.getFormValue("registeredAddress")}</td></tr>
-            <tr><th>3</th><td>Principal Place of Business</td><td>${this.getFormValue("principalPlace") || "Same as Registered Address"}</td></tr>
-            <tr><th>4</th><td>Date of Incorporation</td><td>${this.getFormValue("dateOfIncorporation")}</td></tr>
-            <tr><th>5</th><td>PAN No</td><td>${this.getFormValue("panNo") || "—"}</td></tr>
-            <tr><th>6</th><td>Nature of Business</td><td>${this.getFormValue("natureOfBusiness")}</td></tr>
-            <tr><th>7</th><td>Listed on Stock Exchange</td><td>${stockListed}${stockDetail}</td></tr>
-            <tr><th>8</th><td>Company Website</td><td>${this.getFormValue("companyWebsite") || "—"}</td></tr>
-            <tr><th></th><td>MSME/Udyam Number</td><td>${this.getFormValue("udyamNumber") || "—"}</td></tr>
-            <tr><th>9</th><td>Products to be Availed</td><td>${productStr}</td></tr>
-            <tr><th>10</th><td>Annual Estimated FX (INR)</td><td>${this.getFormValue("annualFx") || "—"}</td></tr>
-            <tr><th>11</th><td>Contact Person</td><td>Name: ${this.getFormValue("contactName")}<br>Designation: ${this.getFormValue("contactDesignation")}<br>Mobile: ${this.getFormValue("contactMobile")}<br>Email: ${this.getFormValue("contactEmail")}</td></tr>
-            <tr><th>12</th><td>Key Managerial Person (KMP)</td><td>${this.getKmpNames().join(", ") || "—"}</td></tr>
-            <tr><th>13</th><td>CEO Details</td><td>Name: ${this.getFormValue("ceoName")}<br>Mobile: ${this.getFormValue("ceoMobile")}<br>Email: ${this.getFormValue("ceoEmail")}</td></tr>
-            <tr><th>14</th><td>MD / Partner / Trustee</td><td>Name: ${this.getFormValue("mdName")}<br>Mobile: ${this.getFormValue("mdMobile")}<br>Email: ${this.getFormValue("mdEmail")}</td></tr>
-            <tr><th>15</th><td>Directors / Partners</td><td style="white-space:pre-line">${this.getFormValue("directors")}</td></tr>
-            <tr><th>16</th><td>Authorized Officials for FX</td><td style="white-space:pre-line">${this.getFormValue("authorizedOfficials")}</td></tr>
-            <tr><th>17</th><td>Banking Details</td><td style="white-space:pre-line">${bankDetails}</td></tr>
-            <tr><th>18</th><td>Case/Complaint by Regulatory Authority</td><td>${caseReg}${caseDetail}</td></tr>
+            <tr><th>1</th><td>Registered Name</td><td><strong>${v("registeredName")}</strong></td></tr>
+            <tr><th>2</th><td>Legal Status</td><td>${this.getRadioValue("legalStatusGroup") || "NA"}</td></tr>
+            <tr><th>2</th><td>Registered Office Address</td><td>${v("registeredAddress")}</td></tr>
+            <tr><th>3</th><td>Principal Place of Undertaking Business (if different from Registered Address)</td><td>${this.getFormValue("principalPlace") || v("registeredAddress")}</td></tr>
+            <tr><th>4</th><td>Date of Incorporation</td><td>${v("dateOfIncorporation")}</td></tr>
+            <tr><th>5</th><td>PAN no</td><td>${v("panNo")}</td></tr>
+            <tr><th>6</th><td>Nature of business</td><td>${v("natureOfBusiness")}</td></tr>
+            <tr><th>7</th><td>Whether listed on recognized stock exchange(s), if so, name(s) of the stock exchange(s)</td><td>${stockDetail}</td></tr>
+            <tr><th>8</th><td>Company Website</td><td>${this.getFormValue("companyWebsite") || "NA"}</td></tr>
+            <tr><th>9</th><td>Products to be availed</td><td>${productStr}</td></tr>
+            <tr><th>10</th><td>Annual estimated Foreign Exchange required (in INR)</td><td>${this.getFormValue("annualFx") || "NA"}</td></tr>
+            <tr><th>11</th><td>Contact Person Name, Mobile No and Email ID of coordinator</td><td>Name: ${v("contactName")}<br>Designation: ${v("contactDesignation")}<br>Mobile No: ${v("contactMobile")}<br>Email ID: ${v("contactEmail")}</td></tr>
+            <tr><th>12</th><td>Name of the Key Managerial Person (KMP) who controls the business activities of the company</td><td>${this.getKmpNames().join(", ") || "NA"}</td></tr>
+            <tr><th>13</th><td>Name, Contact No and Email ID of the Chief Executive Officer</td><td>Name: ${v("ceoName")}<br>Mobile No: ${this.getFormValue("ceoMobile") || "NA"}<br>Email ID: ${this.getFormValue("ceoEmail") || "NA"}</td></tr>
+            <tr><th>14</th><td>Name, Contact No and Email ID of Managing Director / Partner / Trustee</td><td>Name: ${v("mdName")}<br>Mobile No: ${this.getFormValue("mdMobile") || "NA"}<br>Email ID: ${this.getFormValue("mdEmail") || "NA"}</td></tr>
+            <tr><th>15</th><td>Name of Directors (should be as per MCA)/Partners</td><td style="white-space:pre-line">${this.getDirectorNames().join(", ") || "NA"}</td></tr>
+            <tr><th>16</th><td>Names of officials who are authorized to transact foreign exchange business on behalf of the company (Customer identification documents to be furnished in respect of the officials named)</td><td style="white-space:pre-line">${this.getOfficialNames().join(", ") || "NA"}</td></tr>
+            <tr><th>17</th><td>Names of bankers with whom the bank accounts are maintained</td><td>${v("bankName")}</td></tr>
+            <tr><th>18</th><td>Confirm whether any case/complaint has been registered by regulatory/law enforcement authority against the company and or its directors or KMPs</td><td>${caseDetail}</td></tr>
           </tbody>
         </table>
         <div class="preview-declaration">
@@ -1408,8 +1748,8 @@ class OnboardingApp {
           <div class="signature-block">
             <div style="height:60px"></div>
             <div class="signature-line">Authorized Signatory</div>
-            <div>Name: <strong>${this.getFormValue("signatoryName")}</strong></div>
-            <div>Designation: ${this.getFormValue("signatoryDesignation")}</div>
+            <div>Name: <strong>${this.getFormValue("signatoryName") || ""}</strong></div>
+            <div>Designation: ${this.getFormValue("signatoryDesignation") || ""}</div>
             <div style="margin-top:12px;font-size:0.85rem;color:#666">(Round Seal)</div>
           </div>
         </div>
@@ -1417,69 +1757,79 @@ class OnboardingApp {
   }
 
   renderAuthSignatoryPreview() {
-    const companyName = this.getFormValue("registeredName") || "";
-    const sigName = this.getFormValue("signatoryName") || this.getFormValue("kmpName") || "";
-    const sigDesig = this.getFormValue("signatoryDesignation") || this.getFormValue("contactDesignation") || "";
+    const companyName = this.getFormValue("registeredName") || "NA";
+    const sigName = this.getFormValue("signatoryName") || this.getFormValue("kmpName") || "NA";
+    const sigDesig = this.getFormValue("signatoryDesignation") || this.getFormValue("contactDesignation") || "NA";
     const contactName = this.getFormValue("contactName") || sigName;
     const contactDesig = this.getFormValue("contactDesignation") || sigDesig;
-    const ceoName = this.getFormValue("ceoName") || sigName;
+    const officials = this.getOfficialNames();
+    const authPersons = officials.length > 0 ? officials : (this.getDirectorNames().length > 0 ? this.getDirectorNames() : [contactName]);
     const today = this.todayFormatted();
 
     return `
       <div class="preview-container">
         <div class="preview-header">
-          <h1>Authorised Signatory Letter</h1>
-          <p>(On Company/Firm's Letter Head)</p>
+          <p style="text-align:center;font-style:italic">(To be obtained on the Company/Firm's Letter Head)</p>
         </div>
         <p style="text-align:right"><strong>Date:</strong> ${today}</p>
         <p>The Manager<br>Capital India Finance Limited</p>
         <p><strong>Sub: Authority to Place Request / Authorized Signatory for Purchase / Sales of Foreign Exchange</strong></p>
         <p>Dear Sir,</p>
-        <p>I/We, <strong>${companyName}</strong> (hereinafter referred to as "APPLICANT") have authorized the following person(s) as an authorized representative(s) of the APPLICANT to execute foreign exchange transactions with M/s Capital India Finance Limited (CIFL), from time to time, and to purchase Foreign Exchange for and on behalf of the APPLICANT against Cheque issued by the APPLICANT or against credit.</p>
+        <p>I/We, <strong>${companyName}</strong> (legal entity name), (hereinafter referred to as "<strong>APPLICANT</strong>") have authorized the following person(s) as an authorized representative(s) of the APPLICANT to execute foreign exchange transactions with M/s Capital India Finance Limited (CIFL), from time to time, and to purchase Foreign Exchange for and on behalf of the APPLICANT against Cheque issued by the APPLICANT or against credit.</p>
+        <p>We have specifically authorized the person(s) named herein below to sign request letter for purchase /surrender of foreign exchange for the employees of the APPLICANT travelling abroad for and on behalf of the APPLICANT.</p>
+        <p>We hereby take the complete responsibility for any transaction undertaken by the said authorized representative(s) with CIFL.</p>
         <p><strong>The Signature of the authorized person(s)/representative(s) is attested below:</strong></p>
         <table class="preview-table">
-          <thead><tr><th>Sr.</th><td><strong>Name</strong></td><td><strong>Designation</strong></td><td><strong>Signature</strong></td></tr></thead>
+          <thead><tr><th style="width:40px">Sr. No</th><td><strong>Name</strong></td><td><strong>Designation</strong></td><td><strong>Signature</strong></td></tr></thead>
           <tbody>
-            <tr><th>1</th><td>${contactName}</td><td>${contactDesig}</td><td style="height:40px"></td></tr>
-            <tr><th>2</th><td>${ceoName}</td><td>${sigDesig}</td><td style="height:40px"></td></tr>
+            <tr><th>1</th><td>${authPersons[0] || ""}</td><td>${contactDesig}</td><td style="height:40px"></td></tr>
+            <tr><th>2</th><td>${authPersons[1] || ""}</td><td>${sigDesig}</td><td style="height:40px"></td></tr>
           </tbody>
         </table>
         <p style="margin-top:16px">This authority is irrevocable and binding on the APPLICANT as long as the APPLICANT continues to deal with CIFL for its Foreign Exchange requirements.</p>
+        <p>Further the APPLICANT is responsible to make payment for the foreign exchange released to the APPLICANT and its employees by CIFL from time to time under the instructions of our aforesaid authorized representative(s).</p>
+        <p>In the event, we wish to change our authorized representative(s) for any reason whatsoever, it shall be mandatory on our part to inform the same in writing to CIFL and such writing must be acknowledged by the authorized representative(s) of CIFL. However, we specifically admit that any transaction undertaken by our aforesaid authorized representative(s) with CIFL, prior to the receipt of our written communication intimating the aforesaid modification for change of the APPLICANT's 'authorized representative(s)' shall be binding on us.</p>
+        <p>We further declare that the undersigned has the approval from Board to give this letter of authority on behalf of the APPLICANT.</p>
+        <p>The identity proofs of the aforesaid authorized person(s) and for the undersigned are enclosed herewith.</p>
         <div class="preview-signature">
           <div class="signature-block">
             <div style="height:50px"></div>
             <div class="signature-line">For <strong>${companyName}</strong></div>
+            <div>Signature</div>
             <div>Name: <strong>${sigName}</strong></div>
-            <div>Designation: ${sigDesig}</div>
+            <div>Designation (Director / CFO / Company Secretary)</div>
           </div>
         </div>
+        <p style="margin-top:16px"><strong>Encl.:</strong> Officially valid documents of<br>1.<br>2.</p>
       </div>`;
   }
 
   renderBeneficialOwnershipPreview() {
-    const companyName = this.getFormValue("registeredName") || "";
-    const address = this.getFormValue("registeredAddress") || "";
-    const sigName = this.getFormValue("signatoryName") || this.getFormValue("kmpName") || "";
-    const ownerName = this.getFormValue("kmpName") || this.getFormValue("contactName") || sigName;
-    const sigDesig = this.getFormValue("signatoryDesignation") || "";
+    const companyName = this.getFormValue("registeredName") || "NA";
+    const address = this.getFormValue("registeredAddress") || "NA";
+    const sigName = this.getFormValue("signatoryName") || this.getFormValue("kmpName") || "NA";
+    const sigDesig = this.getFormValue("signatoryDesignation") || "Director / Company Secretary";
+    const directors = this.getDirectorNames();
+    const contactName = this.getFormValue("contactName") || sigName;
+    const boPersons = directors.length > 0 ? directors : [contactName];
     const today = this.todayFormatted();
 
     return `
       <div class="preview-container">
         <div class="preview-header">
-          <h1>Annexure 3 - Beneficial Ownership Details</h1>
-          <p>(Limited & Private Limited)</p>
+          <h1>Annexure 3 - BO_ Limited &amp; Private Limited</h1>
         </div>
         <p style="text-align:right"><strong>Date:</strong> ${today}</p>
         <p>To,<br>The Manager<br>Capital India Finance Limited</p>
+        <p>Dear Sir,</p>
         <p><strong style="text-decoration:underline">Sub: Beneficial Ownership Details</strong></p>
         <p>I, <strong>${sigName}</strong>, authorized signatory of M/s <strong>${companyName}</strong>, a company incorporated under the Companies Act, 1956 and having its registered office at <strong>${address}</strong>, hereby declare and state that the following natural person of our company holds more than 10% of the shares or capital or profits of the company which falls within the definition of Beneficial ownership as defined under PMLA, 2002.</p>
         <table class="preview-table">
-          <thead><tr><th>Sr.</th><td><strong>Name & Address</strong></td><td><strong>Designation</strong></td><td><strong>% Shares</strong></td><td><strong>ID (PAN/Aadhaar)</strong></td></tr></thead>
+          <thead><tr><th style="width:40px">Sr.No.</th><td><strong>Name and address of the natural person/s</strong></td><td><strong>Designation</strong></td><td><strong>Percentage of shares held</strong></td><td><strong>ID No (PAN/Aadhar/Driving License/Passport)</strong></td></tr></thead>
           <tbody>
-            <tr><th>1</th><td>${ownerName}, ${address}</td><td>${this.getFormValue("contactDesignation") || "Proprietor"}</td><td>100%</td><td>${this.getFormValue("panNo") || ""}</td></tr>
-            <tr><th>2</th><td></td><td></td><td></td><td></td></tr>
-            <tr><th>3</th><td></td><td></td><td></td><td></td></tr>
+            <tr><th>1</th><td>${boPersons[0] || ""}</td><td>${boPersons[0] ? (this.getFormValue("contactDesignation") || sigDesig) : ""}</td><td></td><td>${this.getFormValue("panNo") || ""}</td></tr>
+            <tr><th>2</th><td>${boPersons[1] || ""}</td><td>${boPersons[1] ? (this.getFormValue("contactDesignation") || sigDesig) : ""}</td><td></td><td></td></tr>
+            <tr><th>3</th><td>${boPersons[2] || ""}</td><td>${boPersons[2] ? (this.getFormValue("contactDesignation") || sigDesig) : ""}</td><td></td><td></td></tr>
           </tbody>
         </table>
         <p style="margin-top:16px">I further declare, in case of changes in the beneficial ownership structure of the company, I hereby undertake to furnish the details to you.</p>
@@ -1488,62 +1838,70 @@ class OnboardingApp {
             <div style="height:50px"></div>
             <div class="signature-line">For M/s <strong>${companyName}</strong></div>
             <div>Name: <strong>${sigName}</strong></div>
-            <div>Designation: ${sigDesig || "Director / Company Secretary"}</div>
+            <div>Designation: ${sigDesig}</div>
           </div>
         </div>
       </div>`;
   }
 
   renderCorporateProfilePreview() {
-    const companyName = this.getFormValue("registeredName") || "";
-    const legalStatus = this.getRadioValue("legalStatusGroup") || "";
+    const companyName = this.getFormValue("registeredName") || "NA";
+    const legalStatus = this.getRadioValue("legalStatusGroup") || "NA";
     const products = this.getCheckedValues("productsGroup");
-    const productStr = products.length > 0 ? products.join(", ") : "";
+    const productStr = products.length > 0 ? products.join(", ") : "NA";
     const stockExchange = this.getRadioValue("stockExchangeGroup") || "No";
-    const sigName = this.getFormValue("signatoryName") || this.getFormValue("kmpName") || "";
+    const sigName = this.getFormValue("signatoryName") || this.getFormValue("kmpName") || "NA";
     const sigDesig = this.getFormValue("signatoryDesignation") || legalStatus;
     const today = this.todayFormatted();
+    const v = (id) => this.getFormValue(id) || "NA";
+    const kmpNames = this.getKmpNames();
+    const contactName = v("contactName");
 
     return `
       <div class="preview-container">
         <div class="preview-header">
           <h1>Annexure 2 - Corporate Profile</h1>
-          <p>Customer Profile - Money Changing Activities<br>(For Corporate, Goods & Services & Franchisees)</p>
+          <p>Customer Profile &ndash; Money Changing Activities<br>(For corporate, Goods &amp; Services &amp; Franchisee's)</p>
         </div>
         <p style="font-size:0.8rem;color:#666;margin-bottom:16px"><em>Note: Each supporting document has to be certified as "True Copy" by an authorized person indicating his name and designation.</em></p>
         <table class="preview-table">
-          <thead><tr><th>Sr.</th><td><strong>KYC Particulars</strong></td><td><strong>Details</strong></td></tr></thead>
+          <thead><tr><th style="width:40px">Sr. No.</th><td><strong>KYC particulars</strong></td><td><strong>Details</strong></td></tr></thead>
           <tbody>
             <tr><th>1</th><td>Name of corporate entity</td><td><strong>${companyName}</strong></td></tr>
-            <tr><th>2</th><td>Registered Office address</td><td>${this.getFormValue("registeredAddress")}</td></tr>
-            <tr><th>3</th><td>Principal Place of Business</td><td>${this.getFormValue("principalPlace") || this.getFormValue("registeredAddress")}</td></tr>
-            <tr><th>4</th><td>Date of Incorporation</td><td>${this.getFormValue("dateOfIncorporation")}</td></tr>
-            <tr><th>5</th><td>PAN of the entity</td><td>${this.getFormValue("panNo") || "—"}</td></tr>
-            <tr><th>6</th><td>Nature of business / type of activity</td><td>${this.getFormValue("natureOfBusiness")}</td></tr>
-            <tr><th>7</th><td>Products offered / nature of services</td><td>${productStr}</td></tr>
-            <tr><th>8</th><td>Location of branches</td><td>${this.getFormValue("registeredAddress")}</td></tr>
-            <tr><th>9</th><td>Information about clients' business</td><td>Travel and Tour Operations</td></tr>
-            <tr><th>10</th><td>Listed on stock exchange(s)</td><td>${stockExchange}</td></tr>
+            <tr><th>2</th><td>Registered Office address</td><td>${v("registeredAddress")}</td></tr>
+            <tr><th>3</th><td>Principal Place of Undertaking Business (if different from Registered Address)</td><td>${this.getFormValue("principalPlace") || v("registeredAddress")}</td></tr>
+            <tr><th>4</th><td>Date of Incorporation</td><td>${v("dateOfIncorporation")}</td></tr>
+            <tr><th>5</th><td>PAN of the entity</td><td>${v("panNo")}</td></tr>
+            <tr><th>6</th><td>Nature of business / type of activity</td><td>${v("natureOfBusiness")}</td></tr>
+            <tr><th>7</th><td>Products offered by the entity / nature of services provided</td><td>${productStr}</td></tr>
+            <tr><th>8</th><td>Location of branches in India/abroad</td><td>${v("registeredAddress")}</td></tr>
+            <tr><th>9</th><td>Information about clients' business and their locations</td><td>NA</td></tr>
+            <tr><th>10</th><td>Whether listed on recognized stock exchange(s), if so, name(s) of the stock exchange(s)</td><td>${stockExchange}</td></tr>
           </tbody>
         </table>
-        <h3 style="margin:20px 0 12px;font-size:1rem">Management & Control Details</h3>
+        <table class="preview-table" style="margin-top:16px">
+          <tbody>
+            ${this.pRow("Ownership and control structure", legalStatus + " - " + companyName)}
+            ${this.pRow("Names of natural persons controlling the entity", kmpNames.length > 0 ? kmpNames.join(", ") : contactName)}
+            ${this.pRow("Purpose and intended nature of the business relationship", "Foreign Exchange Transactions")}
+          </tbody>
+        </table>
+        <h3 style="margin:20px 0 12px;font-size:1rem">Details of Key Personnel who comprise the Management</h3>
         <table class="preview-table">
           <tbody>
-            ${this.pRow("Ownership and control structure", `${legalStatus} - ${this.getFormValue("kmpName") || this.getFormValue("contactName")}`)}
-            ${this.pRow("Names of natural persons controlling entity", this.getFormValue("kmpName") || this.getFormValue("contactName"))}
-            ${this.pRow("Purpose of business relationship", "Foreign Exchange Purchase / TT for Tour Operations")}
-            ${this.pRow("Name of Chairman", this.getFormValue("kmpName") || this.getFormValue("ceoName"))}
-            ${this.pRow("Name of Managing Director / Partner / Trustee", this.getFormValue("mdName") || this.getFormValue("kmpName"))}
-            ${this.pRow("Name of Chief Executive Officer", this.getFormValue("ceoName") || this.getFormValue("kmpName"))}
-            ${this.pRow("Names of other directors / partners", this.getFormValue("directors"))}
-            ${this.pRow("Names of officials authorized for FX", this.getFormValue("authorizedOfficials") || this.getFormValue("contactName"))}
-            ${this.pRow("Names of bankers", this.getFormValue("bankName"))}
-            ${this.pRow("Sources of funds", "Business Revenue")}
-            ${this.pRow("Annual estimated FX required (INR)", this.getFormValue("annualFx"))}
+            ${this.pRow("Name of Chairman", kmpNames.length > 0 ? kmpNames[0] : contactName)}
+            ${this.pRow("Name of Managing Director / Partner/Trustee", v("mdName"))}
+            ${this.pRow("Name of Chief Executive Officer", v("ceoName"))}
+            ${this.pRow("Names of another directors/partners/trustee's", this.getDirectorNames().join(", ") || "NA")}
+            ${this.pRow("Names of relevant person holding senior management position and main business activities of the company", kmpNames.length > 0 ? kmpNames.join(", ") : "NA")}
+            ${this.pRow("Names of officials who are authorized to transact foreign exchange business on behalf of the customer. (Customer identification documents to be furnished in respect of the officials named)", this.getOfficialNames().join(", ") || contactName)}
+            ${this.pRow("Names of bankers with whom the bank accounts are maintained", v("bankName"))}
+            ${this.pRow("Sources of funds", "Equity / Debt")}
+            ${this.pRow("Annual estimated foreign exchange required", this.getFormValue("annualFx") || "NA")}
           </tbody>
         </table>
         <div class="preview-declaration">
-          <strong>Declaration</strong><br><br>
+          <strong>Certificate and Declaration</strong><br><br>
           We hereby certify and declare that all our transactions are bonafide transactions and that we will abide by the prevailing RBI rules, regulations, directives and notifications.
         </div>
         <div class="preview-signature">
@@ -1556,12 +1914,13 @@ class OnboardingApp {
             <div style="margin-top:8px;font-size:0.85rem;color:#666">(Round Seal)</div>
           </div>
         </div>
+        <p style="margin-top:16px;font-size:0.85rem"><strong>Documents (certified copies) attached:</strong><br>1. Certificate of Incorporation<br>2. Memorandum &amp; Articles of Association<br>3. Authorization letter signed by either CFO or Director</p>
       </div>`;
   }
 
   renderMouPreview() {
     const companyName = this.getFormValue("registeredName") || "[Company Name]";
-    const address = this.getFormValue("registeredAddress") || "[Company Address]";
+    const address = this.getFormValue("registeredAddress") || "[ Company registered Address]";
     const sigName = this.getFormValue("signatoryName") || this.getFormValue("kmpName") || "";
     const sigDesig = this.getFormValue("signatoryDesignation") || "";
     const today = this.todayFormatted();
@@ -1570,35 +1929,64 @@ class OnboardingApp {
       <div class="preview-container">
         <div class="preview-header">
           <h1>MEMORANDUM OF UNDERSTANDING (MOU)</h1>
-          <p>Overseas Tour Operator - CIFL - RemitX</p>
         </div>
+
         <p>This MOU is made on this <strong>${today}</strong> ("Effective Date") by and between</p>
-        <p><strong>Capital India Finance Limited</strong>, a company incorporated under the laws of India and having its registered office at 701, 7th floor, Aggarwal Corporate Tower, Plot No. 23, District Centre, Rajendra Place, New Delhi - 110008, hereinafter referred to as <strong>"CIFL"</strong></p>
+        <p><strong>Capital India Finance Limited</strong>, a company incorporated under the laws of India and having its registered office at 701, 7th floor, Aggarwal Corporate Tower, Plot No. 23, District Centre, Rajendra Place, New Delhi &ndash; 110008 through its branch office situated at, hereinafter referred to as <strong>"CIFL"</strong> which expression shall unless the context requires otherwise include its successors and permitted assigns, on one part,</p>
         <p style="text-align:center"><strong>AND</strong></p>
-        <p><strong>${companyName}</strong>, a company/legal entity incorporated under the applicable laws of India and having its registered office at <strong>${address}</strong>, carrying out the business of Travels and Tour Operator, hereinafter referred to as <strong>"Client"</strong></p>
+        <p><strong>${companyName}</strong>, a company legal entity incorporated under the applicable laws of India and having its registered office at <strong>${address}</strong>, carrying out the business or subsidiary of Travels and Tour Operator, directly or under implied authority, and hereinafter referred to as <strong>"Client"</strong> which expression shall unless the context requires otherwise include its associates, successors and permitted assigns, on the other part,</p>
+        <p>CIFL and <strong>${companyName}</strong>, are individually referred to as a "Party" and collectively referred to as "Parties".</p>
 
-        <h3 style="margin:20px 0 8px">WHEREAS:</h3>
-        <p>A. CIFL is holding an Authorized Dealer Category II Money Changer License issued by RBI and is engaged in dealing in Foreign Exchange.</p>
-        <p>B. <strong>${companyName}</strong> is in the business of Overseas Tour Management.</p>
-        <p>C. <strong>${companyName}</strong> desires to avail the services of CIFL for sale/purchase of foreign exchange and telegraphic transfer for its customers.</p>
+        <h3 style="margin:20px 0 8px">WHEREAS</h3>
+        <p>CIFL is an Authorised Dealer Category II Money Changer engaged in the business of purchase, sale &amp; Remittance of foreign exchange and other foreign exchange related services.</p>
+        <p><strong>${companyName}</strong>, is engaged in the business of Overseas Tour Management.</p>
+        <p>CIFL has requisite skill and expertise to provide such foreign exchange services.</p>
+        <p>The <strong>${companyName}</strong>, hereby agrees to appoint CIFL to provide foreign exchange services and such other related services on the terms and conditions mentioned hereunder in this MOU to the directors/partners/proprietor's and employees working at its office.</p>
 
-        <h3 style="margin:20px 0 8px">1. SCOPE OF SERVICES</h3>
-        <p>1.1 The Client hereby appoints CIFL for providing foreign exchange services including sale/purchase of foreign currency and telegraphic transfers.</p>
-        <p>1.2 The Client shall provide an Authorization Letter authorizing specific persons to transact on behalf of the Client.</p>
-        <p>1.3 Service Requests shall be made via email or in person at CIFL branches.</p>
-        <p>1.4 The Client shall provide all KYC documents as per AML/PMLA requirements.</p>
+        <h3 style="margin:20px 0 8px">NOW THEREFORE THIS MOU WITNESSETH AND PARTIES HERETO AGREE AS FOLLOWS:</h3>
 
-        <h3 style="margin:20px 0 8px">2. KYC AND AML REQUIREMENTS</h3>
-        <p>2.1 The Client shall provide all KYC documents as required under PMLA and RBI regulations.</p>
-        <p>2.2 CIFL may request fresh KYC documents periodically.</p>
-        <p>2.3 The Client shall notify CIFL immediately of any IATA/license revocations or regulatory actions.</p>
+        <h3 style="margin:16px 0 8px">SCOPE OF SERVICES</h3>
+        <p>Subject to the terms and conditions of this MOU, the Client hereby appoints CIFL to provide foreign exchange Services. CIFL hereby agrees to provide the Services to the Client as per its requirements, from time to time, as per the standards and within the time frame, stipulated in this MOU and/or the Service Request, as the case may be.</p>
+        <p>The Client shall provide a list of its authorized personnel to the CIFL, ("Authorization Letter") hereto ("Authorized Representatives"), who are authorized to coordinate with the CIFL for smooth, efficient, and timely performance of the Services in accordance with the terms of this MOU. The Client shall immediately intimate the CIFL in writing, if there is any change in its Authorized Representative and/or the authority granted to its Authorized Representatives.</p>
+        <p>The Authorized Representative of Client shall send a duly filled and executed written request on email to the CIFL hereto ("Service Request"), stating the Services required to be provided along with the basic details and valid KYC document of the Customer, in line with the Anti-Money Laundering Laws, to the CIFL. The execution of transaction would be done by the authorized representative of the CIFL.</p>
+        <p>The foreign exchange shall be handed over only to the Customer identified in the relevant Service Request and not to any third party. In case of any telegraphic transfers / remittances, the original copy of written service request shall be delivered to the CIFL on or before the date of transaction.</p>
+        <p>For avoidance of doubt, it is hereby clarified that the CIFL shall act based on the Service Requests received from an Authorized Representative only. The Client hereby agrees and acknowledges that the Service Provider may reject the Service Request for any reason as it may deem fit, and shall be communicated to Client by CIFL.</p>
+        <p>The Client shall not dispute the delivery of the foreign exchange if the acknowledgement has been given by the Customer to whom such foreign exchange has been delivered and such acknowledgment shall be sufficient proof to show delivery and/or the amount of foreign exchange delivered. Further, in case of any telegraphic transfer / remittance Service, the Client hereby agrees to recognize the receipt of a scanned copy of telegraphic transfer as sufficient proof for completion of performance of the relevant Service and shall not dispute the performance of such Service.</p>
+        <p>In case of Telegraphic transfers, the Client shall be responsible for collecting TCS and other government taxes from their customers. Further, details of passengers/customers as provided/declared by the Client on Form A2 shall be final and modification will not be allowed. The remitting bank shall report to RBI the details of Client's customers / passengers availing remittance under the LRS scheme of RBI. CIFL will not liable/responsible for any query that may arise in future from regulated authorities related to LRS, TCS etc of the customer.</p>
+        <p>Client shall always during the subsistence of this relationship, agree to co-operate and co-ordinate with CIFL for complying with among other the Reserve Bank of India ("RBI") notified Anti Money Laundering Rules &amp; Regulations including Know Your Customer Policy ("KYC") and Foreign Exchange Management Act ("FEMA"), prevailing from time to time. The Client shall supply all such information, which any legal or regulatory authority may require and/or which we may be required to supply in relation to the transaction or the customer. This clause will continue without limit of time, and will survive the termination of this MOU.</p>
+        <p>CIFL will provide foreign exchange service only against clear fund in the designated bank account provided by CIFL and on receipt of transaction documents as mentioned in Annexure A or specified from time to time. All payment shall be made to CIFL without any deduction or set off against the bill/invoice raised against release of foreign exchange. If Payments are not received, CIFL shall not carry on the transaction, in this event CIFL shall not be liable for any losses, costs, charges or expenses incurred by the Client.</p>
+        <p>It will be sole responsibility of the Client to verify the 'Source of Funds' received from the remitter and transferred to CIFL designated bank account in accordance of law of the land. CIFL reserves the right to seek clarification and proof of the said source of fund before or after processing the remittance. In case of any discrepancy, the client (Tour Operator) will be solely responsible for any financial or reputational loss to CIFL.</p>
+        <p>The provisions of this MOU shall survive the termination or expiration of this MOU for a period of 5 years from such expiration or earlier termination ("Survival Period") and shall be complied with by the Parties in the same manner as if the present MOU is valid and in force even after termination or expiry.</p>
+        <p>Each Party shall, indemnify, defend and hold harmless the other Party, its affiliates and its officers, directors, employees, representatives, agent's respective directors, and assigns from and against any liability or any other losses that may occur, arising from or relating to a breach of any of the terms, conditions, covenants, representations, undertakings, obligations, or warranties under this MOU. The acts, errors, representations, misrepresentations, wilful misconduct or negligence of the Party or its employees, subcontractors, and agents in performance of its obligations under this MOU.</p>
+        <p>The Client shall be deemed to have acknowledged that the Client and its Employees have complied with all the laws, rules, and authorizations and have taken all required permission under FEMA and any other applicable law necessary for the purposes of this MOU. In the event the same has not been complied with by the Client and/or its Employees, CIFL shall not be held responsible or liable and Client in such circumstances shall not withhold any payment to CIFL on account of such default.</p>
 
-        <h3 style="margin:20px 0 8px">3. TERM AND TERMINATION</h3>
-        <p>3.1 This MOU shall be effective for an initial term of 1 year from the Effective Date and shall auto-renew for successive periods of 1 year each.</p>
-        <p>3.2 Either party may terminate this MOU by providing 30 days written notice.</p>
+        <h3 style="margin:20px 0 8px">Limitation of Liability</h3>
+        <p>CIFL shall not be liable for any of the following events:</p>
+        <ul style="margin-left:20px;margin-bottom:16px">
+          <li>fraudulent transactions occurring after the sale and delivery of the third-party products to the Client / the Customers viz: prepaid forex card, Telegraphic Transfers or any other products that may be available in future.</li>
+          <li>failure on the part of a third-party service provider used by the Parties, for instance the issuer of the prepaid forex card, including but not limited to the failure of the third-party server, additional charges applicable at an overseas ATM, etc.</li>
+          <li>non catering of / rejecting any Service Request in terms of this MOU.</li>
+          <li>delays in the disbursement of funds remitted to overseas beneficiary including the withholding of such funds by the correspondent and /or beneficiary bank.</li>
+          <li>intermediary bank charges may be levied by correspondent and/or beneficiary banks, which may vary from banks to banks.</li>
+          <li>incorrect information submitted by client, any charges levied by the beneficiary bank or exchange loss incurred for overseas remittance.</li>
+          <li>failure of the CIFL to provide telegraphic transfer or overseas remittance services requested by the Client on account of refusal by the remitting bank to undertake such transaction.</li>
+        </ul>
 
-        <h3 style="margin:20px 0 8px">4. LIMITATION OF LIABILITY</h3>
-        <p>4.1 CIFL shall not be liable for: fraudulent transactions after delivery, third-party service failures, rejected service requests, delays in overseas disbursement, intermediary bank charges, incorrect client information, or remitting bank refusals.</p>
+        <h3 style="margin:20px 0 8px">KNOW YOUR CUSTOMERS ("KYC") AND AML REQUIREMENT</h3>
+        <p>In performing Services under this MOU, the Client shall provide CIFL with KYC documents based on the type of Legal Entity. CIFL will communicate to client the list of documents required for onboarding the Client.</p>
+        <p>The Client shall immediately intimate CIFL in writing, if any, change in the KYC documents and authority granted to its authorized personnel.</p>
+        <p>The Client will furnish any documents as required by Reserve Bank of India and/or under Foreign Exchange Management Act (FEMA) as and when requested upon by CIFL.</p>
+        <p>The Client and its employees will use such foreign exchange released by CIFL for legitimate purposes only.</p>
+        <p>As a process of Due diligence, CIFL reserves the right to call for fresh KYC documents at periodical intervals.</p>
+        <p>In case of Client holds any title, permission, certification to perform his business as Tour Operator or its intermediary's, such as IATA Certification, Licenses, including Shop and establishment license/Local municipality permission etc, then any revocation thereof, shall be intimated by Client to CIFL.</p>
+
+        <h3 style="margin:20px 0 8px">TERM AND TERMINATION</h3>
+        <p>The term of the MOU shall commence on "Effective Date" and shall continue for a term of one (1) years (the "Initial Term"). The MOU shall automatically renew for successive one (1) year period after the Initial Term (each a "Renewal Term",) unless no less than thirty (30) days' notice in writing is given by either party terminating the MOU and if no such notice is given by either party, the term will be extended for a further period of one (1) year. The Initial Term and each Renewal Term shall be referred to herein collectively as the "Term".</p>
+        <p>Either Party can terminate this MOU by giving thirty (30) days prior written notice to the other Party without assigning any reason.</p>
+        <p>Notwithstanding anything contained herein, CIFL shall be entitled to terminate this MOU forthwith in the event of any contravention or failure in complying with the provisions of this MOU, the Foreign Exchange Management Act, 1999, the Regulations framed there under, the prevailing RBI regulations regarding money changing, Anti Money Laundering guidelines, KYC Policy, as prescribed by RBI from time to time.</p>
+        <p>CIFL shall terminate this MOU promptly without any notice if any Proprietor, Partner, Director, Owner, Beneficial Owner, Trustee, Authorised Person etc. is/are likely to be involved in illegal /criminal activity.</p>
+
+        <p style="margin-top:20px"><strong>IN WITNESS WHEREOF</strong>, the Parties to this MOU have signed and executed this MOU on the date and day first above written in the presence of their respective witnesses.</p>
 
         <table class="preview-table" style="margin-top:24px">
           <tbody>
@@ -1606,20 +1994,37 @@ class OnboardingApp {
               <td style="width:50%;vertical-align:top;padding:16px">
                 <strong>FOR AND ON BEHALF OF</strong><br>
                 <strong>Capital India Finance Limited</strong><br><br>
-                Signature: _______________<br>
+                Signature:<br>
                 Name:<br>
-                Designation:
+                Designation:<br><br>
+                Witness:<br>
+                Signature:<br>
+                Name:
               </td>
               <td style="width:50%;vertical-align:top;padding:16px">
                 <strong>FOR AND ON BEHALF OF</strong><br>
                 <strong>${companyName}</strong><br><br>
-                Signature: _______________<br>
+                Signature:<br>
                 Name: <strong>${sigName}</strong><br>
-                Designation: ${sigDesig}
+                Designation: ${sigDesig}<br><br>
+                Witness:<br>
+                Signature:<br>
+                Name:
               </td>
             </tr>
           </tbody>
         </table>
+
+        <h3 style="margin:24px 0 8px">Annexure A &ndash; Tour Remittance transaction documents</h3>
+        <ul style="margin-left:20px">
+          <li>FORM A2 and Application cum declaration signed by the Authorised signatory</li>
+          <li>Attested copy of Invoice from overseas beneficiary</li>
+          <li>List of Passengers in excel sheet for whom the remittance is being made</li>
+          <li>Self-attested Passport copies &amp; PAN copies of passengers travelling abroad</li>
+          <li>Air Ticket Copies and Visa Copies of passengers travelling abroad</li>
+          <li>TCS Declaration</li>
+          <li>Any other documentation as may be required by the remitting bank</li>
+        </ul>
       </div>`;
   }
 
@@ -1633,7 +2038,7 @@ class OnboardingApp {
     const productStr = products.length > 0 ? products.join(", ") : "Not specified";
     const stockListed = this.getRadioValue("stockExchangeGroup");
     const caseReg = this.getRadioValue("caseRegisteredGroup");
-    const bankDetails = [this.getFormValue("bankName"), this.getFormValue("accountName")].filter(Boolean).join(" - ");
+    const bankDetails = this.getFormValue("bankName") || "";
 
     const rows = [
       ["1", "Registered Name", this.getFormValue("registeredName")],
@@ -1652,8 +2057,8 @@ class OnboardingApp {
       ["13", "Key Managerial Person", this.getKmpNames().join(", ")],
       ["14", "CEO Details", `${this.getFormValue("ceoName")}, ${this.getFormValue("ceoMobile")}, ${this.getFormValue("ceoEmail")}`],
       ["15", "MD / Partner / Trustee", `${this.getFormValue("mdName")}, ${this.getFormValue("mdMobile")}, ${this.getFormValue("mdEmail")}`],
-      ["16", "Directors / Partners", this.getFormValue("directors")],
-      ["17", "Authorized Officials", this.getFormValue("authorizedOfficials")],
+      ["16", "Directors / Partners", this.getDirectorNames().join(", ")],
+      ["17", "Authorized Officials", this.getOfficialNames().join(", ")],
       ["18", "Banking Details", bankDetails],
       ["19", "Case/Complaint", caseReg],
     ];
@@ -2038,8 +2443,8 @@ class OnboardingApp {
       ["Name of Chairman", this.getFormValue("kmpName") || this.getFormValue("ceoName")],
       ["Name of MD / Partner / Trustee", this.getFormValue("mdName") || this.getFormValue("kmpName")],
       ["Name of CEO", this.getFormValue("ceoName") || this.getFormValue("kmpName")],
-      ["Other directors / partners", this.getFormValue("directors")],
-      ["Officials authorized for FX", this.getFormValue("authorizedOfficials") || this.getFormValue("contactName")],
+      ["Other directors / partners", this.getDirectorNames().join(", ")],
+      ["Officials authorized for FX", this.getOfficialNames().join(", ") || this.getFormValue("contactName")],
       ["Names of bankers", this.getFormValue("bankName")],
       ["Sources of funds", "Business Revenue"],
       ["Annual estimated FX (INR)", this.getFormValue("annualFx")],
@@ -2233,7 +2638,7 @@ class OnboardingApp {
     const stockListed = this.getRadioValue("stockExchangeGroup");
     const caseReg = this.getRadioValue("caseRegisteredGroup");
 
-    const bankDetails = [this.getFormValue("bankName"), this.getFormValue("accountName")].filter(Boolean).join(" - ");
+    const bankDetails = this.getFormValue("bankName") || "";
 
     const rows = [
       ["1", "Registered Name", this.getFormValue("registeredName")],
@@ -2252,8 +2657,8 @@ class OnboardingApp {
       ["12", "Key Managerial Person", this.getKmpNames().join(", ")],
       ["13", "CEO Details", `Name: ${this.getFormValue("ceoName")}, Mobile: ${this.getFormValue("ceoMobile")}, Email: ${this.getFormValue("ceoEmail")}`],
       ["14", "MD / Partner / Trustee", `Name: ${this.getFormValue("mdName")}, Mobile: ${this.getFormValue("mdMobile")}, Email: ${this.getFormValue("mdEmail")}`],
-      ["15", "Directors / Partners", this.getFormValue("directors")],
-      ["16", "Authorized Officials for FX", this.getFormValue("authorizedOfficials")],
+      ["15", "Directors / Partners", this.getDirectorNames().join(", ")],
+      ["16", "Authorized Officials for FX", this.getOfficialNames().join(", ")],
       ["17", "Banking Details", bankDetails],
       ["18", "Case/Complaint Registered", caseReg],
     ];
