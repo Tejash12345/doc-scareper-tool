@@ -891,7 +891,7 @@ body {
   gap: 6px;
 }
 
-.copy-signatory-label {
+.copy-contact-label {
   display: flex;
   align-items: center;
   gap: 6px;
@@ -901,12 +901,48 @@ body {
   margin: -6px 0 10px 0;
   font-weight: 500;
 }
-.copy-signatory-label input[type="checkbox"] {
+.copy-contact-label input[type="checkbox"] {
   accent-color: var(--primary);
   width: 15px;
   height: 15px;
   cursor: pointer;
 }
+
+.btn-outline {
+  background: transparent;
+  border: 1.5px dashed var(--primary);
+  color: var(--primary);
+  padding: 6px 14px;
+  border-radius: 6px;
+  font-size: 0.78rem;
+  font-weight: 600;
+  cursor: pointer;
+  margin-top: 6px;
+  transition: all 0.2s;
+}
+.btn-outline:hover { background: var(--primary); color: #fff; }
+.btn-sm { padding: 5px 12px; font-size: 0.75rem; }
+
+.kmp-row { margin-bottom: 6px; }
+.kmp-row-group { position: relative; }
+.kmp-input-wrap { display: flex; gap: 8px; align-items: center; }
+.kmp-input-wrap .form-input { flex: 1; }
+.btn-remove-kmp {
+  background: none;
+  border: 1.5px solid #ef4444;
+  color: #ef4444;
+  width: 28px;
+  height: 28px;
+  border-radius: 6px;
+  font-size: 1.1rem;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  transition: all 0.2s;
+}
+.btn-remove-kmp:hover { background: #ef4444; color: #fff; }
 
 @media (max-width: 1024px) {
   .main-container {

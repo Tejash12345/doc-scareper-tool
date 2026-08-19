@@ -311,14 +311,16 @@ class OnboardingApp {
             </div>
             <div class="sub-card">
               <div class="sub-card-title">12. Key Managerial Person (KMP) <span class="source-badge" id="badge_kmpName"></span></div>
-              <label class="copy-signatory-label"><input type="checkbox" onchange="app.copyFromSignatory('kmp', this.checked)"> Copy from Authorized Signatory</label>
-              <div class="form-grid single">
-                <div class="form-group"><label class="form-label">Name of KMP who controls business activities</label><input class="form-input" type="text" id="kmpName" placeholder="KMP name"></div>
+              <div id="kmpRows">
+                <div class="kmp-row form-grid single">
+                  <div class="form-group"><label class="form-label">Name of KMP who controls business activities</label><input class="form-input kmp-input" type="text" id="kmpName" placeholder="KMP name"></div>
+                </div>
               </div>
+              <button class="btn btn-outline btn-sm" type="button" onclick="app.addKmpRow()">+ Add New Row</button>
             </div>
             <div class="sub-card">
               <div class="sub-card-title">13. Chief Executive Officer <span class="source-badge" id="badge_ceoName"></span></div>
-              <label class="copy-signatory-label"><input type="checkbox" onchange="app.copyFromSignatory('ceo', this.checked)"> Copy from Authorized Signatory</label>
+              <label class="copy-contact-label"><input type="checkbox" onchange="app.copyFromContact('ceo', this.checked)"> Copy from Contact Person</label>
               <div class="form-grid">
                 <div class="form-group"><label class="form-label">Name</label><input class="form-input" type="text" id="ceoName" placeholder="CEO name"></div>
                 <div class="form-group"><label class="form-label">Mobile No</label><input class="form-input" type="tel" id="ceoMobile" placeholder="Mobile"></div>
@@ -327,7 +329,7 @@ class OnboardingApp {
             </div>
             <div class="sub-card">
               <div class="sub-card-title">14. Managing Director / Partner / Trustee <span class="source-badge" id="badge_mdName"></span></div>
-              <label class="copy-signatory-label"><input type="checkbox" onchange="app.copyFromSignatory('md', this.checked)"> Copy from Authorized Signatory</label>
+              <label class="copy-contact-label"><input type="checkbox" onchange="app.copyFromContact('md', this.checked)"> Copy from Contact Person</label>
               <div class="form-grid">
                 <div class="form-group"><label class="form-label">Name</label><input class="form-input" type="text" id="mdName" placeholder="MD/Partner/Trustee name"></div>
                 <div class="form-group"><label class="form-label">Mobile No</label><input class="form-input" type="tel" id="mdMobile" placeholder="Mobile"></div>
@@ -376,11 +378,7 @@ class OnboardingApp {
               </div>
               <div class="form-grid">
                 <div class="form-group"><label class="form-label">Bank Name</label><input class="form-input" type="text" id="bankName" placeholder="Bank name"></div>
-                <div class="form-group"><label class="form-label">Branch</label><input class="form-input" type="text" id="bankBranch" placeholder="Branch name"></div>
-                <div class="form-group"><label class="form-label">Account Name</label><input class="form-input" type="text" id="accountName" placeholder="Account name"></div>
-                <div class="form-group"><label class="form-label">Account Number</label><input class="form-input" type="text" id="accountNumber" placeholder="Account number"></div>
-                <div class="form-group"><label class="form-label">Account Type</label><input class="form-input" type="text" id="accountType" placeholder="Account type"></div>
-                <div class="form-group"><label class="form-label">IFSC Code</label><input class="form-input" type="text" id="ifscCode" placeholder="IFSC code"></div>
+                <div class="form-group"><label class="form-label">Account Name (Company)</label><input class="form-input" type="text" id="accountName" placeholder="Company name on bank account"></div>
               </div>
             </div>
             <div class="sub-card">
@@ -400,11 +398,11 @@ class OnboardingApp {
               </div>
             </div>
             <div class="sub-card">
-              <div class="sub-card-title">Authorized Signatory</div>
+              <div class="sub-card-title">19. Authorized Signatory</div>
+              <label class="copy-contact-label"><input type="checkbox" onchange="app.copyFromContact('signatory', this.checked)"> Copy from Contact Person</label>
               <div class="form-grid">
                 <div class="form-group"><label class="form-label">Name</label><input class="form-input" type="text" id="signatoryName" placeholder="Signatory name"></div>
                 <div class="form-group"><label class="form-label">Designation</label><input class="form-input" type="text" id="signatoryDesignation" placeholder="Designation"></div>
-                <div class="form-group"><label class="form-label">Date</label><input class="form-input" type="text" id="signatoryDate" placeholder="DD/MM/YYYY"></div>
               </div>
             </div>
             <div class="form-actions">
@@ -552,7 +550,6 @@ class OnboardingApp {
 
       setVal("signatoryName", fm.authorizedSignatory.name, "UDYAM");
       setVal("signatoryDesignation", fm.authorizedSignatory.designation, "UDYAM");
-      setVal("signatoryDate", fm.authorizedSignatory.date, "AUTO");
       setVal("caseDetails", fm.caseDetails);
 
       this.selectRadio("legalStatusGroup", fm.legalStatus);
@@ -1028,6 +1025,13 @@ class OnboardingApp {
       setVal("signatoryName", cleanName, nameSource);
       setVal("signatoryDesignation", desig, nameSource);
     }
+    if (personNames.length > 1) {
+      for (let i = 1; i < personNames.length; i++) {
+        this.addKmpRow();
+        const rows = document.querySelectorAll("#kmpRows .kmp-input");
+        if (rows[i]) { rows[i].value = personNames[i]; rows[i].classList.add("auto-filled"); }
+      }
+    }
     setVal("contactMobile", mobile, mobileSource);
     setVal("contactEmail", email, emailSource);
     setVal("ceoMobile", mobile, mobileSource);
@@ -1049,13 +1053,7 @@ class OnboardingApp {
     }
 
     setVal("bankName", d.bankName, "BANK");
-    setVal("bankBranch", d.bankBranch, "BANK");
     setVal("accountName", d.bankAccountName || companyName, d.bankAccountName ? "BANK" : companySource);
-    setVal("accountNumber", d.bankAccountNumber, "BANK");
-    setVal("accountType", d.bankAccountType, "BANK");
-    setVal("ifscCode", d.bankIfsc, "BANK");
-
-    setVal("signatoryDate", new Date().toLocaleDateString("en-IN"), "AUTO");
 
     const legalStatus = this.detectLegalStatus(d, companyName);
     if (legalStatus) {
@@ -1077,25 +1075,39 @@ class OnboardingApp {
     el.className = "source-badge " + (classes[source] || "auto");
   }
 
-  copyFromSignatory(section, checked) {
-    const sigName = document.getElementById("signatoryName")?.value || "";
-    const sigDesig = document.getElementById("signatoryDesignation")?.value || "";
-    const contactMobile = document.getElementById("contactMobile")?.value || "";
-    const contactEmail = document.getElementById("contactEmail")?.value || "";
-    if (section === "kmp") {
-      document.getElementById("kmpName").value = checked ? sigName : "";
-      if (checked && sigName) document.getElementById("kmpName").classList.add("auto-filled");
-    } else if (section === "ceo") {
-      document.getElementById("ceoName").value = checked ? sigName : "";
-      document.getElementById("ceoMobile").value = checked ? contactMobile : "";
-      document.getElementById("ceoEmail").value = checked ? contactEmail : "";
-      if (checked && sigName) ["ceoName","ceoMobile","ceoEmail"].forEach(id => document.getElementById(id)?.classList.add("auto-filled"));
+  copyFromContact(section, checked) {
+    const cName = document.getElementById("contactName")?.value || "";
+    const cDesig = document.getElementById("contactDesignation")?.value || "";
+    const cMobile = document.getElementById("contactMobile")?.value || "";
+    const cEmail = document.getElementById("contactEmail")?.value || "";
+    if (section === "ceo") {
+      document.getElementById("ceoName").value = checked ? cName : "";
+      document.getElementById("ceoMobile").value = checked ? cMobile : "";
+      document.getElementById("ceoEmail").value = checked ? cEmail : "";
+      if (checked) ["ceoName","ceoMobile","ceoEmail"].forEach(id => { if (document.getElementById(id)?.value) document.getElementById(id).classList.add("auto-filled"); });
     } else if (section === "md") {
-      document.getElementById("mdName").value = checked ? sigName : "";
-      document.getElementById("mdMobile").value = checked ? contactMobile : "";
-      document.getElementById("mdEmail").value = checked ? contactEmail : "";
-      if (checked && sigName) ["mdName","mdMobile","mdEmail"].forEach(id => document.getElementById(id)?.classList.add("auto-filled"));
+      document.getElementById("mdName").value = checked ? cName : "";
+      document.getElementById("mdMobile").value = checked ? cMobile : "";
+      document.getElementById("mdEmail").value = checked ? cEmail : "";
+      if (checked) ["mdName","mdMobile","mdEmail"].forEach(id => { if (document.getElementById(id)?.value) document.getElementById(id).classList.add("auto-filled"); });
+    } else if (section === "signatory") {
+      document.getElementById("signatoryName").value = checked ? cName : "";
+      if (checked && cName) document.getElementById("signatoryName").classList.add("auto-filled");
     }
+  }
+
+  addKmpRow() {
+    const container = document.getElementById("kmpRows");
+    const count = container.querySelectorAll(".kmp-row").length + 1;
+    const row = document.createElement("div");
+    row.className = "kmp-row form-grid single";
+    row.innerHTML = '<div class="form-group kmp-row-group"><label class="form-label">KMP ' + count + '</label><div class="kmp-input-wrap"><input class="form-input kmp-input" type="text" placeholder="KMP name"><button class="btn-remove-kmp" type="button" onclick="app.removeKmpRow(this)" title="Remove">&times;</button></div></div>';
+    container.appendChild(row);
+  }
+
+  removeKmpRow(btn) {
+    const row = btn.closest(".kmp-row");
+    if (row) row.remove();
   }
 
   detectDesignation(d, companyName) {
@@ -1278,6 +1290,11 @@ class OnboardingApp {
     return el ? el.value.trim() : "";
   }
 
+  getKmpNames() {
+    const inputs = document.querySelectorAll("#kmpRows .kmp-input");
+    return Array.from(inputs).map(i => i.value.trim()).filter(Boolean);
+  }
+
   getRadioValue(groupId) {
     const group = document.getElementById(groupId);
     if (!group) return "";
@@ -1346,11 +1363,8 @@ class OnboardingApp {
     const caseReg = this.getRadioValue("caseRegisteredGroup");
     const caseDetail = caseReg === "Yes" ? `\n${this.getFormValue("caseDetails")}` : "";
     const bankDetails = [
-      this.getFormValue("bankName"), this.getFormValue("bankBranch"),
-      `Account: ${this.getFormValue("accountName")}`,
-      `A/c No: ${this.getFormValue("accountNumber")}`,
-      `Type: ${this.getFormValue("accountType")}`,
-      `IFSC: ${this.getFormValue("ifscCode")}`
+      this.getFormValue("bankName"),
+      `Account: ${this.getFormValue("accountName")}`
     ].filter(Boolean).join("\n");
 
     return `
@@ -1374,7 +1388,7 @@ class OnboardingApp {
             <tr><th>9</th><td>Products to be Availed</td><td>${productStr}</td></tr>
             <tr><th>10</th><td>Annual Estimated FX (INR)</td><td>${this.getFormValue("annualFx") || "—"}</td></tr>
             <tr><th>11</th><td>Contact Person</td><td>Name: ${this.getFormValue("contactName")}<br>Designation: ${this.getFormValue("contactDesignation")}<br>Mobile: ${this.getFormValue("contactMobile")}<br>Email: ${this.getFormValue("contactEmail")}</td></tr>
-            <tr><th>12</th><td>Key Managerial Person (KMP)</td><td>${this.getFormValue("kmpName")}</td></tr>
+            <tr><th>12</th><td>Key Managerial Person (KMP)</td><td>${this.getKmpNames().join(", ") || "—"}</td></tr>
             <tr><th>13</th><td>CEO Details</td><td>Name: ${this.getFormValue("ceoName")}<br>Mobile: ${this.getFormValue("ceoMobile")}<br>Email: ${this.getFormValue("ceoEmail")}</td></tr>
             <tr><th>14</th><td>MD / Partner / Trustee</td><td>Name: ${this.getFormValue("mdName")}<br>Mobile: ${this.getFormValue("mdMobile")}<br>Email: ${this.getFormValue("mdEmail")}</td></tr>
             <tr><th>15</th><td>Directors / Partners</td><td style="white-space:pre-line">${this.getFormValue("directors")}</td></tr>
@@ -1396,7 +1410,6 @@ class OnboardingApp {
             <div class="signature-line">Authorized Signatory</div>
             <div>Name: <strong>${this.getFormValue("signatoryName")}</strong></div>
             <div>Designation: ${this.getFormValue("signatoryDesignation")}</div>
-            <div>Date: ${this.getFormValue("signatoryDate")}</div>
             <div style="margin-top:12px;font-size:0.85rem;color:#666">(Round Seal)</div>
           </div>
         </div>
@@ -1539,7 +1552,7 @@ class OnboardingApp {
             <div class="signature-line">Authorized Signatory</div>
             <div>Name: <strong>${sigName}</strong></div>
             <div>Designation: ${sigDesig}</div>
-            <div>Date: ${this.getFormValue("signatoryDate") || today}</div>
+            <div>Date: ${today}</div>
             <div style="margin-top:8px;font-size:0.85rem;color:#666">(Round Seal)</div>
           </div>
         </div>
@@ -1620,7 +1633,7 @@ class OnboardingApp {
     const productStr = products.length > 0 ? products.join(", ") : "Not specified";
     const stockListed = this.getRadioValue("stockExchangeGroup");
     const caseReg = this.getRadioValue("caseRegisteredGroup");
-    const bankDetails = `${this.getFormValue("bankName")}, ${this.getFormValue("bankBranch")}, A/c: ${this.getFormValue("accountName")} (${this.getFormValue("accountNumber")}), IFSC: ${this.getFormValue("ifscCode")}`;
+    const bankDetails = [this.getFormValue("bankName"), this.getFormValue("accountName")].filter(Boolean).join(" - ");
 
     const rows = [
       ["1", "Registered Name", this.getFormValue("registeredName")],
@@ -1636,7 +1649,7 @@ class OnboardingApp {
       ["10", "Products to be Availed", productStr],
       ["11", "Annual Estimated FX (INR)", this.getFormValue("annualFx") || "-"],
       ["12", "Contact Person", `${this.getFormValue("contactName")}, ${this.getFormValue("contactDesignation")}, ${this.getFormValue("contactMobile")}, ${this.getFormValue("contactEmail")}`],
-      ["13", "Key Managerial Person", this.getFormValue("kmpName")],
+      ["13", "Key Managerial Person", this.getKmpNames().join(", ")],
       ["14", "CEO Details", `${this.getFormValue("ceoName")}, ${this.getFormValue("ceoMobile")}, ${this.getFormValue("ceoEmail")}`],
       ["15", "MD / Partner / Trustee", `${this.getFormValue("mdName")}, ${this.getFormValue("mdMobile")}, ${this.getFormValue("mdEmail")}`],
       ["16", "Directors / Partners", this.getFormValue("directors")],
@@ -1735,7 +1748,7 @@ class OnboardingApp {
     pdf.setFont(10, false);
     pdf.drawText(`Name: ${this.getFormValue("signatoryName")}`, 360, y - 4);
     pdf.drawText(`Designation: ${this.getFormValue("signatoryDesignation")}`, 360, y - 20);
-    pdf.drawText(`Date: ${this.getFormValue("signatoryDate")}`, 360, y - 36);
+    pdf.drawText(`Date: ${this.todayFormatted()}`, 360, y - 36);
     pdf.setFont(9, false);
     pdf.drawText("(Company Seal)", 360, y - 56);
 
@@ -2076,7 +2089,7 @@ class OnboardingApp {
     pdf.setFont(10, false);
     pdf.drawText(`Name: ${sigName}`, 360, y - 4);
     pdf.drawText(`Designation: ${sigDesig}`, 360, y - 18);
-    pdf.drawText(`Date: ${this.getFormValue("signatoryDate") || today}`, 360, y - 32);
+    pdf.drawText(`Date: ${today}`, 360, y - 32);
     pdf.setFont(9, false);
     pdf.drawText("(Round Seal)", 360, y - 50);
 
@@ -2220,14 +2233,7 @@ class OnboardingApp {
     const stockListed = this.getRadioValue("stockExchangeGroup");
     const caseReg = this.getRadioValue("caseRegisteredGroup");
 
-    const bankDetails = [
-      this.getFormValue("bankName"),
-      this.getFormValue("bankBranch"),
-      `Account: ${this.getFormValue("accountName")}`,
-      `A/c No: ${this.getFormValue("accountNumber")}`,
-      `Type: ${this.getFormValue("accountType")}`,
-      `IFSC: ${this.getFormValue("ifscCode")}`
-    ].filter(Boolean).join(", ");
+    const bankDetails = [this.getFormValue("bankName"), this.getFormValue("accountName")].filter(Boolean).join(" - ");
 
     const rows = [
       ["1", "Registered Name", this.getFormValue("registeredName")],
@@ -2243,7 +2249,7 @@ class OnboardingApp {
       ["9", "Products to be Availed", productStr],
       ["10", "Annual Estimated FX (INR)", this.getFormValue("annualFx") || "—"],
       ["11", "Contact Person", `Name: ${this.getFormValue("contactName")}, Designation: ${this.getFormValue("contactDesignation")}, Mobile: ${this.getFormValue("contactMobile")}, Email: ${this.getFormValue("contactEmail")}`],
-      ["12", "Key Managerial Person", this.getFormValue("kmpName")],
+      ["12", "Key Managerial Person", this.getKmpNames().join(", ")],
       ["13", "CEO Details", `Name: ${this.getFormValue("ceoName")}, Mobile: ${this.getFormValue("ceoMobile")}, Email: ${this.getFormValue("ceoEmail")}`],
       ["14", "MD / Partner / Trustee", `Name: ${this.getFormValue("mdName")}, Mobile: ${this.getFormValue("mdMobile")}, Email: ${this.getFormValue("mdEmail")}`],
       ["15", "Directors / Partners", this.getFormValue("directors")],
@@ -2303,7 +2309,7 @@ class OnboardingApp {
     <w:p><w:pPr><w:jc w:val="right"/></w:pPr><w:r><w:rPr><w:b/><w:sz w:val="20"/></w:rPr><w:t>Authorized Signatory</w:t></w:r></w:p>
     <w:p><w:pPr><w:jc w:val="right"/></w:pPr><w:r><w:rPr><w:sz w:val="20"/></w:rPr><w:t>Name: ${this.escXml(this.getFormValue("signatoryName"))}</w:t></w:r></w:p>
     <w:p><w:pPr><w:jc w:val="right"/></w:pPr><w:r><w:rPr><w:sz w:val="20"/></w:rPr><w:t>Designation: ${this.escXml(this.getFormValue("signatoryDesignation"))}</w:t></w:r></w:p>
-    <w:p><w:pPr><w:jc w:val="right"/></w:pPr><w:r><w:rPr><w:sz w:val="20"/></w:rPr><w:t>Date: ${this.escXml(this.getFormValue("signatoryDate"))}</w:t></w:r></w:p>
+    <w:p><w:pPr><w:jc w:val="right"/></w:pPr><w:r><w:rPr><w:sz w:val="20"/></w:rPr><w:t>Date: ${this.escXml(this.todayFormatted())}</w:t></w:r></w:p>
     <w:p><w:pPr><w:jc w:val="right"/></w:pPr><w:r><w:rPr><w:sz w:val="20"/></w:rPr><w:t>(Round Seal)</w:t></w:r></w:p>
   </w:body>
 </w:document>`;
@@ -2674,7 +2680,7 @@ class OnboardingApp {
       this.wp("Authorized Signatory", {bold: true, align: "right"}),
       this.wp(`Name: ${e("signatoryName") || e("kmpName")}`, {align: "right"}),
       this.wp(`Designation: ${e("signatoryDesignation") || legalStatus}`, {align: "right"}),
-      this.wp(`Date: ${e("signatoryDate") || this.todayStr()}`, {align: "right"}),
+      this.wp(`Date: ${this.todayStr()}`, {align: "right"}),
       this.wp("(Round Seal)", {align: "right"}),
     ];
 
