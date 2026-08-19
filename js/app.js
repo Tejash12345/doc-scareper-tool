@@ -690,7 +690,11 @@ class OnboardingApp {
       ];
       for (const p of namePatterns) {
         const m = t.match(p);
-        if (m && m[1].trim().length > 2) { fields.bankAccountName = m[1].trim(); break; }
+        if (m && m[1].trim().length > 2) {
+          fields.bankAccountName = m[1].trim();
+          fields.bankAccountHolderName = m[1].trim().replace(/^(MR|MS|MRS|SHRI|SMT|M\/S)\s+/i, "").trim();
+          break;
+        }
       }
 
       const accNumPatterns = [
@@ -883,15 +887,22 @@ class OnboardingApp {
       const validityMatch = t.match(/(?:Date\s*of\s*Validity)\s*(?:From)?\s*[:\-]?\s*(\d{2}\/\d{2}\/\d{4})/i);
       if (validityMatch) fields.gstValidityFrom = validityMatch[1];
 
-      const partnersBlock = t.match(/(?:Details\s*of\s*(?:Designated\s*)?Partners|Details\s*of\s*Directors)([\s\S]*?)$/i);
+      const partnersBlock = t.match(/(?:Details\s*of\s*(?:Designated\s*)?(?:Partners|Directors|Promoters|Members|Karta|Trustees))([\s\S]*?)$/i);
       if (partnersBlock) {
         const names = [];
-        const nameMatches = partnersBlock[1].matchAll(/(?:Name)\s*[:\-]?\s*([A-Z][A-Za-z\s]+?)(?=\s*(?:Designation|Resident|Status|DIN|Name|\d|$))/gi);
+        const block = partnersBlock[1];
+        const nameMatches = block.matchAll(/(?:\bName\b)\s*[:\-]?\s*([A-Z][A-Za-z\s.]+?)(?=\s*(?:Designation|Resident|Status|DIN|PAN|Father|Date|Mobile|Photo|Name\b|\d{1,3}\s|$))/gi);
         for (const nm of nameMatches) {
           const n = nm[1].trim();
-          if (n.length > 2 && !/^(Legal|Trade|Additional)$/i.test(n)) names.push(n);
+          const skip = /^(Legal|Trade|Additional|Total|Number|Goods|Services|Tax|Identification|Annexure)\b/i.test(n);
+          const isCompanyName = n === (fields.gstLegalName || "") || n === (fields.gstTradeName || "");
+          if (n.length > 2 && !skip && !isCompanyName) names.push(n);
         }
-        if (names.length > 0) fields.gstPartners = names;
+        if (names.length > 0) {
+          const isDirector = /directors/i.test(partnersBlock[0]);
+          if (isDirector) fields.gstDirectors = names;
+          else fields.gstPartners = names;
+        }
       }
 
       if (!fields.gstAddress) {
@@ -946,9 +957,10 @@ class OnboardingApp {
     const address = this.buildAddress(d) || d.gstAddress || d.bankAddress || d.genericAddress || "";
     const addrSource = this.buildAddress(d) ? (d.gstNumber ? "GST" : d.udyamNumber ? "UDYAM" : "DOC") : d.gstAddress ? "GST" : d.bankAddress ? "BANK" : d.genericAddress ? "DOC" : "";
 
-    const ownerName = d.ownerName || d.panHolderName || (d.gstPartners && d.gstPartners[0]) || d.bankAccountName || d.accountHolderName || companyName || "";
-    const cleanName = ownerName.replace(/^(MR|MS|MRS|SHRI|SMT|M\/S)\s+/i, "").trim();
-    const nameSource = d.ownerName ? "UDYAM" : d.panHolderName ? "PAN" : d.gstPartners ? "GST" : d.bankAccountName ? "BANK" : companySource;
+    const personNames = d.gstPartners || d.gstDirectors || [];
+    const personName = d.ownerName || d.panHolderName || (personNames.length > 0 ? personNames[0] : "") || d.bankAccountHolderName || "";
+    const cleanName = personName.replace(/^(MR|MS|MRS|SHRI|SMT|M\/S)\s+/i, "").trim();
+    const nameSource = d.ownerName ? "UDYAM" : d.panHolderName ? "PAN" : personNames.length > 0 ? "GST" : d.bankAccountHolderName ? "BANK" : "";
 
     const mobile = d.udyamMobile || d.extractedMobile || "";
     const mobileSource = d.udyamMobile ? "UDYAM" : d.extractedMobile ? "DOC" : "";
@@ -971,21 +983,31 @@ class OnboardingApp {
     }
 
     const desig = this.detectDesignation(d, companyName);
-    setVal("contactName", cleanName, nameSource);
-    setVal("contactDesignation", desig, nameSource);
+
+    if (cleanName) {
+      setVal("contactName", cleanName, nameSource);
+      setVal("contactDesignation", desig, nameSource);
+      setVal("kmpName", cleanName, nameSource);
+      setVal("ceoName", cleanName, nameSource);
+      setVal("mdName", cleanName, nameSource);
+      setVal("signatoryName", cleanName, nameSource);
+      setVal("signatoryDesignation", desig, nameSource);
+    }
     setVal("contactMobile", mobile, mobileSource);
     setVal("contactEmail", email, emailSource);
-    setVal("kmpName", cleanName, nameSource);
-    setVal("ceoName", cleanName, nameSource);
     setVal("ceoMobile", mobile, mobileSource);
     setVal("ceoEmail", email, emailSource);
-    setVal("mdName", cleanName, nameSource);
     setVal("mdMobile", mobile, mobileSource);
     setVal("mdEmail", email, emailSource);
 
-    if (d.gstPartners && d.gstPartners.length > 0) {
-      setVal("directors", d.gstPartners.map(n => `${n} (Partner)`).join("\n"), "GST");
-      setVal("authorizedOfficials", d.gstPartners.join(", "), "GST");
+    if (personNames.length > 0) {
+      const pSource = d.gstPartners ? "GST" : d.gstDirectors ? "GST" : nameSource;
+      setVal("directors", personNames.map(n => `${n} (${desig})`).join("\n"), pSource);
+      setVal("authorizedOfficials", personNames.join(", "), pSource);
+      if (!cleanName) {
+        setVal("signatoryName", personNames[0], pSource);
+        setVal("signatoryDesignation", desig, pSource);
+      }
     } else if (cleanName) {
       setVal("directors", `${cleanName} (${desig})`, nameSource);
       setVal("authorizedOfficials", cleanName, nameSource);
@@ -998,8 +1020,6 @@ class OnboardingApp {
     setVal("accountType", d.bankAccountType, "BANK");
     setVal("ifscCode", d.bankIfsc, "BANK");
 
-    setVal("signatoryName", cleanName, nameSource);
-    if (cleanName) setVal("signatoryDesignation", desig, nameSource);
     setVal("signatoryDate", new Date().toLocaleDateString("en-IN"), "AUTO");
 
     const legalStatus = this.detectLegalStatus(d, companyName);
@@ -1023,6 +1043,8 @@ class OnboardingApp {
   }
 
   detectDesignation(d, companyName) {
+    if (d.gstDirectors) return "Director";
+    if (d.gstPartners) return "Partner";
     if (d.gstConstitution) {
       const c = d.gstConstitution.toLowerCase();
       if (c.includes("partnership") || c.includes("llp")) return "Partner";
