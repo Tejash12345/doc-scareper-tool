@@ -30,8 +30,8 @@ class OnboardingApp {
               <path d="M10 13h16v2H10zM10 17h12v2H10zM10 21h14v2H10zM24 17l4 4-4 4" stroke="white" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/>
             </svg>
             <div>
-              <h1>Corporate Client Onboarding</h1>
-              <p>Automated PDF Extraction & Smart Form Filling</p>
+              <h1>DocScraper - Smart Form Filler</h1>
+              <p>Upload PDFs &rarr; Extract Data &rarr; Auto-Fill Forms</p>
             </div>
           </div>
           <div class="header-actions">
@@ -143,7 +143,7 @@ class OnboardingApp {
             <div class="empty-state">
               <svg width="64" height="64" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/><polyline points="10 9 9 9 8 9"/></svg>
               <h3>Upload Your Documents to Begin</h3>
-              <p>Upload Bank Statement and Udyam Registration Certificate PDFs. The system will automatically extract data and fill the Corporate Client Onboarding Form with highest accuracy.</p>
+              <p>Upload any company PDF documents - Bank Statements, Udyam Certificates, PAN Cards, GST Certificates, CoI, Aadhaar, Trade Licenses - and the system will automatically extract data and fill all onboarding forms.</p>
               <div style="display:flex;gap:12px;flex-wrap:wrap;justify-content:center;margin-top:20px">
                 <button class="btn btn-primary btn-lg" onclick="document.getElementById('fileInput').click()">
                   <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>
@@ -151,11 +151,11 @@ class OnboardingApp {
                 </button>
                 <button class="btn btn-success btn-lg" onclick="app.loadPreAnalyzedData()">
                   <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/><polyline points="22 4 12 14.01 9 11.01"/></svg>
-                  Load Pre-analyzed Data
+                  Load Demo Data
                 </button>
               </div>
-              <p style="margin-top:12px;font-size:0.8rem;color:var(--text-secondary)">Supported: PDF files (Bank Statements, Udyam/MSME Certificates, Registration Documents)</p>
-              <p style="font-size:0.75rem;color:var(--text-secondary);margin-top:4px">Or click "Load Pre-analyzed Data" to auto-fill from BON VOYAGE documents</p>
+              <p style="margin-top:12px;font-size:0.8rem;color:var(--text-secondary)">Supported: Bank Statements, Udyam/MSME, PAN, GST, Certificate of Incorporation, Aadhaar, Trade License</p>
+              <p style="font-size:0.75rem;color:var(--text-secondary);margin-top:4px">Or click "Load Demo Data" to see a sample auto-fill</p>
             </div>
           </div>
         </div>
@@ -612,20 +612,15 @@ class OnboardingApp {
   }
 
   async extractPdfText(file) {
-    return new Promise((resolve, reject) => {
+    const arrayBuffer = await new Promise((resolve, reject) => {
       const reader = new FileReader();
-      reader.onload = (e) => {
-        try {
-          const extractor = new PdfTextExtractor();
-          const text = extractor.extract(e.target.result);
-          resolve(text);
-        } catch (ex) {
-          reject(new Error("Failed to parse PDF"));
-        }
-      };
+      reader.onload = (e) => resolve(e.target.result);
       reader.onerror = () => reject(new Error("Failed to read file"));
       reader.readAsArrayBuffer(file);
     });
+    const extractor = new PdfTextExtractor();
+    const text = await extractor.extract(arrayBuffer);
+    return text;
   }
 
   detectDocumentType(text) {
@@ -753,8 +748,9 @@ class OnboardingApp {
       if (udyamMatch) fields.udyamNumber = udyamMatch[1].toUpperCase();
 
       const entNamePatterns = [
-        /(?:NAME\s*OF\s*(?:ENTERPRISE|UNIT|BUSINESS|FIRM))\s*[:\-]?\s*([A-Z][A-Z\s&.]+?)(?=\s*(?:TYPE|MAJOR|FLAT|SOCIAL|CATEGORY|MOBILE|DATE|NIC|\d|$))/i,
-        /(?:Enterprise\s*Name)\s*[:\-]?\s*([A-Z][A-Z\s&.]+?)(?=\s)/i,
+        /(?:NAME\s*OF\s*(?:ENTERPRISE|UNIT|BUSINESS|FIRM))\s*[:\-]?\s*([A-Z][A-Z\s&.]+?)(?=\s*(?:TYPE|MAJOR|FLAT|SOCIAL|CATEGORY|MOBILE|DATE|NIC|\d{2}|$))/i,
+        /(?:Enterprise\s*Name)\s*[:\-]?\s*([A-Z][A-Z\s&.]+?)(?=\s+(?:Type|Major|Flat|Social|Category|Mobile|Date|NIC|Micro|Small|Medium|\d{2}))/i,
+        /(?:Enterprise\s*Name|Name\s*of\s*Enterprise)\s*[:\-]?\s*([A-Z][A-Z\s&.\-]+[A-Z.])/i,
       ];
       for (const p of entNamePatterns) {
         const m = t.match(p);
@@ -844,9 +840,16 @@ class OnboardingApp {
     }
 
     if (docType === "Document") {
-      const nameMatch = t.match(/(?:Company|Firm|Business|Enterprise|Entity)\s*(?:Name)?\s*[:\-]?\s*([A-Z][A-Z\s&.]+?)(?=\s{2,}|\n|(?:Address|Date|$))/i);
-      if (nameMatch && nameMatch[1].trim().length > 2) fields.genericName = nameMatch[1].trim();
-      const addrMatch = t.match(/(?:Address|Office)\s*[:\-]?\s*([A-Za-z0-9][A-Za-z0-9\s,.\-\/]+?\d{6})/i);
+      const namePatterns = [
+        /(?:Company|Firm|Business|Enterprise|Entity|Organisation|Organization)\s*(?:Name)?\s*[:\-]?\s*([A-Z][A-Z\s&.\-]+?)(?=\s{2,}|\n|(?:Address|Date|Registration|Mobile|Phone|Email|$))/i,
+        /(?:Name\s*of\s*(?:Company|Firm|Business|Enterprise|Entity|Applicant))\s*[:\-]?\s*([A-Z][A-Z\s&.\-]+?)(?=\s{2,}|\n|(?:Address|Date|$))/i,
+        /(?:M\/s|M\/S)\s+([A-Z][A-Z\s&.\-]+?)(?=\s{2,}|\n|(?:Address|$))/i,
+      ];
+      for (const p of namePatterns) {
+        const m = t.match(p);
+        if (m && m[1].trim().length > 2) { fields.genericName = m[1].trim(); break; }
+      }
+      const addrMatch = t.match(/(?:Address|Office|Premises)\s*[:\-]?\s*([A-Za-z0-9][A-Za-z0-9\s,.\-\/]+?\d{6})/i);
       if (addrMatch) fields.genericAddress = addrMatch[1].trim();
     }
 
