@@ -891,6 +891,23 @@ body {
   gap: 6px;
 }
 
+.copy-signatory-label {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 0.78rem;
+  color: var(--primary);
+  cursor: pointer;
+  margin: -6px 0 10px 0;
+  font-weight: 500;
+}
+.copy-signatory-label input[type="checkbox"] {
+  accent-color: var(--primary);
+  width: 15px;
+  height: 15px;
+  cursor: pointer;
+}
+
 @media (max-width: 1024px) {
   .main-container {
     grid-template-columns: 1fr;

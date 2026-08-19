@@ -311,12 +311,14 @@ class OnboardingApp {
             </div>
             <div class="sub-card">
               <div class="sub-card-title">12. Key Managerial Person (KMP) <span class="source-badge" id="badge_kmpName"></span></div>
+              <label class="copy-signatory-label"><input type="checkbox" onchange="app.copyFromSignatory('kmp', this.checked)"> Copy from Authorized Signatory</label>
               <div class="form-grid single">
                 <div class="form-group"><label class="form-label">Name of KMP who controls business activities</label><input class="form-input" type="text" id="kmpName" placeholder="KMP name"></div>
               </div>
             </div>
             <div class="sub-card">
               <div class="sub-card-title">13. Chief Executive Officer <span class="source-badge" id="badge_ceoName"></span></div>
+              <label class="copy-signatory-label"><input type="checkbox" onchange="app.copyFromSignatory('ceo', this.checked)"> Copy from Authorized Signatory</label>
               <div class="form-grid">
                 <div class="form-group"><label class="form-label">Name</label><input class="form-input" type="text" id="ceoName" placeholder="CEO name"></div>
                 <div class="form-group"><label class="form-label">Mobile No</label><input class="form-input" type="tel" id="ceoMobile" placeholder="Mobile"></div>
@@ -325,6 +327,7 @@ class OnboardingApp {
             </div>
             <div class="sub-card">
               <div class="sub-card-title">14. Managing Director / Partner / Trustee <span class="source-badge" id="badge_mdName"></span></div>
+              <label class="copy-signatory-label"><input type="checkbox" onchange="app.copyFromSignatory('md', this.checked)"> Copy from Authorized Signatory</label>
               <div class="form-grid">
                 <div class="form-group"><label class="form-label">Name</label><input class="form-input" type="text" id="mdName" placeholder="MD/Partner/Trustee name"></div>
                 <div class="form-group"><label class="form-label">Mobile No</label><input class="form-input" type="tel" id="mdMobile" placeholder="Mobile"></div>
@@ -887,21 +890,53 @@ class OnboardingApp {
       const validityMatch = t.match(/(?:Date\s*of\s*Validity)\s*(?:From)?\s*[:\-]?\s*(\d{2}\/\d{2}\/\d{4})/i);
       if (validityMatch) fields.gstValidityFrom = validityMatch[1];
 
-      const partnersBlock = t.match(/(?:Details\s*of\s*(?:Designated\s*)?(?:Partners|Directors|Promoters|Members|Karta|Trustees))([\s\S]*?)$/i);
-      if (partnersBlock) {
+      const compName = (fields.gstLegalName || fields.gstTradeName || "").toUpperCase();
+      const extractPersonNames = (block, isDir) => {
         const names = [];
-        const block = partnersBlock[1];
-        const nameMatches = block.matchAll(/(?:\bName\b)\s*[:\-]?\s*([A-Z][A-Za-z\s.]+?)(?=\s*(?:Designation|Resident|Status|DIN|PAN|Father|Date|Mobile|Photo|Name\b|\d{1,3}\s|$))/gi);
-        for (const nm of nameMatches) {
-          const n = nm[1].trim();
-          const skip = /^(Legal|Trade|Additional|Total|Number|Goods|Services|Tax|Identification|Annexure)\b/i.test(n);
-          const isCompanyName = n === (fields.gstLegalName || "") || n === (fields.gstTradeName || "");
-          if (n.length > 2 && !skip && !isCompanyName) names.push(n);
+        const patterns = [
+          /(?:\bName\b)\s*[:\-]?\s*([A-Z][A-Za-z\s.]+?)(?=\s*(?:Designation|Resident|Status|DIN|PAN|Father|Date|Mobile|Photo|Name\b|\d{1,3}\s|$))/gi,
+          /(?:\bName\b)\s+([A-Z][a-z]+(?:\s+[A-Za-z][a-z]+)+)/g,
+          /\b(\d+)\s+Name\s+([A-Z][A-Za-z\s.]+?)(?=\s*(?:Designation|DIN|Resident|$))/gi,
+        ];
+        for (const re of patterns) {
+          const matches = block.matchAll(re);
+          for (const nm of matches) {
+            const n = (nm[2] || nm[1]).trim();
+            const skip = /^(Legal|Trade|Additional|Total|Number|Goods|Services|Tax|Identification|Annexure|Signature|Registration|Certificate|Place|Business|Address|Floor|Building|Superintendent|Commissioner|Officer|Principal|Centre|Jurisdictional)\b/i.test(n);
+            const nUp = n.toUpperCase();
+            const corpWords = /\b(LIMITED|PRIVATE|LLP|PARTNERSHIP|COMPANY|CORPORATION|ENTERPRISES|INDUSTRIES|REPRESENTATIONS|SOLUTIONS|SERVICES|TECHNOLOGIES|PVT|LTD|INC)\b/i.test(n);
+            const isComp = corpWords || nUp === compName || (compName && compName.length > 5 && (compName.includes(nUp) || nUp.includes(compName.substring(0, Math.min(10, compName.length))))) || n.split(/\s+/).length > 5;
+            if (n.length > 2 && n.length < 60 && !skip && !isComp && /[a-z]/i.test(n)) names.push(n);
+          }
+          if (names.length > 0) break;
         }
-        if (names.length > 0) {
-          const isDirector = /directors/i.test(partnersBlock[0]);
-          if (isDirector) fields.gstDirectors = names;
-          else fields.gstPartners = names;
+        const unique = [...new Set(names)];
+        if (unique.length > 0) {
+          if (isDir) fields.gstDirectors = unique;
+          else fields.gstPartners = unique;
+        }
+      };
+
+      const blockHeadings = [
+        /(?:Details\s*of\s*(?:Designated\s*)?(?:Partners|Directors|Promoters|Members|Karta|Trustees))([\s\S]*?)$/i,
+        /(?:Annexure\s*B)([\s\S]*?)$/i,
+        /(?:Particulars\s*of\s*(?:Partners|Directors|Promoters))([\s\S]*?)$/i,
+      ];
+      let foundBlock = false;
+      for (const re of blockHeadings) {
+        const partnersBlock = t.match(re);
+        if (partnersBlock) {
+          const isDir = /director/i.test(partnersBlock[0]) || /private\s*limited/i.test(fields.gstConstitution || "");
+          extractPersonNames(partnersBlock[1], isDir);
+          foundBlock = true;
+          break;
+        }
+      }
+      if (!foundBlock) {
+        const afterSig = t.match(/(?:Signature|Date\s*of\s*issue)([\s\S]{50,}?)$/i);
+        if (afterSig) {
+          const isDir = /private|company|limited/i.test(fields.gstConstitution || fields.gstLegalName || "");
+          extractPersonNames(afterSig[1], isDir);
         }
       }
 
@@ -1040,6 +1075,27 @@ class OnboardingApp {
     const classes = { UDYAM: "udyam", GST: "gst", BANK: "bank", PAN: "pan", CoI: "coi", DOC: "doc", AUTO: "auto" };
     el.textContent = labels[source] || source;
     el.className = "source-badge " + (classes[source] || "auto");
+  }
+
+  copyFromSignatory(section, checked) {
+    const sigName = document.getElementById("signatoryName")?.value || "";
+    const sigDesig = document.getElementById("signatoryDesignation")?.value || "";
+    const contactMobile = document.getElementById("contactMobile")?.value || "";
+    const contactEmail = document.getElementById("contactEmail")?.value || "";
+    if (section === "kmp") {
+      document.getElementById("kmpName").value = checked ? sigName : "";
+      if (checked && sigName) document.getElementById("kmpName").classList.add("auto-filled");
+    } else if (section === "ceo") {
+      document.getElementById("ceoName").value = checked ? sigName : "";
+      document.getElementById("ceoMobile").value = checked ? contactMobile : "";
+      document.getElementById("ceoEmail").value = checked ? contactEmail : "";
+      if (checked && sigName) ["ceoName","ceoMobile","ceoEmail"].forEach(id => document.getElementById(id)?.classList.add("auto-filled"));
+    } else if (section === "md") {
+      document.getElementById("mdName").value = checked ? sigName : "";
+      document.getElementById("mdMobile").value = checked ? contactMobile : "";
+      document.getElementById("mdEmail").value = checked ? contactEmail : "";
+      if (checked && sigName) ["mdName","mdMobile","mdEmail"].forEach(id => document.getElementById(id)?.classList.add("auto-filled"));
+    }
   }
 
   detectDesignation(d, companyName) {
