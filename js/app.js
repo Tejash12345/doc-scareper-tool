@@ -176,12 +176,12 @@ class OnboardingApp {
               <div class="form-group full-width">
                 <label class="form-label">
                   1. Registered Name <span class="required">*</span>
-                  <span class="source-badge udyam" id="badge_registeredName">UDYAM</span>
+                  <span class="source-badge" id="badge_registeredName"></span>
                 </label>
                 <input class="form-input" type="text" id="registeredName" placeholder="Enter registered name">
               </div>
               <div class="form-group full-width">
-                <label class="form-label">2. Legal Status <span class="required">*</span> <span class="source-badge auto">AUTO</span></label>
+                <label class="form-label">2. Legal Status <span class="required">*</span> <span class="source-badge" id="badge_legalStatus"></span></label>
                 <div class="radio-group" id="legalStatusGroup">
                   ${["Private Limited Company","Public Limited Company","Limited Company","Partnership","LLP","Association of Persons","Society","Trust","Proprietor","HUF"].map(s =>
                     `<div class="radio-item" data-value="${s}">
@@ -195,35 +195,42 @@ class OnboardingApp {
               <div class="form-group full-width">
                 <label class="form-label">
                   2. Registered Office Address <span class="required">*</span>
-                  <span class="source-badge udyam" id="badge_registeredAddress">UDYAM</span>
+                  <span class="source-badge" id="badge_registeredAddress"></span>
                 </label>
                 <textarea class="form-textarea" id="registeredAddress" rows="3" placeholder="Enter registered address"></textarea>
               </div>
               <div class="form-group full-width">
                 <label class="form-label">
                   3. Principal Place of Business
-                  <span class="source-badge auto">AUTO</span>
+                  <span class="source-badge" id="badge_principalPlace"></span>
                 </label>
                 <textarea class="form-textarea" id="principalPlace" rows="3" placeholder="If different from registered address"></textarea>
               </div>
               <div class="form-group">
                 <label class="form-label">
                   4. Date of Incorporation <span class="required">*</span>
-                  <span class="source-badge udyam" id="badge_doi">UDYAM</span>
+                  <span class="source-badge" id="badge_dateOfIncorporation"></span>
                 </label>
                 <input class="form-input" type="text" id="dateOfIncorporation" placeholder="DD/MM/YYYY">
               </div>
               <div class="form-group">
                 <label class="form-label">
                   5. PAN No <span class="required">*</span>
-                  <span class="source-badge manual">MANUAL</span>
+                  <span class="source-badge" id="badge_panNo"></span>
                 </label>
                 <input class="form-input" type="text" id="panNo" placeholder="Enter PAN number" maxlength="10" style="text-transform:uppercase">
+              </div>
+              <div class="form-group">
+                <label class="form-label">
+                  GST Number
+                  <span class="source-badge" id="badge_gstNo"></span>
+                </label>
+                <input class="form-input" type="text" id="gstNo" placeholder="Enter GSTIN" maxlength="15" style="text-transform:uppercase">
               </div>
               <div class="form-group full-width">
                 <label class="form-label">
                   6. Nature of Business <span class="required">*</span>
-                  <span class="source-badge udyam" id="badge_nature">UDYAM</span>
+                  <span class="source-badge" id="badge_natureOfBusiness"></span>
                 </label>
                 <input class="form-input" type="text" id="natureOfBusiness" placeholder="Enter nature of business">
               </div>
@@ -246,7 +253,7 @@ class OnboardingApp {
               <div class="form-group">
                 <label class="form-label">
                   MSME/Udyam Number
-                  <span class="source-badge udyam">UDYAM</span>
+                  <span class="source-badge" id="badge_udyamNumber"></span>
                 </label>
                 <input class="form-input" type="text" id="udyamNumber" placeholder="UDYAM-XX-XX-XXXXXXX">
               </div>
@@ -293,7 +300,7 @@ class OnboardingApp {
               <div class="sub-card-title">
                 <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07 19.5 19.5 0 0 1-6-6A19.79 19.79 0 0 1 2.12 4.11 2 2 0 0 1 4.11 2h3a2 2 0 0 1 2 1.72c.127.96.362 1.903.7 2.81a2 2 0 0 1-.45 2.11L8.09 9.91a16 16 0 0 0 6 6l1.27-1.27a2 2 0 0 1 2.11-.45c.907.338 1.85.573 2.81.7A2 2 0 0 1 22 16.92z"/></svg>
                 11. Contact Person / Coordinator
-                <span class="source-badge udyam">UDYAM</span>
+                <span class="source-badge" id="badge_contactName"></span>
               </div>
               <div class="form-grid">
                 <div class="form-group"><label class="form-label">Name</label><input class="form-input" type="text" id="contactName" placeholder="Contact person name"></div>
@@ -303,13 +310,13 @@ class OnboardingApp {
               </div>
             </div>
             <div class="sub-card">
-              <div class="sub-card-title">12. Key Managerial Person (KMP) <span class="source-badge bank">BANK</span></div>
+              <div class="sub-card-title">12. Key Managerial Person (KMP) <span class="source-badge" id="badge_kmpName"></span></div>
               <div class="form-grid single">
                 <div class="form-group"><label class="form-label">Name of KMP who controls business activities</label><input class="form-input" type="text" id="kmpName" placeholder="KMP name"></div>
               </div>
             </div>
             <div class="sub-card">
-              <div class="sub-card-title">13. Chief Executive Officer <span class="source-badge udyam">UDYAM</span></div>
+              <div class="sub-card-title">13. Chief Executive Officer <span class="source-badge" id="badge_ceoName"></span></div>
               <div class="form-grid">
                 <div class="form-group"><label class="form-label">Name</label><input class="form-input" type="text" id="ceoName" placeholder="CEO name"></div>
                 <div class="form-group"><label class="form-label">Mobile No</label><input class="form-input" type="tel" id="ceoMobile" placeholder="Mobile"></div>
@@ -317,7 +324,7 @@ class OnboardingApp {
               </div>
             </div>
             <div class="sub-card">
-              <div class="sub-card-title">14. Managing Director / Partner / Trustee <span class="source-badge udyam">UDYAM</span></div>
+              <div class="sub-card-title">14. Managing Director / Partner / Trustee <span class="source-badge" id="badge_mdName"></span></div>
               <div class="form-grid">
                 <div class="form-group"><label class="form-label">Name</label><input class="form-input" type="text" id="mdName" placeholder="MD/Partner/Trustee name"></div>
                 <div class="form-group"><label class="form-label">Mobile No</label><input class="form-input" type="tel" id="mdMobile" placeholder="Mobile"></div>
@@ -362,7 +369,7 @@ class OnboardingApp {
               <div class="sub-card-title">
                 <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="1" y="4" width="22" height="16" rx="2"/><line x1="1" y1="10" x2="23" y2="10"/></svg>
                 17. Banking Details
-                <span class="source-badge bank">BANK STATEMENT</span>
+                <span class="source-badge" id="badge_bankName"></span>
               </div>
               <div class="form-grid">
                 <div class="form-group"><label class="form-label">Bank Name</label><input class="form-input" type="text" id="bankName" placeholder="Bank name"></div>
@@ -503,48 +510,50 @@ class OnboardingApp {
       const bs = EXTRACTED_DATA.bankStatement;
       const uc = EXTRACTED_DATA.udyamCertificate;
 
-      const setVal = (id, value) => {
+      const setVal = (id, value, source) => {
         const el = document.getElementById(id);
         if (el && value) { el.value = value; el.classList.add("auto-filled"); }
+        if (source) this.setBadge(id, source);
       };
 
-      setVal("registeredName", fm.registeredName);
-      setVal("registeredAddress", fm.registeredAddress);
-      setVal("principalPlace", fm.principalPlaceOfBusiness);
-      setVal("dateOfIncorporation", fm.dateOfIncorporation);
-      setVal("panNo", fm.panNo);
-      setVal("natureOfBusiness", fm.natureOfBusiness);
+      setVal("registeredName", fm.registeredName, "UDYAM");
+      setVal("registeredAddress", fm.registeredAddress, "UDYAM");
+      setVal("principalPlace", fm.principalPlaceOfBusiness, "UDYAM");
+      setVal("dateOfIncorporation", fm.dateOfIncorporation, "UDYAM");
+      setVal("panNo", fm.panNo, fm.panNo ? "PAN" : "");
+      setVal("natureOfBusiness", fm.natureOfBusiness, "UDYAM");
       setVal("companyWebsite", fm.companyWebsite);
-      setVal("udyamNumber", uc.udyamNumber);
+      setVal("udyamNumber", uc.udyamNumber, "UDYAM");
       setVal("annualFx", fm.annualEstimatedFx);
 
-      setVal("contactName", fm.contactPerson.name);
-      setVal("contactDesignation", fm.contactPerson.designation);
-      setVal("contactMobile", fm.contactPerson.mobile);
-      setVal("contactEmail", fm.contactPerson.email);
-      setVal("kmpName", fm.kmpName);
-      setVal("ceoName", fm.ceo.name);
-      setVal("ceoMobile", fm.ceo.mobile);
-      setVal("ceoEmail", fm.ceo.email);
-      setVal("mdName", fm.mdPartnerTrustee.name);
-      setVal("mdMobile", fm.mdPartnerTrustee.mobile);
-      setVal("mdEmail", fm.mdPartnerTrustee.email);
-      setVal("directors", fm.directors);
-      setVal("authorizedOfficials", fm.authorizedOfficials);
+      setVal("contactName", fm.contactPerson.name, "UDYAM");
+      setVal("contactDesignation", fm.contactPerson.designation, "UDYAM");
+      setVal("contactMobile", fm.contactPerson.mobile, "UDYAM");
+      setVal("contactEmail", fm.contactPerson.email, "UDYAM");
+      setVal("kmpName", fm.kmpName, "BANK");
+      setVal("ceoName", fm.ceo.name, "UDYAM");
+      setVal("ceoMobile", fm.ceo.mobile, "UDYAM");
+      setVal("ceoEmail", fm.ceo.email, "UDYAM");
+      setVal("mdName", fm.mdPartnerTrustee.name, "UDYAM");
+      setVal("mdMobile", fm.mdPartnerTrustee.mobile, "UDYAM");
+      setVal("mdEmail", fm.mdPartnerTrustee.email, "UDYAM");
+      setVal("directors", fm.directors, "UDYAM");
+      setVal("authorizedOfficials", fm.authorizedOfficials, "UDYAM");
 
-      setVal("bankName", bs.bankName);
-      setVal("bankBranch", bs.branchAddress);
-      setVal("accountName", bs.accountName);
-      setVal("accountNumber", bs.accountNumber);
-      setVal("accountType", bs.accountType);
-      setVal("ifscCode", bs.ifsc);
+      setVal("bankName", bs.bankName, "BANK");
+      setVal("bankBranch", bs.branchAddress, "BANK");
+      setVal("accountName", bs.accountName, "BANK");
+      setVal("accountNumber", bs.accountNumber, "BANK");
+      setVal("accountType", bs.accountType, "BANK");
+      setVal("ifscCode", bs.ifsc, "BANK");
 
-      setVal("signatoryName", fm.authorizedSignatory.name);
-      setVal("signatoryDesignation", fm.authorizedSignatory.designation);
-      setVal("signatoryDate", fm.authorizedSignatory.date);
+      setVal("signatoryName", fm.authorizedSignatory.name, "UDYAM");
+      setVal("signatoryDesignation", fm.authorizedSignatory.designation, "UDYAM");
+      setVal("signatoryDate", fm.authorizedSignatory.date, "AUTO");
       setVal("caseDetails", fm.caseDetails);
 
       this.selectRadio("legalStatusGroup", fm.legalStatus);
+      this.setBadge("legalStatus", "UDYAM");
       this.selectRadio("stockExchangeGroup", fm.listedOnStockExchange);
       this.selectRadio("caseRegisteredGroup", fm.caseRegistered);
 
@@ -555,7 +564,7 @@ class OnboardingApp {
       this.renderUploadedFiles();
       this.updateAccuracy();
       this.hideLoading();
-      this.showToast("Pre-analyzed data loaded - 30+ fields auto-filled!", "success");
+      this.showToast("Demo data loaded - 30+ fields auto-filled!", "success");
       setTimeout(() => this.goToStep(1), 400);
     }, 800);
   }
@@ -658,7 +667,7 @@ class OnboardingApp {
     const panGlobal = t.match(/\b([A-Z]{5}\d{4}[A-Z])\b/);
     if (panGlobal) fields.panNumber = panGlobal[1];
 
-    const gstGlobal = t.match(/\b(\d{2}[A-Z]{5}\d{4}[A-Z]\d[A-Z\d][A-Z]\d)\b/);
+    const gstGlobal = t.match(/\b(\d{2}[A-Z]{5}\d{4}[A-Z]\d[A-Z\d]{2})\b/);
     if (gstGlobal) fields.gstNumber = gstGlobal[1];
 
     const emailGlobal = t.match(/([a-zA-Z0-9._%+\-]+@[a-zA-Z0-9.\-]+\.[a-zA-Z]{2,})/i);
@@ -824,10 +833,71 @@ class OnboardingApp {
     if (docType === "GST Certificate") {
       const gstMatch = t.match(/(\d{2}[A-Z]{5}\d{4}[A-Z]\d[A-Z\d][A-Z]\d)/);
       if (gstMatch) fields.gstNumber = gstMatch[1];
-      const tradeNameMatch = t.match(/(?:Trade\s*Name|Legal\s*Name|Business\s*Name)\s*[:\-]?\s*([A-Z][A-Z\s&.]+?)(?=\s*(?:Address|GSTIN|Date|$))/i);
-      if (tradeNameMatch) fields.gstTradeName = tradeNameMatch[1].trim();
-      const gstAddrMatch = t.match(/(?:Principal\s*Place|Address)\s*[:\-]?\s*([A-Za-z0-9][A-Za-z0-9\s,.\-\/]+?\d{6})/i);
-      if (gstAddrMatch) fields.gstAddress = gstAddrMatch[1].trim();
+
+      const legalNamePatterns = [
+        /(?:Legal\s*Name)\s*[:\-]?\s*([A-Z][A-Z\s&.\-]+?)(?=\s*(?:\d+\.?\s*Trade|Trade\s*Name|Additional|Constitution|Address|GSTIN|\d+\.\s|$))/i,
+        /(?:Legal\s*Name)\s*[:\-]?\s*([A-Z][A-Z\s&.\-]{3,})/i,
+      ];
+      for (const p of legalNamePatterns) {
+        const m = t.match(p);
+        if (m && m[1].trim().length > 3) { fields.gstLegalName = m[1].trim(); break; }
+      }
+
+      const tradeNamePatterns = [
+        /(?:Trade\s*Name,?\s*(?:if\s*any)?)\s*[:\-]?\s*([A-Z][A-Z\s&.\-]+?)(?=\s*(?:\d+\.?\s*Additional|Additional|Constitution|Address|GSTIN|\d+\.\s|$))/i,
+        /(?:Trade\s*Name)\s*[:\-]?\s*([A-Z][A-Z\s&.\-]{3,})/i,
+      ];
+      for (const p of tradeNamePatterns) {
+        const m = t.match(p);
+        if (m && m[1].trim().length > 3) { fields.gstTradeName = m[1].trim(); break; }
+      }
+
+      const constitutionMatch = t.match(/(?:Constitution\s*(?:of\s*)?Business)\s*[:\-]?\s*([A-Za-z][A-Za-z\s]+?)(?=\s*(?:\d+\.?\s*Address|Address|Date|PIN|Floor|Building|$))/i);
+      if (constitutionMatch) fields.gstConstitution = constitutionMatch[1].trim();
+
+      const gstAddrMatch = t.match(/(?:Address\s*of\s*Principal\s*Place|Principal\s*Place\s*of\s*Business)\s*[:\-]?\s*([\s\S]{10,300}?)(?=\s*(?:\d+\.?\s*Date|\d+\.?\s*Type|Date\s*of\s*(?:Liability|Validity)|Type\s*of\s*Registration))/i);
+      if (gstAddrMatch) {
+        const addrBlock = gstAddrMatch[1];
+        const stateM = addrBlock.match(/State\s*[:\-]?\s*([A-Za-z][A-Za-z\s]+?)(?=\s*(?:PIN|District|City|$))/i);
+        if (stateM) fields.state = stateM[1].trim();
+        const distM = addrBlock.match(/District\s*[:\-]?\s*([A-Za-z][A-Za-z\s]+?)(?=\s*(?:State|PIN|City|$))/i);
+        if (distM) fields.district = distM[1].trim();
+        const cityM = addrBlock.match(/(?:City|Town|Village)\s*[:\-]?\s*([A-Za-z][A-Za-z\s]+?)(?=\s*(?:District|State|PIN|$))/i);
+        if (cityM) fields.city = cityM[1].trim();
+        const pinM = addrBlock.match(/(?:PIN\s*Code?)\s*[:\-]?\s*(\d{6})/i);
+        if (pinM) fields.pin = pinM[1];
+        const roadM = addrBlock.match(/(?:Road|Street)\s*[:\-]?\s*([A-Za-z0-9][A-Za-z0-9\s]+?)(?=\s*(?:Locality|City|Town|Village|District|$))/i);
+        if (roadM) fields.road = roadM[1].trim();
+        const localityM = addrBlock.match(/(?:Locality|Sub\s*Locality)\s*[:\-]?\s*([A-Za-z][A-Za-z\s]+?)(?=\s*(?:City|Town|Village|District|$))/i);
+        if (localityM) fields.premises = (fields.premises ? fields.premises + ", " : "") + localityM[1].trim();
+        const floorM = addrBlock.match(/(?:Floor\s*No\.?)\s*[:\-]?\s*([A-Za-z0-9][A-Za-z0-9\s]+?)(?=\s*(?:Building|Flat|Road|Street|$))/i);
+        const bldgM = addrBlock.match(/(?:Building\s*No\.?|Flat\s*No\.?)\s*[:\-]?\s*([A-Za-z0-9][A-Za-z0-9\s]+?)(?=\s*(?:Road|Street|Locality|Floor|$))/i);
+        if (floorM || bldgM) fields.premises = [floorM && floorM[1].trim(), bldgM && bldgM[1].trim()].filter(Boolean).join(", ");
+      }
+      if (!fields.pin) {
+        const pinFallback = t.match(/(?:PIN\s*Code?)\s*[:\-]?\s*(\d{6})/i);
+        if (pinFallback) fields.pin = pinFallback[1];
+        else { const p6 = t.match(/\b(\d{6})\b/); if (p6 && parseInt(p6[1]) >= 100000 && parseInt(p6[1]) <= 999999) fields.pin = p6[1]; }
+      }
+
+      const validityMatch = t.match(/(?:Date\s*of\s*Validity)\s*(?:From)?\s*[:\-]?\s*(\d{2}\/\d{2}\/\d{4})/i);
+      if (validityMatch) fields.gstValidityFrom = validityMatch[1];
+
+      const partnersBlock = t.match(/(?:Details\s*of\s*(?:Designated\s*)?Partners|Details\s*of\s*Directors)([\s\S]*?)$/i);
+      if (partnersBlock) {
+        const names = [];
+        const nameMatches = partnersBlock[1].matchAll(/(?:Name)\s*[:\-]?\s*([A-Z][A-Za-z\s]+?)(?=\s*(?:Designation|Resident|Status|DIN|Name|\d|$))/gi);
+        for (const nm of nameMatches) {
+          const n = nm[1].trim();
+          if (n.length > 2 && !/^(Legal|Trade|Additional)$/i.test(n)) names.push(n);
+        }
+        if (names.length > 0) fields.gstPartners = names;
+      }
+
+      if (!fields.gstAddress) {
+        const fullAddr = this.buildAddress(fields);
+        if (fullAddr) fields.gstAddress = fullAddr;
+      }
     }
 
     if (docType === "Certificate of Incorporation") {
@@ -860,77 +930,130 @@ class OnboardingApp {
     const d = this.extractedData;
     this.autoFilledCount = 0;
 
-    const setVal = (id, value) => {
+    const setVal = (id, value, source) => {
       const el = document.getElementById(id);
       if (el && value) {
         el.value = value;
         el.classList.add("auto-filled");
         this.autoFilledCount++;
+        if (source) this.setBadge(id, source);
       }
     };
 
-    const companyName = d.enterpriseName || d.companyName || d.gstTradeName || d.genericName || d.bankAccountName || "";
-    const address = this.buildAddress(d) || d.bankAddress || d.gstAddress || d.genericAddress || "";
-    const ownerName = d.ownerName || d.panHolderName || d.bankAccountName || d.accountHolderName || companyName || "";
+    const companyName = d.enterpriseName || d.gstLegalName || d.gstTradeName || d.companyName || d.genericName || d.bankAccountName || "";
+    const companySource = d.enterpriseName ? "UDYAM" : d.gstLegalName || d.gstTradeName ? "GST" : d.companyName ? "CoI" : d.genericName ? "DOC" : d.bankAccountName ? "BANK" : "";
+
+    const address = this.buildAddress(d) || d.gstAddress || d.bankAddress || d.genericAddress || "";
+    const addrSource = this.buildAddress(d) ? (d.gstNumber ? "GST" : d.udyamNumber ? "UDYAM" : "DOC") : d.gstAddress ? "GST" : d.bankAddress ? "BANK" : d.genericAddress ? "DOC" : "";
+
+    const ownerName = d.ownerName || d.panHolderName || (d.gstPartners && d.gstPartners[0]) || d.bankAccountName || d.accountHolderName || companyName || "";
     const cleanName = ownerName.replace(/^(MR|MS|MRS|SHRI|SMT|M\/S)\s+/i, "").trim();
+    const nameSource = d.ownerName ? "UDYAM" : d.panHolderName ? "PAN" : d.gstPartners ? "GST" : d.bankAccountName ? "BANK" : companySource;
+
     const mobile = d.udyamMobile || d.extractedMobile || "";
+    const mobileSource = d.udyamMobile ? "UDYAM" : d.extractedMobile ? "DOC" : "";
     const email = d.udyamEmail || d.extractedEmail || "";
+    const emailSource = d.udyamEmail ? "UDYAM" : d.extractedEmail ? "DOC" : "";
 
-    setVal("registeredName", companyName);
-    setVal("registeredAddress", address);
-    setVal("principalPlace", address);
-    setVal("dateOfIncorporation", d.dateOfIncorporation);
-    setVal("panNo", d.panNumber);
-    setVal("udyamNumber", d.udyamNumber);
-    setVal("gstNo", d.gstNumber);
+    setVal("registeredName", companyName, companySource);
+    setVal("registeredAddress", address, addrSource);
+    setVal("principalPlace", address, addrSource);
+    setVal("dateOfIncorporation", d.dateOfIncorporation || d.gstValidityFrom, d.dateOfIncorporation ? "UDYAM" : d.gstValidityFrom ? "GST" : "");
+    setVal("panNo", d.panNumber, d.panNumber ? "PAN" : "");
+    setVal("udyamNumber", d.udyamNumber, d.udyamNumber ? "UDYAM" : "");
+    setVal("gstNo", d.gstNumber, d.gstNumber ? "GST" : "");
 
-    const nature = d.nicDescription || d.nic5Code || "";
+    const nature = d.nicDescription || d.nic5Code || d.gstConstitution || "";
     if (nature) {
       let full = nature;
       if (d.nic5Code && !full.includes(d.nic5Code)) full += ` (NIC: ${d.nic5Code})`;
-      setVal("natureOfBusiness", full);
+      setVal("natureOfBusiness", full, d.nicDescription || d.nic5Code ? "UDYAM" : "GST");
     }
 
-    setVal("contactName", cleanName);
-    setVal("contactDesignation", d.enterpriseType ? "Proprietor" : "");
-    setVal("contactMobile", mobile);
-    setVal("contactEmail", email);
-    setVal("kmpName", cleanName);
-    setVal("ceoName", cleanName);
-    setVal("ceoMobile", mobile);
-    setVal("ceoEmail", email);
-    setVal("mdName", cleanName);
-    setVal("mdMobile", mobile);
-    setVal("mdEmail", email);
-    if (cleanName) {
-      const desig = d.enterpriseType ? "Proprietor" : "Director";
-      setVal("directors", `${cleanName} (${desig})`);
-      setVal("authorizedOfficials", cleanName);
+    const desig = this.detectDesignation(d, companyName);
+    setVal("contactName", cleanName, nameSource);
+    setVal("contactDesignation", desig, nameSource);
+    setVal("contactMobile", mobile, mobileSource);
+    setVal("contactEmail", email, emailSource);
+    setVal("kmpName", cleanName, nameSource);
+    setVal("ceoName", cleanName, nameSource);
+    setVal("ceoMobile", mobile, mobileSource);
+    setVal("ceoEmail", email, emailSource);
+    setVal("mdName", cleanName, nameSource);
+    setVal("mdMobile", mobile, mobileSource);
+    setVal("mdEmail", email, emailSource);
+
+    if (d.gstPartners && d.gstPartners.length > 0) {
+      setVal("directors", d.gstPartners.map(n => `${n} (Partner)`).join("\n"), "GST");
+      setVal("authorizedOfficials", d.gstPartners.join(", "), "GST");
+    } else if (cleanName) {
+      setVal("directors", `${cleanName} (${desig})`, nameSource);
+      setVal("authorizedOfficials", cleanName, nameSource);
     }
 
-    setVal("bankName", d.bankName);
-    setVal("bankBranch", d.bankBranch);
-    setVal("accountName", d.bankAccountName || companyName);
-    setVal("accountNumber", d.bankAccountNumber);
-    setVal("accountType", d.bankAccountType);
-    setVal("ifscCode", d.bankIfsc);
+    setVal("bankName", d.bankName, "BANK");
+    setVal("bankBranch", d.bankBranch, "BANK");
+    setVal("accountName", d.bankAccountName || companyName, d.bankAccountName ? "BANK" : companySource);
+    setVal("accountNumber", d.bankAccountNumber, "BANK");
+    setVal("accountType", d.bankAccountType, "BANK");
+    setVal("ifscCode", d.bankIfsc, "BANK");
 
-    setVal("signatoryName", cleanName);
-    if (cleanName) setVal("signatoryDesignation", d.enterpriseType ? "Proprietor" : "Director");
-    setVal("signatoryDate", new Date().toLocaleDateString("en-IN"));
+    setVal("signatoryName", cleanName, nameSource);
+    if (cleanName) setVal("signatoryDesignation", desig, nameSource);
+    setVal("signatoryDate", new Date().toLocaleDateString("en-IN"), "AUTO");
 
     const legalStatus = this.detectLegalStatus(d, companyName);
-    if (legalStatus) this.selectRadio("legalStatusGroup", legalStatus);
+    if (legalStatus) {
+      this.selectRadio("legalStatusGroup", legalStatus);
+      const lsSource = d.gstConstitution ? "GST" : d.enterpriseType ? "UDYAM" : d.companyName ? "CoI" : "AUTO";
+      this.setBadge("legalStatus", lsSource);
+    }
     this.selectRadio("stockExchangeGroup", "No");
     this.selectRadio("caseRegisteredGroup", "No");
   }
 
+  setBadge(fieldId, source) {
+    const badgeId = "badge_" + fieldId;
+    const el = document.getElementById(badgeId);
+    if (!el || !source) return;
+    const labels = { UDYAM: "UDYAM", GST: "GST", BANK: "BANK", PAN: "PAN", CoI: "CoI", DOC: "DOC", AUTO: "AUTO" };
+    const classes = { UDYAM: "udyam", GST: "gst", BANK: "bank", PAN: "pan", CoI: "coi", DOC: "doc", AUTO: "auto" };
+    el.textContent = labels[source] || source;
+    el.className = "source-badge " + (classes[source] || "auto");
+  }
+
+  detectDesignation(d, companyName) {
+    if (d.gstConstitution) {
+      const c = d.gstConstitution.toLowerCase();
+      if (c.includes("partnership") || c.includes("llp")) return "Partner";
+      if (c.includes("proprietor")) return "Proprietor";
+      if (c.includes("company") || c.includes("limited")) return "Director";
+    }
+    if (d.enterpriseType === "Micro" || d.enterpriseType === "Small") return "Proprietor";
+    const name = (companyName || "").toLowerCase();
+    if (/\bllp\b|partnership/.test(name)) return "Partner";
+    if (/\bpvt\b|limited|company/.test(name)) return "Director";
+    if (d.enterpriseType) return "Proprietor";
+    return "Director";
+  }
+
   detectLegalStatus(d, companyName) {
+    if (d.gstConstitution) {
+      const c = d.gstConstitution.toLowerCase();
+      if (c.includes("limited liability partnership") || c.includes("llp")) return "LLP";
+      if (c.includes("private") && c.includes("limited")) return "Private Limited Company";
+      if (c.includes("limited") && !c.includes("private")) return "Public Limited Company";
+      if (c.includes("partnership")) return "Partnership";
+      if (c.includes("proprietor")) return "Proprietor";
+      if (c.includes("trust")) return "Trust";
+      if (c.includes("society")) return "Society";
+      if (c.includes("huf")) return "HUF";
+    }
     const name = (companyName || "").toLowerCase();
     if (d.enterpriseType === "Micro" || d.enterpriseType === "Small") return "Proprietor";
     if (/\bprivate\s*limited\b/i.test(name) || /\bpvt\b/i.test(name)) return "Private Limited Company";
+    if (/\blimited\s*liability\s*partnership\b/i.test(name) || /\bllp\b/i.test(name)) return "LLP";
     if (/\blimited\b/i.test(name) && !/private/i.test(name)) return "Public Limited Company";
-    if (/\bllp\b/i.test(name)) return "LLP";
     if (/\bpartnership\b/i.test(name)) return "Partnership";
     if (/\btrust\b/i.test(name)) return "Trust";
     if (/\bsociety\b/i.test(name)) return "Society";
