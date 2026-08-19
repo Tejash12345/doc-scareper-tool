@@ -616,49 +616,10 @@ class OnboardingApp {
       const reader = new FileReader();
       reader.onload = (e) => {
         try {
-          const data = new Uint8Array(e.target.result);
-          let text = "";
-          let inStream = false;
-          let streamData = [];
-
-          const dataStr = new TextDecoder("latin1").decode(data);
-
-          const textMatches = dataStr.match(/\(([^)]*)\)/g) || [];
-          for (const m of textMatches) {
-            const inner = m.slice(1, -1);
-            if (inner.length > 1 && inner.length < 500) {
-              text += inner + " ";
-            }
-          }
-
-          const hexMatches = dataStr.match(/<([0-9a-fA-F]+)>/g) || [];
-          for (const m of hexMatches) {
-            const hex = m.slice(1, -1);
-            if (hex.length > 4 && hex.length < 1000 && hex.length % 2 === 0) {
-              let decoded = "";
-              for (let i = 0; i < hex.length; i += 4) {
-                const code = parseInt(hex.substring(i, i + 4), 16);
-                if (code > 31 && code < 127) decoded += String.fromCharCode(code);
-              }
-              if (decoded.length > 1) text += decoded + " ";
-            }
-          }
-
-          const tjMatches = dataStr.match(/\[([^\]]*)\]\s*TJ/g) || [];
-          for (const m of tjMatches) {
-            const parts = m.match(/\(([^)]*)\)/g) || [];
-            for (const p of parts) {
-              text += p.slice(1, -1);
-            }
-            text += " ";
-          }
-
-          if (text.trim().length < 50) {
-            text = dataStr.replace(/[^\x20-\x7E\n]/g, " ").replace(/\s+/g, " ");
-          }
-
+          const extractor = new PdfTextExtractor();
+          const text = extractor.extract(e.target.result);
           resolve(text);
-        } catch (e) {
+        } catch (ex) {
           reject(new Error("Failed to parse PDF"));
         }
       };
@@ -669,17 +630,28 @@ class OnboardingApp {
 
   detectDocumentType(text) {
     const lower = text.toLowerCase();
-    if (lower.includes("udyam") || lower.includes("msme") || lower.includes("micro") || lower.includes("ministry of micro")) {
+    if (lower.includes("udyam") || lower.includes("msme") || lower.includes("ministry of micro") || lower.includes("udyog aadhaar")) {
       return "Udyam Registration Certificate";
     }
-    if (lower.includes("statement") || lower.includes("account") || lower.includes("ifsc") || lower.includes("transaction") || lower.includes("balance")) {
+    if (/\b(statement\s*of\s*account|account\s*statement|bank\s*statement|transaction\s*detail)\b/.test(lower) ||
+        (lower.includes("ifsc") && lower.includes("account")) ||
+        (/\b(opening\s*balance|closing\s*balance|debit|credit)\b/.test(lower) && lower.includes("account"))) {
       return "Bank Statement";
     }
-    if (lower.includes("pan") || lower.includes("income tax")) {
+    if (/\bpermanent\s*account\s*number\b/.test(lower) || (/\bpan\b/.test(lower) && lower.includes("income tax"))) {
       return "PAN Card";
     }
-    if (lower.includes("gst") || lower.includes("goods and services")) {
+    if (lower.includes("goods and services tax") || /\bgst(in|no|number)?\b/.test(lower)) {
       return "GST Certificate";
+    }
+    if (lower.includes("certificate of incorporation") || lower.includes("registrar of companies")) {
+      return "Certificate of Incorporation";
+    }
+    if (lower.includes("aadhaar") || lower.includes("unique identification")) {
+      return "Aadhaar Card";
+    }
+    if (lower.includes("trade license") || lower.includes("shop establishment")) {
+      return "Trade License";
     }
     return "Document";
   }
@@ -688,101 +660,194 @@ class OnboardingApp {
     const fields = {};
     const t = text.replace(/\s+/g, " ");
 
+    const panGlobal = t.match(/\b([A-Z]{5}\d{4}[A-Z])\b/);
+    if (panGlobal) fields.panNumber = panGlobal[1];
+
+    const gstGlobal = t.match(/\b(\d{2}[A-Z]{5}\d{4}[A-Z]\d[A-Z\d][A-Z]\d)\b/);
+    if (gstGlobal) fields.gstNumber = gstGlobal[1];
+
+    const emailGlobal = t.match(/([a-zA-Z0-9._%+\-]+@[a-zA-Z0-9.\-]+\.[a-zA-Z]{2,})/i);
+    if (emailGlobal) fields.extractedEmail = emailGlobal[1].toLowerCase();
+
+    const mobileGlobal = t.match(/(?:Mobile|Phone|Contact|Tel|Mob)[\s:\-]*(\+?91[\s\-]?)?(\d{10})\b/i);
+    if (mobileGlobal) fields.extractedMobile = mobileGlobal[2];
+    else {
+      const mob2 = t.match(/\b([6-9]\d{9})\b/);
+      if (mob2) fields.extractedMobile = mob2[1];
+    }
+
+    const datePatterns = t.match(/\b(\d{2}[\/\-]\d{2}[\/\-]\d{4})\b/g);
+
     if (docType === "Bank Statement") {
-      const nameMatch = t.match(/(?:Name|Account\s*Name)\s*[:\-]?\s*([A-Z][A-Z\s.]+?)(?=\s*(?:Address|Account|Mobile|Email|Customer|$))/i);
-      if (nameMatch) fields.bankAccountName = nameMatch[1].trim();
+      const namePatterns = [
+        /(?:Account\s*(?:Holder|Name))\s*[:\-]?\s*(?:(?:MR|MS|MRS|SHRI|SMT|M\/S)\s+)?([A-Z][A-Z\s.&]+?)(?=\s*(?:Address|Account|Mobile|Email|Customer|Joint|Nominee|Branch|\d|$))/i,
+        /(?:(?:Customer|Client)\s*Name)\s*[:\-]?\s*(?:(?:MR|MS|MRS|SHRI|SMT|M\/S)\s+)?([A-Z][A-Z\s.&]+?)(?=\s*(?:Address|Account|Mobile|Email|Customer|\d|$))/i,
+        /(?:Name)\s*[:\-]?\s*(?:(?:MR|MS|MRS|SHRI|SMT|M\/S)\s+)?([A-Z][A-Z\s.&]+?)(?=\s*(?:Address|Account|Mobile|\d|$))/i,
+      ];
+      for (const p of namePatterns) {
+        const m = t.match(p);
+        if (m && m[1].trim().length > 2) { fields.bankAccountName = m[1].trim(); break; }
+      }
 
-      const accNumMatch = t.match(/(?:Account\s*(?:Number|No))\s*[:\-]?\s*(\d{10,20})/i);
-      if (accNumMatch) fields.bankAccountNumber = accNumMatch[1].trim();
+      const accNumPatterns = [
+        /(?:Account\s*(?:Number|No|#))\s*[:\-]?\s*(\d{8,20})/i,
+        /(?:A\/c\s*(?:No|#))\s*[:\-]?\s*(\d{8,20})/i,
+        /(?:Acct\s*(?:No|#))\s*[:\-]?\s*(\d{8,20})/i,
+      ];
+      for (const p of accNumPatterns) {
+        const m = t.match(p);
+        if (m) { fields.bankAccountNumber = m[1].trim(); break; }
+      }
 
-      const ifscMatch = t.match(/(?:IFSC)\s*[:\-]?\s*([A-Z]{4}0[A-Z0-9]{6})/i);
-      if (ifscMatch) fields.bankIfsc = ifscMatch[1].trim();
+      const ifscMatch = t.match(/(?:IFSC|IFS\s*Code)\s*[:\-]?\s*([A-Z]{4}0[A-Z0-9]{6})/i);
+      if (ifscMatch) fields.bankIfsc = ifscMatch[1].toUpperCase();
+      else {
+        const ifsc2 = t.match(/\b([A-Z]{4}0[A-Z0-9]{6})\b/);
+        if (ifsc2) fields.bankIfsc = ifsc2[1];
+      }
 
-      const accTypeMatch = t.match(/(?:Account\s*Type)\s*[:\-]?\s*(Current\s*Account|Savings\s*Account|[A-Za-z]+\s*Account)/i);
+      const accTypeMatch = t.match(/(?:Account\s*Type|Type\s*of\s*Account)\s*[:\-]?\s*(Current\s*Account|Savings\s*Account|Cash\s*Credit|Overdraft|(?:Current|Savings|CC|OD))/i);
       if (accTypeMatch) fields.bankAccountType = accTypeMatch[1].trim();
 
-      if (t.match(/union\s*bank/i)) fields.bankName = "Union Bank of India";
-      else if (t.match(/state\s*bank/i)) fields.bankName = "State Bank of India";
-      else if (t.match(/hdfc/i)) fields.bankName = "HDFC Bank";
-      else if (t.match(/icici/i)) fields.bankName = "ICICI Bank";
-      else if (t.match(/axis/i)) fields.bankName = "Axis Bank";
-      else if (t.match(/kotak/i)) fields.bankName = "Kotak Mahindra Bank";
+      const bankNames = [
+        [/union\s*bank\s*of\s*india/i, "Union Bank of India"],
+        [/state\s*bank\s*of\s*india|SBI\b/i, "State Bank of India"],
+        [/\bhdfc\s*bank/i, "HDFC Bank"], [/\bicici\s*bank/i, "ICICI Bank"],
+        [/\baxis\s*bank/i, "Axis Bank"], [/\bkotak\s*mahindra/i, "Kotak Mahindra Bank"],
+        [/\bpunjab\s*national\s*bank|\bPNB\b/i, "Punjab National Bank"],
+        [/\bbank\s*of\s*baroda|\bBOB\b/i, "Bank of Baroda"],
+        [/\bcanara\s*bank/i, "Canara Bank"], [/\bindian\s*bank/i, "Indian Bank"],
+        [/\bbank\s*of\s*india\b/i, "Bank of India"],
+        [/\bindian\s*overseas\s*bank|\bIOB\b/i, "Indian Overseas Bank"],
+        [/\bcentral\s*bank\s*of\s*india/i, "Central Bank of India"],
+        [/\buco\s*bank/i, "UCO Bank"], [/\byes\s*bank/i, "YES Bank"],
+        [/\bindusind\s*bank/i, "IndusInd Bank"], [/\bfederal\s*bank/i, "Federal Bank"],
+        [/\bidbi\s*bank/i, "IDBI Bank"], [/\bbandhan\s*bank/i, "Bandhan Bank"],
+        [/\brbl\s*bank/i, "RBL Bank"], [/\bau\s*small\s*finance/i, "AU Small Finance Bank"],
+        [/\bkarur\s*vysya/i, "Karur Vysya Bank"], [/\bsouth\s*indian\s*bank/i, "South Indian Bank"],
+        [/\bdhanlaxmi\s*bank/i, "Dhanlaxmi Bank"], [/\bjammu.*kashmir\s*bank/i, "J&K Bank"],
+        [/\bcity\s*union\s*bank/i, "City Union Bank"],
+      ];
+      for (const [re, name] of bankNames) {
+        if (re.test(t)) { fields.bankName = name; break; }
+      }
 
-      const branchMatch = t.match(/(?:Branch\s*(?:Address)?)\s*[:\-]?\s*([A-Z][A-Z\s,.\-]+?)(?=\s*(?:Date|Statement|$))/i);
-      if (branchMatch) fields.bankBranch = branchMatch[1].trim();
+      const branchPatterns = [
+        /(?:Branch)\s*[:\-]?\s*([A-Z][A-Za-z\s,.\-]+?)(?=\s*(?:Date|Statement|IFSC|Account|Customer|\d{2}[\/\-]|$))/i,
+        /(?:Branch\s*(?:Name|Address|Office))\s*[:\-]?\s*([A-Z][A-Za-z\s,.\-]+?)(?=\s*(?:Date|IFSC|$))/i,
+      ];
+      for (const p of branchPatterns) {
+        const m = t.match(p);
+        if (m && m[1].trim().length > 3) { fields.bankBranch = m[1].trim(); break; }
+      }
 
-      const holderMatch = t.match(/(?:^|\s)(?:Name)\s*[:\-]?\s*(?:MR|MS|MRS|SHRI|SMT)?\s*([A-Z][A-Z\s]+?)(?=\s*(?:Address|$))/i);
-      if (holderMatch) fields.accountHolderName = holderMatch[1].trim();
-
-      const addressMatch = t.match(/(?:Address)\s*[:\-]?\s*([A-Z][A-Z\s,.\-0-9]+?\d{6})/i);
+      const addressMatch = t.match(/(?:Address)\s*[:\-]?\s*([A-Za-z0-9][A-Za-z0-9\s,.\-\/]+?\d{6})/i);
       if (addressMatch) fields.bankAddress = addressMatch[1].trim();
 
-      const cifMatch = t.match(/(?:Customer|CIF)\s*(?:ID)?\s*[:\-]?\s*(\d{6,12})/i);
-      if (cifMatch) fields.customerId = cifMatch[1].trim();
+      const holderMatch = t.match(/(?:Name)\s*[:\-]?\s*(?:MR|MS|MRS|SHRI|SMT|M\/S)?\s*([A-Z][A-Z\s]+?)(?=\s*(?:Address|Account|$))/i);
+      if (holderMatch && !fields.bankAccountName) fields.bankAccountName = holderMatch[1].trim();
     }
 
     if (docType === "Udyam Registration Certificate") {
       const udyamMatch = t.match(/(UDYAM-[A-Z]{2}-\d{2}-\d{7})/i);
       if (udyamMatch) fields.udyamNumber = udyamMatch[1].toUpperCase();
 
-      const entNameMatch = t.match(/(?:NAME\s*OF\s*ENTERPRISE)\s*[:\-]?\s*([A-Z][A-Z\s]+?)(?=\s*(?:TYPE|MAJOR|$))/i);
-      if (entNameMatch) fields.enterpriseName = entNameMatch[1].trim();
+      const entNamePatterns = [
+        /(?:NAME\s*OF\s*(?:ENTERPRISE|UNIT|BUSINESS|FIRM))\s*[:\-]?\s*([A-Z][A-Z\s&.]+?)(?=\s*(?:TYPE|MAJOR|FLAT|SOCIAL|CATEGORY|MOBILE|DATE|NIC|\d|$))/i,
+        /(?:Enterprise\s*Name)\s*[:\-]?\s*([A-Z][A-Z\s&.]+?)(?=\s)/i,
+      ];
+      for (const p of entNamePatterns) {
+        const m = t.match(p);
+        if (m && m[1].trim().length > 2) { fields.enterpriseName = m[1].trim(); break; }
+      }
 
-      if (t.match(/micro/i)) fields.enterpriseType = "Micro";
-      else if (t.match(/small/i)) fields.enterpriseType = "Small";
-      else if (t.match(/medium/i)) fields.enterpriseType = "Medium";
+      const typeMatch = t.match(/(?:TYPE\s*OF\s*(?:ENTERPRISE|UNIT))\s*[:\-]?\s*(MICRO|SMALL|MEDIUM)/i);
+      if (typeMatch) fields.enterpriseType = typeMatch[1].charAt(0) + typeMatch[1].slice(1).toLowerCase();
+      else {
+        if (/\bmicro\b/i.test(t)) fields.enterpriseType = "Micro";
+        else if (/\bsmall\b/i.test(t)) fields.enterpriseType = "Small";
+        else if (/\bmedium\b/i.test(t)) fields.enterpriseType = "Medium";
+      }
 
-      const activityMatch = t.match(/(?:MAJOR\s*ACTIVITY)\s*[:\-]?\s*(SERVICES|MANUFACTURING)/i);
+      const activityMatch = t.match(/(?:MAJOR\s*ACTIVITY)\s*[:\-]?\s*(SERVICES?|MANUFACTURING|TRADING)/i);
       if (activityMatch) fields.majorActivity = activityMatch[1].trim();
 
-      const mobileMatch = t.match(/(?:Mobile)\s*[:\-]?\s*(\d{10})/i);
-      if (mobileMatch) fields.udyamMobile = mobileMatch[1];
+      const mobileMatch = t.match(/(?:Mobile|Phone)\s*[:\-]?\s*(\+?91\s*)?(\d{10})/i);
+      if (mobileMatch) fields.udyamMobile = mobileMatch[2];
 
-      const emailMatch = t.match(/(?:Email)\s*[:\-]?\s*([a-zA-Z0-9._%+\-]+@[a-zA-Z0-9.\-]+\.[a-zA-Z]{2,})/i);
+      const emailMatch = t.match(/(?:Email|E-?mail)\s*[:\-]?\s*([a-zA-Z0-9._%+\-]+@[a-zA-Z0-9.\-]+\.[a-zA-Z]{2,})/i);
       if (emailMatch) fields.udyamEmail = emailMatch[1].toLowerCase();
 
-      const doiMatch = t.match(/(?:DATE\s*OF\s*INCORPORATION|REGISTRATION\s*OF\s*ENTERPRISE)\s*[:\-]?\s*(\d{2}\/\d{2}\/\d{4})/i);
-      if (doiMatch) fields.dateOfIncorporation = doiMatch[1];
+      const doiPatterns = [
+        /(?:DATE\s*OF\s*(?:INCORPORATION|COMMENCEMENT|REGISTRATION\s*OF\s*ENTERPRISE))\s*[:\-]?\s*(\d{2}\/\d{2}\/\d{4})/i,
+        /(?:DATE\s*OF\s*(?:INCORPORATION|COMMENCEMENT))\s*[:\-]?\s*(\d{2}[\-\/]\d{2}[\-\/]\d{4})/i,
+      ];
+      for (const p of doiPatterns) {
+        const m = t.match(p);
+        if (m) { fields.dateOfIncorporation = m[1].replace(/-/g, "/"); break; }
+      }
 
-      const nicMatch = t.match(/(\d{2}\s*-\s*[A-Za-z\s,]+activities)/i);
-      if (nicMatch) fields.nicDescription = nicMatch[1].trim();
-
-      const nic5Match = t.match(/(\d{5}\s*-\s*[A-Za-z\s]+activities)/i);
+      const nicPatterns = [
+        /(\d{2}\s*[\-:]\s*[A-Za-z\s,]+?activit(?:y|ies))/i,
+        /NIC\s*(?:Code)?[:\-]?\s*(\d{2}\s*[\-:]\s*[A-Za-z\s,]+)/i,
+      ];
+      for (const p of nicPatterns) {
+        const m = t.match(p);
+        if (m) { fields.nicDescription = m[1].trim(); break; }
+      }
+      const nic5Match = t.match(/(\d{5}\s*[\-:]\s*[A-Za-z\s]+?activit(?:y|ies))/i);
       if (nic5Match) fields.nic5Code = nic5Match[1].trim();
 
-      const stateMatch = t.match(/(?:State)\s*[:\-]?\s*([A-Z]+)(?=\s)/i);
+      const stateMatch = t.match(/(?:State)\s*[:\-]?\s*([A-Z][A-Z\s]+?)(?=\s*(?:District|Pin|City|$))/i);
       if (stateMatch) fields.state = stateMatch[1].trim();
-
-      const distMatch = t.match(/(?:District)\s*[:\-]?\s*([A-Z]+)/i);
+      const distMatch = t.match(/(?:District)\s*[:\-]?\s*([A-Z][A-Za-z\s]+?)(?=\s*(?:State|Pin|City|Block|$))/i);
       if (distMatch) fields.district = distMatch[1].trim();
-
-      const pinMatch = t.match(/(?:Pin)\s*[:\-]?\s*(\d{6})/i);
+      const pinMatch = t.match(/(?:Pin|Pincode|PIN\s*Code)\s*[:\-]?\s*(\d{6})/i);
       if (pinMatch) fields.pin = pinMatch[1];
-
-      const cityMatch = t.match(/(?:City)\s*[:\-]?\s*([A-Z]+)/i);
+      else { const pin2 = t.match(/\b(\d{6})\b/); if (pin2 && parseInt(pin2[1]) >= 100000) fields.pin = pin2[1]; }
+      const cityMatch = t.match(/(?:City|Town)\s*[:\-]?\s*([A-Z][A-Za-z\s]+?)(?=\s*(?:State|District|Pin|$))/i);
       if (cityMatch) fields.city = cityMatch[1].trim();
-
-      const premisesMatch = t.match(/(?:Premises|Building)\s*[:\-]?\s*([A-Z][A-Z\s]+?)(?=\s*(?:Village|$))/i);
+      const premisesMatch = t.match(/(?:Premises?|Building|Flat|Door|Block)\s*[:\-]?\s*([A-Z0-9][A-Z0-9\s,.]+?)(?=\s*(?:Village|Road|Street|City|$))/i);
       if (premisesMatch) fields.premises = premisesMatch[1].trim();
-
-      const roadMatch = t.match(/(?:Road|Street|Lane)\s*[:\-]?\s*([A-Z][A-Z\s]+?)(?=\s*(?:City|$))/i);
+      const roadMatch = t.match(/(?:Road|Street|Lane)\s*[:\-]?\s*([A-Z0-9][A-Z0-9\s,]+?)(?=\s*(?:City|Village|Block|$))/i);
       if (roadMatch) fields.road = roadMatch[1].trim();
-
       const categoryMatch = t.match(/(?:SOCIAL\s*CATEGORY)\s*[:\-]?\s*(GENERAL|SC|ST|OBC)/i);
       if (categoryMatch) fields.socialCategory = categoryMatch[1].trim();
 
-      const udyamDateMatch = t.match(/(?:DATE\s*OF\s*UDYAM\s*REGISTRATION)\s*[:\-]?\s*(\d{2}\/\d{2}\/\d{4})/i);
-      if (udyamDateMatch) fields.udyamRegDate = udyamDateMatch[1];
+      const ownerNameMatch = t.match(/(?:NAME\s*(?:OF\s*)?(?:OWNER|PROPRIETOR|PARTNER|DIRECTOR)S?)\s*[:\-]?\s*([A-Z][A-Z\s]+?)(?=\s*(?:MOBILE|EMAIL|ADDRESS|DATE|$))/i);
+      if (ownerNameMatch) fields.ownerName = ownerNameMatch[1].trim();
     }
 
     if (docType === "PAN Card") {
       const panMatch = t.match(/([A-Z]{5}\d{4}[A-Z])/);
       if (panMatch) fields.panNumber = panMatch[1];
+      const nameMatch = t.match(/(?:Name)\s*[:\-]?\s*([A-Z][A-Z\s]+?)(?=\s*(?:Father|Date|DOB|\d|$))/i);
+      if (nameMatch) fields.panHolderName = nameMatch[1].trim();
     }
 
     if (docType === "GST Certificate") {
       const gstMatch = t.match(/(\d{2}[A-Z]{5}\d{4}[A-Z]\d[A-Z\d][A-Z]\d)/);
       if (gstMatch) fields.gstNumber = gstMatch[1];
+      const tradeNameMatch = t.match(/(?:Trade\s*Name|Legal\s*Name|Business\s*Name)\s*[:\-]?\s*([A-Z][A-Z\s&.]+?)(?=\s*(?:Address|GSTIN|Date|$))/i);
+      if (tradeNameMatch) fields.gstTradeName = tradeNameMatch[1].trim();
+      const gstAddrMatch = t.match(/(?:Principal\s*Place|Address)\s*[:\-]?\s*([A-Za-z0-9][A-Za-z0-9\s,.\-\/]+?\d{6})/i);
+      if (gstAddrMatch) fields.gstAddress = gstAddrMatch[1].trim();
+    }
+
+    if (docType === "Certificate of Incorporation") {
+      const cinMatch = t.match(/\b([UL]\d{5}[A-Z]{2}\d{4}[A-Z]{3}\d{6})\b/);
+      if (cinMatch) fields.cinNumber = cinMatch[1];
+      const compNameMatch = t.match(/(?:company\s*name|name\s*of\s*(?:the\s*)?company)\s*[:\-]?\s*([A-Z][A-Z\s&.]+?(?:LIMITED|LLP|PVT|PRIVATE))/i);
+      if (compNameMatch) fields.companyName = compNameMatch[1].trim();
+      const incDateMatch = t.match(/(?:date\s*of\s*incorporation)\s*[:\-]?\s*(\d{2}[\/\-]\d{2}[\/\-]\d{4})/i);
+      if (incDateMatch) fields.dateOfIncorporation = incDateMatch[1].replace(/-/g, "/");
+    }
+
+    if (docType === "Document") {
+      const nameMatch = t.match(/(?:Company|Firm|Business|Enterprise|Entity)\s*(?:Name)?\s*[:\-]?\s*([A-Z][A-Z\s&.]+?)(?=\s{2,}|\n|(?:Address|Date|$))/i);
+      if (nameMatch && nameMatch[1].trim().length > 2) fields.genericName = nameMatch[1].trim();
+      const addrMatch = t.match(/(?:Address|Office)\s*[:\-]?\s*([A-Za-z0-9][A-Za-z0-9\s,.\-\/]+?\d{6})/i);
+      if (addrMatch) fields.genericAddress = addrMatch[1].trim();
     }
 
     return fields;
@@ -790,67 +855,85 @@ class OnboardingApp {
 
   autoFillForm() {
     const d = this.extractedData;
-    const fm = typeof EXTRACTED_DATA !== "undefined" ? EXTRACTED_DATA.formMapping : null;
+    this.autoFilledCount = 0;
 
-    const setVal = (id, value, cssClass) => {
+    const setVal = (id, value) => {
       const el = document.getElementById(id);
       if (el && value) {
         el.value = value;
-        if (cssClass !== false) el.classList.add("auto-filled");
+        el.classList.add("auto-filled");
         this.autoFilledCount++;
       }
     };
 
-    setVal("registeredName", d.enterpriseName || d.bankAccountName || (fm && fm.registeredName));
-    setVal("registeredAddress", this.buildAddress(d) || (fm && fm.registeredAddress));
-    setVal("principalPlace", this.buildAddress(d) || (fm && fm.principalPlaceOfBusiness));
-    setVal("dateOfIncorporation", d.dateOfIncorporation || (fm && fm.dateOfIncorporation));
-    setVal("panNo", d.panNumber || (fm && fm.panNo));
+    const companyName = d.enterpriseName || d.companyName || d.gstTradeName || d.genericName || d.bankAccountName || "";
+    const address = this.buildAddress(d) || d.bankAddress || d.gstAddress || d.genericAddress || "";
+    const ownerName = d.ownerName || d.panHolderName || d.bankAccountName || d.accountHolderName || companyName || "";
+    const cleanName = ownerName.replace(/^(MR|MS|MRS|SHRI|SMT|M\/S)\s+/i, "").trim();
+    const mobile = d.udyamMobile || d.extractedMobile || "";
+    const email = d.udyamEmail || d.extractedEmail || "";
 
-    const nature = d.nicDescription || d.nic5Code || (fm && fm.natureOfBusiness);
+    setVal("registeredName", companyName);
+    setVal("registeredAddress", address);
+    setVal("principalPlace", address);
+    setVal("dateOfIncorporation", d.dateOfIncorporation);
+    setVal("panNo", d.panNumber);
+    setVal("udyamNumber", d.udyamNumber);
+    setVal("gstNo", d.gstNumber);
+
+    const nature = d.nicDescription || d.nic5Code || "";
     if (nature) {
       let full = nature;
       if (d.nic5Code && !full.includes(d.nic5Code)) full += ` (NIC: ${d.nic5Code})`;
       setVal("natureOfBusiness", full);
     }
 
-    setVal("udyamNumber", d.udyamNumber || (fm && fm.udyamNumber));
+    setVal("contactName", cleanName);
+    setVal("contactDesignation", d.enterpriseType ? "Proprietor" : "");
+    setVal("contactMobile", mobile);
+    setVal("contactEmail", email);
+    setVal("kmpName", cleanName);
+    setVal("ceoName", cleanName);
+    setVal("ceoMobile", mobile);
+    setVal("ceoEmail", email);
+    setVal("mdName", cleanName);
+    setVal("mdMobile", mobile);
+    setVal("mdEmail", email);
+    if (cleanName) {
+      const desig = d.enterpriseType ? "Proprietor" : "Director";
+      setVal("directors", `${cleanName} (${desig})`);
+      setVal("authorizedOfficials", cleanName);
+    }
 
-    const ownerName = d.accountHolderName || d.enterpriseName || (fm && fm.contactPerson.name);
-    const cleanName = ownerName ? ownerName.replace(/^(MR|MS|MRS|SHRI|SMT)\s+/i, "") : "";
+    setVal("bankName", d.bankName);
+    setVal("bankBranch", d.bankBranch);
+    setVal("accountName", d.bankAccountName || companyName);
+    setVal("accountNumber", d.bankAccountNumber);
+    setVal("accountType", d.bankAccountType);
+    setVal("ifscCode", d.bankIfsc);
 
-    setVal("contactName", cleanName || (fm && fm.contactPerson.name));
-    setVal("contactDesignation", "Proprietor");
-    setVal("contactMobile", d.udyamMobile || (fm && fm.contactPerson.mobile));
-    setVal("contactEmail", d.udyamEmail || (fm && fm.contactPerson.email));
-
-    setVal("kmpName", cleanName || (fm && fm.kmpName));
-
-    setVal("ceoName", cleanName || (fm && fm.ceo.name));
-    setVal("ceoMobile", d.udyamMobile || (fm && fm.ceo.mobile));
-    setVal("ceoEmail", d.udyamEmail || (fm && fm.ceo.email));
-
-    setVal("mdName", cleanName || (fm && fm.mdPartnerTrustee.name));
-    setVal("mdMobile", d.udyamMobile || (fm && fm.mdPartnerTrustee.mobile));
-    setVal("mdEmail", d.udyamEmail || (fm && fm.mdPartnerTrustee.email));
-
-    setVal("directors", cleanName ? `${cleanName} (Proprietor)` : (fm && fm.directors));
-    setVal("authorizedOfficials", cleanName || (fm && fm.authorizedOfficials));
-
-    setVal("bankName", d.bankName || (fm && "Union Bank of India"));
-    setVal("bankBranch", d.bankBranch || (fm && "TEZPUR, A C PLAZA, FIRST FLOOR MAIN ROAD, TEZPUR"));
-    setVal("accountName", d.bankAccountName || d.enterpriseName || (fm && "BON VOYAGE"));
-    setVal("accountNumber", d.bankAccountNumber || (fm && "546501010050658"));
-    setVal("accountType", d.bankAccountType || (fm && "Current Account"));
-    setVal("ifscCode", d.bankIfsc || (fm && "UBIN0554651"));
-
-    setVal("signatoryName", cleanName || (fm && fm.authorizedSignatory.name));
-    setVal("signatoryDesignation", "Proprietor");
+    setVal("signatoryName", cleanName);
+    if (cleanName) setVal("signatoryDesignation", d.enterpriseType ? "Proprietor" : "Director");
     setVal("signatoryDate", new Date().toLocaleDateString("en-IN"));
 
-    this.selectRadio("legalStatusGroup", d.enterpriseType === "Micro" ? "Proprietor" : "Proprietor");
+    const legalStatus = this.detectLegalStatus(d, companyName);
+    if (legalStatus) this.selectRadio("legalStatusGroup", legalStatus);
     this.selectRadio("stockExchangeGroup", "No");
     this.selectRadio("caseRegisteredGroup", "No");
+  }
+
+  detectLegalStatus(d, companyName) {
+    const name = (companyName || "").toLowerCase();
+    if (d.enterpriseType === "Micro" || d.enterpriseType === "Small") return "Proprietor";
+    if (/\bprivate\s*limited\b/i.test(name) || /\bpvt\b/i.test(name)) return "Private Limited Company";
+    if (/\blimited\b/i.test(name) && !/private/i.test(name)) return "Public Limited Company";
+    if (/\bllp\b/i.test(name)) return "LLP";
+    if (/\bpartnership\b/i.test(name)) return "Partnership";
+    if (/\btrust\b/i.test(name)) return "Trust";
+    if (/\bsociety\b/i.test(name)) return "Society";
+    if (/\bhuf\b/i.test(name)) return "HUF";
+    if (d.enterpriseType) return "Proprietor";
+    return "";
   }
 
   buildAddress(d) {
@@ -858,10 +941,14 @@ class OnboardingApp {
     if (d.premises) parts.push(d.premises);
     if (d.road) parts.push(d.road);
     if (d.city) parts.push(d.city);
-    if (d.district) parts.push(d.district);
+    if (d.district && d.district !== d.city) parts.push(d.district);
     if (d.state) parts.push(d.state);
     if (d.pin) parts.push("- " + d.pin);
-    return parts.length > 2 ? parts.join(", ") : "";
+    if (parts.length >= 2) return parts.join(", ");
+    if (d.bankAddress) return d.bankAddress;
+    if (d.gstAddress) return d.gstAddress;
+    if (d.genericAddress) return d.genericAddress;
+    return "";
   }
 
   selectRadio(groupId, value) {
