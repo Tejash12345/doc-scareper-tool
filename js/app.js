@@ -1127,12 +1127,10 @@ class OnboardingApp {
     setVal("udyamNumber", d.udyamNumber, d.udyamNumber ? "UDYAM" : "");
     setVal("gstNo", d.gstNumber, d.gstNumber ? "GST" : "");
 
-    const nature = d.nicDescription || d.nic5Code || d.gstConstitution || "";
-    if (nature) {
-      let full = nature;
-      if (d.nic5Code && !full.includes(d.nic5Code)) full += ` (NIC: ${d.nic5Code})`;
-      setVal("natureOfBusiness", full, d.nicDescription || d.nic5Code ? "UDYAM" : "GST");
-    }
+    const nature = d.nicDescription || d.nic5Code || "Travel agency, tour operator and other reservation service activities";
+    let full = nature;
+    if (d.nic5Code && !full.includes(d.nic5Code)) full += ` (NIC: ${d.nic5Code})`;
+    setVal("natureOfBusiness", full, d.nicDescription || d.nic5Code ? "UDYAM" : "AUTO");
 
     const desig = this.detectDesignation(d, companyName);
 
@@ -1696,7 +1694,7 @@ class OnboardingApp {
         xml = engine.fillByLabel(xml, "Nature of business", v("natureOfBusiness"));
         xml = engine.fillByLabel(xml, "Products offered by the entity", productStr);
         xml = engine.fillByLabel(xml, "Location of branches", v("registeredAddress"));
-        xml = engine.fillByLabel(xml, "Information about clients", "NA");
+        xml = engine.fillByLabel(xml, "Information about clients", v("natureOfBusiness") + ", " + v("registeredAddress"));
         xml = engine.fillByLabel(xml, "Whether listed on recognized stock", stockListed === "Yes" ? "Yes" : "No");
         xml = engine.fillByLabel(xml, "Ownership and control structure", legalStatus + " - " + companyName);
         xml = engine.fillByLabel(xml, "Names of natural persons controlling", kmpNames.length > 0 ? kmpNames.join(", ") : contactName);
@@ -1911,7 +1909,7 @@ class OnboardingApp {
             <tr><th>6</th><td>Nature of business / type of activity</td><td>${v("natureOfBusiness")}</td></tr>
             <tr><th>7</th><td>Products offered by the entity / nature of services provided</td><td>${productStr}</td></tr>
             <tr><th>8</th><td>Location of branches in India/abroad</td><td>${v("registeredAddress")}</td></tr>
-            <tr><th>9</th><td>Information about clients' business and their locations</td><td>NA</td></tr>
+            <tr><th>9</th><td>Information about clients' business and their locations</td><td>${v("natureOfBusiness") + ", " + v("registeredAddress")}</td></tr>
             <tr><th>10</th><td>Whether listed on recognized stock exchange(s), if so, name(s) of the stock exchange(s)</td><td>${stockExchange}</td></tr>
           </tbody>
         </table>
@@ -2428,7 +2426,7 @@ class OnboardingApp {
       ["6", "Nature of business / type of activity", this.getFormValue("natureOfBusiness")],
       ["7", "Products offered / nature of services", productStr],
       ["8", "Location of branches", this.getFormValue("registeredAddress")],
-      ["9", "Information about clients' business", "Travel and Tour Operations"],
+      ["9", "Information about clients' business", (this.getFormValue("natureOfBusiness") || "NA") + ", " + (this.getFormValue("registeredAddress") || "NA")],
       ["10", "Listed on stock exchange(s)", stockExchange],
     ];
 
@@ -3059,7 +3057,7 @@ class OnboardingApp {
       ["6", "Nature of business / type of activity", e("natureOfBusiness")],
       ["7", "Products offered / nature of services", productStr],
       ["8", "Location of branches", e("registeredAddress")],
-      ["9", "Information about clients' business", "Travel and Tour Operations"],
+      ["9", "Information about clients' business", (e("natureOfBusiness") || "NA") + ", " + (e("registeredAddress") || "NA")],
       ["10", "Listed on stock exchange(s)", stockExchange],
     ];
 
