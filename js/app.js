@@ -1865,7 +1865,7 @@ class OnboardingApp {
             <tr><th>3</th><td>${boPersons[2] || ""}</td><td>${boPersons[2] ? (this.getFormValue("contactDesignation") || sigDesig) : ""}</td><td>${boPersons[2] ? Math.round(100 / boPersons.length) + "%" : ""}</td><td></td></tr>
           </tbody>
         </table>
-        <p style="margin-top:8px"><strong>Website:</strong> ${this.getFormValue("companyWebsite") || "NA"}</p>
+        <p style="margin-top:8px"><strong>Website:</strong> <input type="text" id="boWebsite" value="${this.getFormValue("companyWebsite") || "NA"}" style="border:1px solid #ccc;padding:4px 8px;border-radius:4px;font-size:inherit;width:300px" onchange="document.getElementById('companyWebsite').value=this.value;document.getElementById('companyWebsite').classList.add('auto-filled')"></p>
         <p style="margin-top:16px">I further declare, in case of changes in the beneficial ownership structure of the company, I hereby undertake to furnish the details to you.</p>
         <div class="preview-signature">
           <div class="signature-block">
