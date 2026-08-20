@@ -226,6 +226,7 @@ class OnboardingApp {
                   <span class="source-badge" id="badge_gstNo"></span>
                 </label>
                 <input class="form-input" type="text" id="gstNo" placeholder="Enter GSTIN" maxlength="15" style="text-transform:uppercase">
+                <input type="hidden" id="legalEntityName">
               </div>
               <div class="form-group full-width">
                 <label class="form-label">
@@ -256,6 +257,13 @@ class OnboardingApp {
                   <span class="source-badge" id="badge_udyamNumber"></span>
                 </label>
                 <input class="form-input" type="text" id="udyamNumber" placeholder="UDYAM-XX-XX-XXXXXXX">
+              </div>
+              <div class="form-group">
+                <label class="form-label">
+                  Percentage of Shares Held
+                  <span class="source-badge" id="badge_sharesPercent"></span>
+                </label>
+                <input class="form-input" type="text" id="sharesPercent" placeholder="e.g., 100%">
               </div>
               <div class="form-group full-width">
                 <label class="form-label">9. Products to be Availed <span class="required">*</span></label>
@@ -523,6 +531,7 @@ class OnboardingApp {
       };
 
       setVal("registeredName", fm.registeredName, "UDYAM");
+      setVal("legalEntityName", fm.legalEntityName || fm.registeredName, "UDYAM");
       setVal("registeredAddress", fm.registeredAddress, "UDYAM");
       setVal("principalPlace", fm.principalPlaceOfBusiness, "UDYAM");
       setVal("dateOfIncorporation", fm.dateOfIncorporation, "UDYAM");
@@ -583,6 +592,11 @@ class OnboardingApp {
       this.selectCheckbox("productsGroup", ["Telegraphic Transfer", "Forex Prepaid Cards", "Foreign Currency Notes"]);
       if (!document.getElementById("companyWebsite")?.value) setVal("companyWebsite", "NA", "AUTO");
       if (!document.getElementById("annualFx")?.value) setVal("annualFx", "NA", "AUTO");
+
+      const demoDirectors = typeof this.getDirectorNames === "function" ? this.getDirectorNames() : [];
+      const demoPersonCount = demoDirectors.length > 0 ? demoDirectors.length : 1;
+      const demoSharesPct = demoPersonCount === 1 ? "100%" : Math.round(100 / demoPersonCount) + "%";
+      if (!document.getElementById("sharesPercent")?.value) setVal("sharesPercent", demoSharesPct, "AUTO");
 
       this.uploadedFiles = [
         { id: "pre-1", name: "Bank Statement (Union Bank of India)", status: "success", docType: "Bank Statement", fieldsExtracted: 8 },
@@ -1120,6 +1134,8 @@ class OnboardingApp {
     const emailSource = d.udyamEmail ? "UDYAM" : d.gstEmail ? "GST" : d.extractedEmail ? "DOC" : "";
 
     setVal("registeredName", companyName, companySource);
+    const legalEntityName = d.gstLegalName || d.companyName || companyName;
+    setVal("legalEntityName", legalEntityName, companySource);
     setVal("registeredAddress", address, addrSource);
     setVal("principalPlace", address, addrSource);
     setVal("dateOfIncorporation", d.dateOfIncorporation || d.gstValidityFrom, d.dateOfIncorporation ? "UDYAM" : d.gstValidityFrom ? "GST" : "");
@@ -1217,6 +1233,11 @@ class OnboardingApp {
     naIfEmpty("ceoEmail");
     naIfEmpty("mdMobile");
     naIfEmpty("mdEmail");
+
+    const directors = typeof this.getDirectorNames === "function" ? this.getDirectorNames() : [];
+    const personCount = directors.length > 0 ? directors.length : 1;
+    const sharesPct = personCount === 1 ? "100%" : Math.round(100 / personCount) + "%";
+    if (!document.getElementById("sharesPercent")?.value) setVal("sharesPercent", sharesPct, "AUTO");
   }
 
   setBadge(fieldId, source) {
@@ -1632,10 +1653,14 @@ class OnboardingApp {
         xml = engine.fillByLabel(xml, "Names of officials who are authorized", officials.length > 0 ? officials.join(", ") : "NA");
         xml = engine.fillByLabel(xml, "Names of bankers", v("bankName"));
         xml = engine.fillByLabelFull(xml, "Confirm whether any case", caseReg === "Yes" ? "Yes - " + v("caseDetails") : "No");
+        xml = xml.replace(/>Date:\s*<\/w:t>/i, ">Date: " + engine.escXml(today) + "</w:t>");
+        xml = xml.replace(/>Name\s{2,}<\/w:t>/i, ">Name: " + engine.escXml(sigName) + "</w:t>");
+        xml = xml.replace(/>Designation:\s*<\/w:t>/i, ">Designation: " + engine.escXml(sigDesig) + "</w:t>");
       }
 
       else if (type === "authSignatory") {
-        xml = xml.replace(/_{10,}/, engine.escXml(companyName));
+        const legalEntity = this.getFormValue("legalEntityName") || companyName;
+        xml = xml.replace(/_{10,}/, engine.escXml(legalEntity));
         xml = xml.replace(/>Date:-<\/w:t>/, ">Date: " + engine.escXml(today) + "</w:t>");
         const authPersons = officials.length > 0 ? officials : (directors.length > 0 ? directors : [contactName]);
         if (authPersons[0]) {
@@ -1648,21 +1673,20 @@ class OnboardingApp {
         }
         xml = xml.replace(/For\s+_{5,}/, "For " + engine.escXml(companyName));
         xml = xml.replace(/>Name:<\/w:t>/, ">Name: " + engine.escXml(sigName) + "</w:t>");
-        xml = xml.replace(/Designation\s*\(Director\s*\/\s*CFO\s*\/\s*Company\s*Secretary\)/i, "Designation: " + engine.escXml(sigDesig));
-        xml = xml.replace(/>Encl\.?:?\s*Officially valid documents[\s\S]*?<\/w:p>/i, (m) => {
-          return m.replace(/<\/w:p>$/, "") + "</w:p>";
-        });
+        xml = xml.replace(/>Designation\s*<\/w:t>/i, ">Designation: " + engine.escXml(sigDesig) + "</w:t>");
+        xml = xml.replace(/>\s*\(\s*Director\s*\/\s*CFO\s*\/?\s*Company\s*Secreto?r?y?\s*\)\s*<\/w:t>/i, "></w:t>");
         xml = xml.replace(/>\s*1\.\s*<\/w:t>/i, ">1. Aadhaar Card</w:t>");
         xml = xml.replace(/>\s*2\.\s*<\/w:t>/i, ">2. PAN Card</w:t>");
       }
 
       else if (type === "beneficialOwnership") {
-        xml = xml.replace(/>Date:<\/w:t>/i, ">Date: " + engine.escXml(today) + "</w:t>");
+        xml = xml.replace(/>Date:\s*<\/w:t>/i, ">Date: " + engine.escXml(today) + "</w:t>");
+        const boLegalEntity = this.getFormValue("legalEntityName") || companyName;
         const boPersons = directors.length > 0 ? directors : [contactName];
         xml = xml.replace(/_{5,}(\s*authorized|\s*<\/w:t>[\s\S]*?authorized)/i, engine.escXml(sigName) + "$1");
-        xml = xml.replace(/M\/s\s*_{5,}/i, "M/s " + engine.escXml(companyName));
+        xml = xml.replace(/M\/s\s*_{5,}/i, "M/s " + engine.escXml(boLegalEntity));
         xml = xml.replace(/registered office at\s*_{5,}/i, "registered office at " + engine.escXml(v("registeredAddress")));
-        const sharePercent = boPersons.length === 1 ? "100%" : Math.round(100 / boPersons.length) + "%";
+        const sharePercent = this.getFormValue("sharesPercent") || (boPersons.length === 1 ? "100%" : Math.round(100 / boPersons.length) + "%");
         if (boPersons[0]) {
           xml = engine.fillTableCell(xml, 1, 1, boPersons[0]);
           xml = engine.fillTableCell(xml, 1, 2, sigDesig);
@@ -1680,9 +1704,10 @@ class OnboardingApp {
           xml = engine.fillTableCell(xml, 3, 3, sharePercent);
         }
         let msM;
-        while ((msM = xml.match(/M\/s\s*_{3,}/))) { xml = xml.replace(msM[0], "M/s " + engine.escXml(companyName)); }
-        xml = xml.replace(/>Name:<\/w:t>/i, ">Name: " + engine.escXml(sigName) + "</w:t>");
-        xml = xml.replace(/>Designation:<\/w:t>/i, ">Designation: " + engine.escXml(sigDesig) + "</w:t>");
+        while ((msM = xml.match(/M\/s\s*_{3,}/))) { xml = xml.replace(msM[0], "M/s " + engine.escXml(boLegalEntity)); }
+        xml = xml.replace(/>Name:\s*<\/w:t>/i, ">Name: " + engine.escXml(sigName) + "</w:t>");
+        xml = xml.replace(/>Designation:\s*<\/w:t>/i, ">Designation: " + engine.escXml(sigDesig) + "</w:t>");
+        xml = xml.replace(/>Director\s*\/\s*Company\s*Secretary\s*<\/w:t>/i, "></w:t>");
       }
 
       else if (type === "corporateProfile") {
@@ -1707,11 +1732,14 @@ class OnboardingApp {
         xml = engine.fillByLabel(xml, "Names of officials who are authorized", officials.length > 0 ? officials.join(", ") : "NA");
         xml = engine.fillByLabel(xml, "Names of bankers", v("bankName"));
         xml = engine.fillByLabel(xml, "Annual estimated foreign exchange", this.getFormValue("annualFx") || "NA");
-        xml = xml.replace(/>Date:<\/w:t>/i, ">Date: " + engine.escXml(today) + "</w:t>");
+        xml = xml.replace(/>Date:\s*<\/w:t>/i, ">Date: " + engine.escXml(today) + "</w:t>");
+        xml = xml.replace(/>Name\s{2,}<\/w:t>/i, ">Name: " + engine.escXml(sigName) + "</w:t>");
+        xml = xml.replace(/>Designation:\s*<\/w:t>/i, ">Designation: " + engine.escXml(sigDesig) + "</w:t>");
       }
 
       else if (type === "mou") {
-        xml = engine.replaceText(xml, "[Company Name]", companyName);
+        const legalEntity = this.getFormValue("legalEntityName") || companyName;
+        xml = engine.replaceText(xml, "[Company Name]", legalEntity);
         xml = engine.replaceText(xml, "[ Company registered Address]", v("registeredAddress"));
       }
 
@@ -1808,7 +1836,7 @@ class OnboardingApp {
         <p>The Manager<br>Capital India Finance Limited</p>
         <p><strong>Sub: Authority to Place Request / Authorized Signatory for Purchase / Sales of Foreign Exchange</strong></p>
         <p>Dear Sir,</p>
-        <p>I/We, <strong>${companyName}</strong> (legal entity name), (hereinafter referred to as "<strong>APPLICANT</strong>") have authorized the following person(s) as an authorized representative(s) of the APPLICANT to execute foreign exchange transactions with M/s Capital India Finance Limited (CIFL), from time to time, and to purchase Foreign Exchange for and on behalf of the APPLICANT against Cheque issued by the APPLICANT or against credit.</p>
+        <p>I/We, <strong>${this.getFormValue("legalEntityName") || companyName}</strong> (Legal entity name), (hereinafter referred to as "<strong>APPLICANT</strong>") have authorized the following person(s) as an authorized representative(s) of the APPLICANT to execute foreign exchange transactions with M/s Capital India Finance Limited (CIFL), from time to time, and to purchase Foreign Exchange for and on behalf of the APPLICANT against Cheque issued by the APPLICANT or against credit.</p>
         <p>We have specifically authorized the person(s) named herein below to sign request letter for purchase /surrender of foreign exchange for the employees of the APPLICANT travelling abroad for and on behalf of the APPLICANT.</p>
         <p>We hereby take the complete responsibility for any transaction undertaken by the said authorized representative(s) with CIFL.</p>
         <p><strong>The Signature of the authorized person(s)/representative(s) is attested below:</strong></p>
@@ -1840,6 +1868,7 @@ class OnboardingApp {
   renderBeneficialOwnershipPreview() {
     const companyName = this.getFormValue("registeredName") || "NA";
     const address = this.getFormValue("registeredAddress") || "NA";
+    const legalEntity = this.getFormValue("legalEntityName") || companyName;
     const sigName = this.getFormValue("signatoryName") || this.getFormValue("kmpName") || "NA";
     const sigDesig = this.getFormValue("signatoryDesignation") || "Director / Company Secretary";
     const directors = this.getDirectorNames();
@@ -1856,21 +1885,21 @@ class OnboardingApp {
         <p>To,<br>The Manager<br>Capital India Finance Limited</p>
         <p>Dear Sir,</p>
         <p><strong style="text-decoration:underline">Sub: Beneficial Ownership Details</strong></p>
-        <p>I, <strong>${sigName}</strong>, authorized signatory of M/s <strong>${companyName}</strong>, a company incorporated under the Companies Act, 1956 and having its registered office at <strong>${address}</strong>, hereby declare and state that the following natural person of our company holds more than 10% of the shares or capital or profits of the company which falls within the definition of Beneficial ownership as defined under PMLA, 2002.</p>
+        <p>I, <strong>${sigName}</strong>, authorized signatory of M/s <strong>${legalEntity}</strong>, a company incorporated under the Companies Act, 1956 and having its registered office at <strong>${address}</strong>, hereby declare and state that the following natural person of our company holds more than 10% of the shares or capital or profits of the company which falls within the definition of Beneficial ownership as defined under PMLA, 2002.</p>
         <table class="preview-table">
           <thead><tr><th style="width:40px">Sr.No.</th><td><strong>Name and address of the natural person/s</strong></td><td><strong>Designation</strong></td><td><strong>Percentage of shares held</strong></td><td><strong>ID No (PAN/Aadhar/Driving License/Passport)</strong></td></tr></thead>
           <tbody>
-            <tr><th>1</th><td>${boPersons[0] || ""}</td><td>${boPersons[0] ? (this.getFormValue("contactDesignation") || sigDesig) : ""}</td><td>${boPersons[0] ? '<input type="text" class="bo-share-input" data-row="1" value="' + (boPersons.length === 1 ? "100%" : Math.round(100 / boPersons.length) + "%") + '" style="border:1px solid #ccc;padding:4px 6px;border-radius:4px;font-size:inherit;width:70px;text-align:center">' : ""}</td><td>${this.getFormValue("panNo") || ""}</td></tr>
-            <tr><th>2</th><td>${boPersons[1] || ""}</td><td>${boPersons[1] ? (this.getFormValue("contactDesignation") || sigDesig) : ""}</td><td>${boPersons[1] ? '<input type="text" class="bo-share-input" data-row="2" value="' + Math.round(100 / boPersons.length) + '%" style="border:1px solid #ccc;padding:4px 6px;border-radius:4px;font-size:inherit;width:70px;text-align:center">' : ""}</td><td></td></tr>
-            <tr><th>3</th><td>${boPersons[2] || ""}</td><td>${boPersons[2] ? (this.getFormValue("contactDesignation") || sigDesig) : ""}</td><td>${boPersons[2] ? '<input type="text" class="bo-share-input" data-row="3" value="' + Math.round(100 / boPersons.length) + '%" style="border:1px solid #ccc;padding:4px 6px;border-radius:4px;font-size:inherit;width:70px;text-align:center">' : ""}</td><td></td></tr>
+            <tr><th>1</th><td>${boPersons[0] || ""}</td><td>${boPersons[0] ? (this.getFormValue("contactDesignation") || sigDesig) : ""}</td><td>${boPersons[0] ? (this.getFormValue("sharesPercent") || "100%") : ""}</td><td>${this.getFormValue("panNo") || ""}</td></tr>
+            <tr><th>2</th><td>${boPersons[1] || ""}</td><td>${boPersons[1] ? (this.getFormValue("contactDesignation") || sigDesig) : ""}</td><td>${boPersons[1] ? (this.getFormValue("sharesPercent") || Math.round(100 / boPersons.length) + "%") : ""}</td><td></td></tr>
+            <tr><th>3</th><td>${boPersons[2] || ""}</td><td>${boPersons[2] ? (this.getFormValue("contactDesignation") || sigDesig) : ""}</td><td>${boPersons[2] ? (this.getFormValue("sharesPercent") || Math.round(100 / boPersons.length) + "%") : ""}</td><td></td></tr>
           </tbody>
         </table>
-        <p style="margin-top:8px"><strong>Website:</strong> <input type="text" id="boWebsite" value="${this.getFormValue("companyWebsite") || "NA"}" style="border:1px solid #ccc;padding:4px 8px;border-radius:4px;font-size:inherit;width:300px" onchange="document.getElementById('companyWebsite').value=this.value;document.getElementById('companyWebsite').classList.add('auto-filled')"></p>
+        <p style="margin-top:8px"><strong>Website:</strong> ${this.getFormValue("companyWebsite") || "NA"}</p>
         <p style="margin-top:16px">I further declare, in case of changes in the beneficial ownership structure of the company, I hereby undertake to furnish the details to you.</p>
         <div class="preview-signature">
           <div class="signature-block">
             <div style="height:50px"></div>
-            <div class="signature-line">For M/s <strong>${companyName}</strong></div>
+            <div class="signature-line">For M/s <strong>${legalEntity}</strong></div>
             <div>Name: <strong>${sigName}</strong></div>
             <div>Designation: ${sigDesig}</div>
           </div>
@@ -1954,6 +1983,7 @@ class OnboardingApp {
 
   renderMouPreview() {
     const companyName = this.getFormValue("registeredName") || "[Company Name]";
+    const legalEntity = this.getFormValue("legalEntityName") || companyName;
     const address = this.getFormValue("registeredAddress") || "[ Company registered Address]";
     const sigName = this.getFormValue("signatoryName") || this.getFormValue("kmpName") || "";
     const sigDesig = this.getFormValue("signatoryDesignation") || "";
@@ -1968,14 +1998,14 @@ class OnboardingApp {
         <p>This MOU is made on this <strong>${today}</strong> ("Effective Date") by and between</p>
         <p><strong>Capital India Finance Limited</strong>, a company incorporated under the laws of India and having its registered office at 701, 7th floor, Aggarwal Corporate Tower, Plot No. 23, District Centre, Rajendra Place, New Delhi &ndash; 110008 through its branch office situated at, hereinafter referred to as <strong>"CIFL"</strong> which expression shall unless the context requires otherwise include its successors and permitted assigns, on one part,</p>
         <p style="text-align:center"><strong>AND</strong></p>
-        <p><strong>${companyName}</strong>, a company legal entity incorporated under the applicable laws of India and having its registered office at <strong>${address}</strong>, carrying out the business or subsidiary of Travels and Tour Operator, directly or under implied authority, and hereinafter referred to as <strong>"Client"</strong> which expression shall unless the context requires otherwise include its associates, successors and permitted assigns, on the other part,</p>
-        <p>CIFL and <strong>${companyName}</strong>, are individually referred to as a "Party" and collectively referred to as "Parties".</p>
+        <p><strong>${legalEntity}</strong>, a company legal entity incorporated under the applicable laws of India and having its registered office at <strong>${address}</strong>, carrying out the business or subsidiary of Travels and Tour Operator, directly or under implied authority, and hereinafter referred to as <strong>"Client"</strong> which expression shall unless the context requires otherwise include its associates, successors and permitted assigns, on the other part,</p>
+        <p>CIFL and <strong>${legalEntity}</strong>, are individually referred to as a "Party" and collectively referred to as "Parties".</p>
 
         <h3 style="margin:20px 0 8px">WHEREAS</h3>
         <p>CIFL is an Authorised Dealer Category II Money Changer engaged in the business of purchase, sale &amp; Remittance of foreign exchange and other foreign exchange related services.</p>
-        <p><strong>${companyName}</strong>, is engaged in the business of Overseas Tour Management.</p>
+        <p><strong>${legalEntity}</strong>, is engaged in the business of Overseas Tour Management.</p>
         <p>CIFL has requisite skill and expertise to provide such foreign exchange services.</p>
-        <p>The <strong>${companyName}</strong>, hereby agrees to appoint CIFL to provide foreign exchange services and such other related services on the terms and conditions mentioned hereunder in this MOU to the directors/partners/proprietor's and employees working at its office.</p>
+        <p>The <strong>${legalEntity}</strong>, hereby agrees to appoint CIFL to provide foreign exchange services and such other related services on the terms and conditions mentioned hereunder in this MOU to the directors/partners/proprietor's and employees working at its office.</p>
 
         <h3 style="margin:20px 0 8px">NOW THEREFORE THIS MOU WITNESSETH AND PARTIES HERETO AGREE AS FOLLOWS:</h3>
 
@@ -2225,6 +2255,7 @@ class OnboardingApp {
 
   downloadAuthSignatoryPdf() {
     const companyName = this.getFormValue("registeredName") || "";
+    const legalEntity = this.getFormValue("legalEntityName") || companyName;
     const sigName = this.getFormValue("signatoryName") || this.getFormValue("kmpName") || "";
     const sigDesig = this.getFormValue("signatoryDesignation") || this.getFormValue("contactDesignation") || "";
     const contactName = this.getFormValue("contactName") || sigName;
@@ -2257,7 +2288,7 @@ class OnboardingApp {
     y -= lineH * 2;
 
     pdf.setFont(9.5, false);
-    const bodyText = `I/We, ${companyName} (hereinafter referred to as "APPLICANT") have authorized the following person(s) as an authorized representative(s) of the APPLICANT to execute foreign exchange transactions with M/s Capital India Finance Limited (CIFL), from time to time, and to purchase Foreign Exchange for and on behalf of the APPLICANT against Cheque issued by the APPLICANT or against credit. We have specifically authorized the person(s) named herein below to sign request letter for purchase / surrender of foreign exchange for the employees of the APPLICANT travelling abroad for and on behalf of the APPLICANT. We hereby take the complete responsibility for any transaction undertaken by the said authorized representative(s) with CIFL.`;
+    const bodyText = `I/We, ${legalEntity} (Legal entity name), (hereinafter referred to as "APPLICANT") have authorized the following person(s) as an authorized representative(s) of the APPLICANT to execute foreign exchange transactions with M/s Capital India Finance Limited (CIFL), from time to time, and to purchase Foreign Exchange for and on behalf of the APPLICANT against Cheque issued by the APPLICANT or against credit. We have specifically authorized the person(s) named herein below to sign request letter for purchase / surrender of foreign exchange for the employees of the APPLICANT travelling abroad for and on behalf of the APPLICANT. We hereby take the complete responsibility for any transaction undertaken by the said authorized representative(s) with CIFL.`;
     y = this.pdfDrawParagraph(pdf, bodyText, m, y, w, 9.5, 13);
     y -= 16;
 
@@ -2308,6 +2339,7 @@ class OnboardingApp {
 
   downloadBeneficialOwnershipPdf() {
     const companyName = this.getFormValue("registeredName") || "";
+    const legalEntity = this.getFormValue("legalEntityName") || companyName;
     const address = this.getFormValue("registeredAddress") || "";
     const sigName = this.getFormValue("signatoryName") || this.getFormValue("kmpName") || "";
     const ownerName = this.getFormValue("kmpName") || this.getFormValue("contactName") || sigName;
@@ -2338,7 +2370,7 @@ class OnboardingApp {
     y -= lineH * 2;
 
     pdf.setFont(9.5, false);
-    const bodyText = `I, ${sigName}, authorized signatory of M/s ${companyName}, a company incorporated under the Companies Act, 1956 and having its registered office at ${address}, hereby declare and state that the following natural person of our company holds more than 10% of the shares or capital or profits of the company which falls within the definition of Beneficial ownership as defined under PMLA, 2002.`;
+    const bodyText = `I, ${sigName}, authorized signatory of M/s ${legalEntity}, a company incorporated under the Companies Act, 1956 and having its registered office at ${address}, hereby declare and state that the following natural person of our company holds more than 10% of the shares or capital or profits of the company which falls within the definition of Beneficial ownership as defined under PMLA, 2002.`;
     y = this.pdfDrawParagraph(pdf, bodyText, m, y, w, 9.5, 13);
     y -= 16;
 
@@ -2362,7 +2394,7 @@ class OnboardingApp {
     pdf.drawText("1", cx + 4, y - 10); pdf.drawCellBorder(cx, y - row1H, colW[0], row1H); cx += colW[0];
     ownerLines.forEach((ln, i) => pdf.drawText(ln, cx + 4, y - 10 - i * 11)); pdf.drawCellBorder(cx, y - row1H, colW[1], row1H); cx += colW[1];
     pdf.drawText(this.getFormValue("contactDesignation") || "Proprietor", cx + 4, y - 10); pdf.drawCellBorder(cx, y - row1H, colW[2], row1H); cx += colW[2];
-    pdf.drawText("100%", cx + 4, y - 10); pdf.drawCellBorder(cx, y - row1H, colW[3], row1H); cx += colW[3];
+    pdf.drawText(this.getFormValue("sharesPercent") || "100%", cx + 4, y - 10); pdf.drawCellBorder(cx, y - row1H, colW[3], row1H); cx += colW[3];
     pdf.drawText(this.getFormValue("panNo") || "", cx + 4, y - 10); pdf.drawCellBorder(cx, y - row1H, colW[4], row1H);
     y -= row1H;
 
@@ -2381,7 +2413,7 @@ class OnboardingApp {
     if (y < 140) { pdf.addPage(); y = pageTop; }
     y -= 40;
     pdf.setFont(10, true);
-    pdf.drawText(`For M/s ${companyName}`, 330, y);
+    pdf.drawText(`For M/s ${legalEntity}`, 330, y);
     y -= 40;
     pdf.drawLine(330, y + 10, 540, y + 10, 0.5);
     pdf.setFont(10, false);
@@ -2537,6 +2569,7 @@ class OnboardingApp {
 
   downloadMouPdf() {
     const companyName = this.getFormValue("registeredName") || "[Company Name]";
+    const legalEntity = this.getFormValue("legalEntityName") || companyName;
     const address = this.getFormValue("registeredAddress") || "[Company Address]";
     const sigName = this.getFormValue("signatoryName") || this.getFormValue("kmpName") || "";
     const sigDesig = this.getFormValue("signatoryDesignation") || "";
@@ -2564,7 +2597,7 @@ class OnboardingApp {
     y -= 18;
 
     pdf.setFont(9.5, false);
-    y = this.pdfDrawParagraph(pdf, `${companyName}, a company/legal entity incorporated under the applicable laws of India and having its registered office at ${address}, carrying out the business of Travels and Tour Operator, hereinafter referred to as "Client"`, m, y, w, 9.5, 13);
+    y = this.pdfDrawParagraph(pdf, `${legalEntity}, a company/legal entity incorporated under the applicable laws of India and having its registered office at ${address}, carrying out the business of Travels and Tour Operator, hereinafter referred to as "Client"`, m, y, w, 9.5, 13);
     y -= 12;
 
     pdf.setFont(11, true);
@@ -2573,9 +2606,9 @@ class OnboardingApp {
     pdf.setFont(9.5, false);
     y = this.pdfDrawParagraph(pdf, `A. CIFL is holding an Authorized Dealer Category II Money Changer License issued by the Reserve Bank of India ("RBI") and is inter-alia engaged in the business of dealing in Foreign Exchange.`, m, y, w, 9.5, 13);
     y -= 4;
-    y = this.pdfDrawParagraph(pdf, `B. ${companyName} is in the business of Overseas Tour Management.`, m, y, w, 9.5, 13);
+    y = this.pdfDrawParagraph(pdf, `B. ${legalEntity} is in the business of Overseas Tour Management.`, m, y, w, 9.5, 13);
     y -= 4;
-    y = this.pdfDrawParagraph(pdf, `C. ${companyName} desires to avail the services of CIFL for sale/purchase of foreign exchange and telegraphic transfer for its customers.`, m, y, w, 9.5, 13);
+    y = this.pdfDrawParagraph(pdf, `C. ${legalEntity} desires to avail the services of CIFL for sale/purchase of foreign exchange and telegraphic transfer for its customers.`, m, y, w, 9.5, 13);
     y -= 12;
 
     const sections = [
