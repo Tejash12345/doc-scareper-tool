@@ -969,16 +969,20 @@ class OnboardingApp {
         else { const p6 = t.match(/\b(\d{6})\b/); if (p6 && parseInt(p6[1]) >= 100000 && parseInt(p6[1]) <= 999999) fields.pin = p6[1]; }
       }
 
-      const validityMatch = t.match(/(?:Date\s*of\s*Validity)\s*(?:From)?\s*[:\-]?\s*(\d{2}\/\d{2}\/\d{4})/i);
+      const validityMatch = t.match(/(?:(?:Date|Period)\s*of\s*Validity)\s*(?:From)?\s*[:\-]?\s*(?:From\s*)?(\d{2}\/\d{2}\/\d{4})/i);
       if (validityMatch) fields.gstValidityFrom = validityMatch[1];
+      if (!fields.gstValidityFrom) {
+        const issueDate = t.match(/(?:Date\s*of\s*issue\s*(?:of\s*)?(?:Certificate)?)\s*[:\-]?\s*(\d{2}\/\d{2}\/\d{4})/i);
+        if (issueDate) fields.gstValidityFrom = issueDate[1];
+      }
 
-      const compName = (fields.gstLegalName || fields.gstTradeName || "").toUpperCase();
+      const compName = (fields.gstTradeName || "").toUpperCase();
       const extractPersonNames = (block, isDir) => {
         const names = [];
         const patterns = [
-          /(?:\bName\b)\s*[:\-]?\s*([A-Z][A-Za-z\s.]+?)(?=\s*(?:Designation|Resident|Status|DIN|PAN|Father|Date|Mobile|Photo|Name\b|\d{1,3}\s|$))/gi,
+          /(?:\bName\b)\s*[:\-]?\s*([A-Z][A-Za-z\s.]+?)(?=\s*(?:Designation|Resident|Status|DIN|PAN|Father|Date|Mobile|Photo|Name\b|Trade\b|Legal\b|Additional\b|Constitution\b|Address\b|Period\b|Type\b|Particulars\b|Annexure\b|Details\b|Signature\b|Total\b|\d{1,3}\s|$))/gi,
           /(?:\bName\b)\s+([A-Z][a-z]+(?:\s+[A-Za-z][a-z]+)+)/g,
-          /\b(\d+)\s+Name\s+([A-Z][A-Za-z\s.]+?)(?=\s*(?:Designation|DIN|Resident|$))/gi,
+          /\b(\d+)\s+Name\s+([A-Z][A-Za-z\s.]+?)(?=\s*(?:Designation|DIN|Resident|Status|Trade\b|Legal\b|$))/gi,
         ];
         for (const re of patterns) {
           const matches = block.matchAll(re);
@@ -988,7 +992,8 @@ class OnboardingApp {
             const nUp = n.toUpperCase();
             const corpWords = /\b(LIMITED|PRIVATE|LLP|PARTNERSHIP|COMPANY|CORPORATION|ENTERPRISES|INDUSTRIES|REPRESENTATIONS|SOLUTIONS|SERVICES|TECHNOLOGIES|PVT|LTD|INC)\b/i.test(n);
             const isComp = corpWords || nUp === compName || (compName && compName.length > 5 && (compName.includes(nUp) || nUp.includes(compName.substring(0, Math.min(10, compName.length))))) || n.split(/\s+/).length > 5;
-            if (n.length > 2 && n.length < 60 && !skip && !isComp && /[a-z]/i.test(n)) names.push(n);
+            const cleaned = n.replace(/\s+(Trade|Legal|Additional|Constitution|Address|Period|Type|Particulars|Annexure|Details|Signature|Total|Number)$/i, "").trim();
+            if (cleaned.length > 2 && cleaned.length < 60 && !skip && !isComp && /[a-z]/i.test(cleaned)) names.push(cleaned);
           }
           if (names.length > 0) break;
         }
@@ -1033,10 +1038,23 @@ class OnboardingApp {
 
       const desigBlock = (fields.gstPartners || fields.gstDirectors || []).length > 0 ? t : "";
       if (desigBlock) {
-        const desigMatches = desigBlock.match(/(?:Designation)\s*[:\-]?\s*(Partner|Director|Proprietor|Managing\s*Partner|Designated\s*Partner|Karta|Trustee|Managing\s*Director|Whole\s*Time\s*Director)/gi);
+        const desigMatches = desigBlock.match(/(?:Designation|Status)\s*[:\-\/]?\s*(Partner|Director|Proprietor|Managing\s*Partner|Designated\s*Partner|Karta|Trustee|Managing\s*Director|Whole\s*Time\s*Director)/gi);
         if (desigMatches && desigMatches.length > 0) {
-          fields.gstPersonDesignations = desigMatches.map(d => d.replace(/^Designation\s*[:\-]?\s*/i, "").trim());
+          fields.gstPersonDesignations = desigMatches.map(d => d.replace(/^(?:Designation|Status)\s*[:\-\/]?\s*/i, "").trim());
         }
+      }
+
+      if (!fields.gstPartners && !fields.gstDirectors && fields.gstLegalName) {
+        if (/proprietor/i.test(fields.gstConstitution || "")) {
+          fields.gstPartners = [fields.gstLegalName];
+          if (!fields.gstPersonDesignations || fields.gstPersonDesignations.length === 0) {
+            fields.gstPersonDesignations = ["Proprietor"];
+          }
+        }
+      }
+
+      if (fields.gstNumber && fields.gstNumber.length >= 12 && !fields.panNumber) {
+        fields.panNumber = fields.gstNumber.substring(2, 12);
       }
 
       if (!fields.gstAddress) {
@@ -1085,8 +1103,8 @@ class OnboardingApp {
       }
     };
 
-    const companyName = d.enterpriseName || d.gstLegalName || d.gstTradeName || d.companyName || d.genericName || d.bankAccountName || "";
-    const companySource = d.enterpriseName ? "UDYAM" : d.gstLegalName || d.gstTradeName ? "GST" : d.companyName ? "CoI" : d.genericName ? "DOC" : d.bankAccountName ? "BANK" : "";
+    const companyName = d.enterpriseName || d.gstTradeName || d.gstLegalName || d.companyName || d.genericName || d.bankAccountName || "";
+    const companySource = d.enterpriseName ? "UDYAM" : d.gstTradeName || d.gstLegalName ? "GST" : d.companyName ? "CoI" : d.genericName ? "DOC" : d.bankAccountName ? "BANK" : "";
 
     const address = this.buildAddress(d) || d.gstAddress || d.bankAddress || d.genericAddress || "";
     const addrSource = this.buildAddress(d) ? (d.gstNumber ? "GST" : d.udyamNumber ? "UDYAM" : "DOC") : d.gstAddress ? "GST" : d.bankAddress ? "BANK" : d.genericAddress ? "DOC" : "";
@@ -1188,12 +1206,19 @@ class OnboardingApp {
     this.selectCheckbox("productsGroup", ["Telegraphic Transfer", "Forex Prepaid Cards", "Foreign Currency Notes"]);
     this.setBadge("products", "AUTO");
 
-    if (!document.getElementById("companyWebsite")?.value) {
-      setVal("companyWebsite", "NA", "AUTO");
-    }
-    if (!document.getElementById("annualFx")?.value) {
-      setVal("annualFx", "NA", "AUTO");
-    }
+    const naIfEmpty = (id, src) => {
+      if (!document.getElementById(id)?.value) setVal(id, "NA", src || "AUTO");
+    };
+    naIfEmpty("companyWebsite");
+    naIfEmpty("annualFx");
+    naIfEmpty("udyamNumber");
+    naIfEmpty("bankName");
+    naIfEmpty("contactMobile");
+    naIfEmpty("contactEmail");
+    naIfEmpty("ceoMobile");
+    naIfEmpty("ceoEmail");
+    naIfEmpty("mdMobile");
+    naIfEmpty("mdEmail");
   }
 
   setBadge(fieldId, source) {
@@ -1625,6 +1650,12 @@ class OnboardingApp {
         }
         xml = xml.replace(/For\s+_{5,}/, "For " + engine.escXml(companyName));
         xml = xml.replace(/>Name:<\/w:t>/, ">Name: " + engine.escXml(sigName) + "</w:t>");
+        xml = xml.replace(/Designation\s*\(Director\s*\/\s*CFO\s*\/\s*Company\s*Secretary\)/i, "Designation: " + engine.escXml(sigDesig));
+        xml = xml.replace(/>Encl\.?:?\s*Officially valid documents[\s\S]*?<\/w:p>/i, (m) => {
+          return m.replace(/<\/w:p>$/, "") + "</w:p>";
+        });
+        xml = xml.replace(/>\s*1\.\s*<\/w:t>/i, ">1. Aadhaar Card</w:t>");
+        xml = xml.replace(/>\s*2\.\s*<\/w:t>/i, ">2. PAN Card</w:t>");
       }
 
       else if (type === "beneficialOwnership") {
@@ -1633,18 +1664,22 @@ class OnboardingApp {
         xml = xml.replace(/_{5,}(\s*authorized|\s*<\/w:t>[\s\S]*?authorized)/i, engine.escXml(sigName) + "$1");
         xml = xml.replace(/M\/s\s*_{5,}/i, "M/s " + engine.escXml(companyName));
         xml = xml.replace(/registered office at\s*_{5,}/i, "registered office at " + engine.escXml(v("registeredAddress")));
+        const sharePercent = boPersons.length === 1 ? "100%" : Math.round(100 / boPersons.length) + "%";
         if (boPersons[0]) {
           xml = engine.fillTableCell(xml, 1, 1, boPersons[0]);
           xml = engine.fillTableCell(xml, 1, 2, sigDesig);
+          xml = engine.fillTableCell(xml, 1, 3, sharePercent);
           xml = engine.fillTableCell(xml, 1, 4, v("panNo"));
         }
         if (boPersons.length > 1) {
           xml = engine.fillTableCell(xml, 2, 1, boPersons[1]);
           xml = engine.fillTableCell(xml, 2, 2, sigDesig);
+          xml = engine.fillTableCell(xml, 2, 3, sharePercent);
         }
         if (boPersons.length > 2) {
           xml = engine.fillTableCell(xml, 3, 1, boPersons[2]);
           xml = engine.fillTableCell(xml, 3, 2, sigDesig);
+          xml = engine.fillTableCell(xml, 3, 3, sharePercent);
         }
         let msM;
         while ((msM = xml.match(/M\/s\s*_{3,}/))) { xml = xml.replace(msM[0], "M/s " + engine.escXml(companyName)); }
@@ -1797,10 +1832,10 @@ class OnboardingApp {
             <div class="signature-line">For <strong>${companyName}</strong></div>
             <div>Signature</div>
             <div>Name: <strong>${sigName}</strong></div>
-            <div>Designation (Director / CFO / Company Secretary)</div>
+            <div>Designation: ${sigDesig}</div>
           </div>
         </div>
-        <p style="margin-top:16px"><strong>Encl.:</strong> Officially valid documents of<br>1.<br>2.</p>
+        <p style="margin-top:16px"><strong>Encl.:</strong> Officially valid documents of<br>1. Aadhaar Card<br>2. PAN Card</p>
       </div>`;
   }
 
@@ -1827,11 +1862,12 @@ class OnboardingApp {
         <table class="preview-table">
           <thead><tr><th style="width:40px">Sr.No.</th><td><strong>Name and address of the natural person/s</strong></td><td><strong>Designation</strong></td><td><strong>Percentage of shares held</strong></td><td><strong>ID No (PAN/Aadhar/Driving License/Passport)</strong></td></tr></thead>
           <tbody>
-            <tr><th>1</th><td>${boPersons[0] || ""}</td><td>${boPersons[0] ? (this.getFormValue("contactDesignation") || sigDesig) : ""}</td><td></td><td>${this.getFormValue("panNo") || ""}</td></tr>
-            <tr><th>2</th><td>${boPersons[1] || ""}</td><td>${boPersons[1] ? (this.getFormValue("contactDesignation") || sigDesig) : ""}</td><td></td><td></td></tr>
-            <tr><th>3</th><td>${boPersons[2] || ""}</td><td>${boPersons[2] ? (this.getFormValue("contactDesignation") || sigDesig) : ""}</td><td></td><td></td></tr>
+            <tr><th>1</th><td>${boPersons[0] || ""}</td><td>${boPersons[0] ? (this.getFormValue("contactDesignation") || sigDesig) : ""}</td><td>${boPersons[0] ? (boPersons.length === 1 ? "100%" : Math.round(100 / boPersons.length) + "%") : ""}</td><td>${this.getFormValue("panNo") || ""}</td></tr>
+            <tr><th>2</th><td>${boPersons[1] || ""}</td><td>${boPersons[1] ? (this.getFormValue("contactDesignation") || sigDesig) : ""}</td><td>${boPersons[1] ? Math.round(100 / boPersons.length) + "%" : ""}</td><td></td></tr>
+            <tr><th>3</th><td>${boPersons[2] || ""}</td><td>${boPersons[2] ? (this.getFormValue("contactDesignation") || sigDesig) : ""}</td><td>${boPersons[2] ? Math.round(100 / boPersons.length) + "%" : ""}</td><td></td></tr>
           </tbody>
         </table>
+        <p style="margin-top:8px"><strong>Website:</strong> ${this.getFormValue("companyWebsite") || "NA"}</p>
         <p style="margin-top:16px">I further declare, in case of changes in the beneficial ownership structure of the company, I hereby undertake to furnish the details to you.</p>
         <div class="preview-signature">
           <div class="signature-block">
