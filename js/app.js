@@ -1681,10 +1681,9 @@ class OnboardingApp {
 
       else if (type === "beneficialOwnership") {
         xml = xml.replace(/>Date:\s*<\/w:t>/i, ">Date: " + engine.escXml(today) + "</w:t>");
-        const boLegalEntity = this.getFormValue("legalEntityName") || companyName;
         const boPersons = directors.length > 0 ? directors : [contactName];
         xml = xml.replace(/_{5,}(\s*authorized|\s*<\/w:t>[\s\S]*?authorized)/i, engine.escXml(sigName) + "$1");
-        xml = xml.replace(/M\/s\s*_{5,}/i, "M/s " + engine.escXml(boLegalEntity));
+        xml = xml.replace(/M\/s\s*_{5,}/i, "M/s " + engine.escXml(companyName));
         xml = xml.replace(/registered office at\s*_{5,}/i, "registered office at " + engine.escXml(v("registeredAddress")));
         const sharePercent = this.getFormValue("sharesPercent") || (boPersons.length === 1 ? "100%" : Math.round(100 / boPersons.length) + "%");
         if (boPersons[0]) {
@@ -1704,7 +1703,7 @@ class OnboardingApp {
           xml = engine.fillTableCell(xml, 3, 3, sharePercent);
         }
         let msM;
-        while ((msM = xml.match(/M\/s\s*_{3,}/))) { xml = xml.replace(msM[0], "M/s " + engine.escXml(boLegalEntity)); }
+        while ((msM = xml.match(/M\/s\s*_{3,}/))) { xml = xml.replace(msM[0], "M/s " + engine.escXml(companyName)); }
         xml = xml.replace(/>Name:\s*<\/w:t>/i, ">Name: " + engine.escXml(sigName) + "</w:t>");
         xml = xml.replace(/>Designation:\s*<\/w:t>/i, ">Designation: " + engine.escXml(sigDesig) + "</w:t>");
         xml = xml.replace(/>Director\s*\/\s*Company\s*Secretary\s*<\/w:t>/i, "></w:t>");
@@ -1885,7 +1884,7 @@ class OnboardingApp {
         <p>To,<br>The Manager<br>Capital India Finance Limited</p>
         <p>Dear Sir,</p>
         <p><strong style="text-decoration:underline">Sub: Beneficial Ownership Details</strong></p>
-        <p>I, <strong>${sigName}</strong>, authorized signatory of M/s <strong>${legalEntity}</strong>, a company incorporated under the Companies Act, 1956 and having its registered office at <strong>${address}</strong>, hereby declare and state that the following natural person of our company holds more than 10% of the shares or capital or profits of the company which falls within the definition of Beneficial ownership as defined under PMLA, 2002.</p>
+        <p>I, <strong>${sigName}</strong>, authorized signatory of M/s <strong>${companyName}</strong>, a company incorporated under the Companies Act, 1956 and having its registered office at <strong>${address}</strong>, hereby declare and state that the following natural person of our company holds more than 10% of the shares or capital or profits of the company which falls within the definition of Beneficial ownership as defined under PMLA, 2002.</p>
         <table class="preview-table">
           <thead><tr><th style="width:40px">Sr.No.</th><td><strong>Name and address of the natural person/s</strong></td><td><strong>Designation</strong></td><td><strong>Percentage of shares held</strong></td><td><strong>ID No (PAN/Aadhar/Driving License/Passport)</strong></td></tr></thead>
           <tbody>
@@ -1899,7 +1898,7 @@ class OnboardingApp {
         <div class="preview-signature">
           <div class="signature-block">
             <div style="height:50px"></div>
-            <div class="signature-line">For M/s <strong>${legalEntity}</strong></div>
+            <div class="signature-line">For M/s <strong>${companyName}</strong></div>
             <div>Name: <strong>${sigName}</strong></div>
             <div>Designation: ${sigDesig}</div>
           </div>
@@ -2371,7 +2370,7 @@ class OnboardingApp {
     y -= lineH * 2;
 
     pdf.setFont(9.5, false);
-    const bodyText = `I, ${sigName}, authorized signatory of M/s ${legalEntity}, a company incorporated under the Companies Act, 1956 and having its registered office at ${address}, hereby declare and state that the following natural person of our company holds more than 10% of the shares or capital or profits of the company which falls within the definition of Beneficial ownership as defined under PMLA, 2002.`;
+    const bodyText = `I, ${sigName}, authorized signatory of M/s ${companyName}, a company incorporated under the Companies Act, 1956 and having its registered office at ${address}, hereby declare and state that the following natural person of our company holds more than 10% of the shares or capital or profits of the company which falls within the definition of Beneficial ownership as defined under PMLA, 2002.`;
     y = this.pdfDrawParagraph(pdf, bodyText, m, y, w, 9.5, 13);
     y -= 16;
 
@@ -2414,7 +2413,7 @@ class OnboardingApp {
     if (y < 140) { pdf.addPage(); y = pageTop; }
     y -= 40;
     pdf.setFont(10, true);
-    pdf.drawText(`For M/s ${legalEntity}`, 330, y);
+    pdf.drawText(`For M/s ${companyName}`, 330, y);
     y -= 40;
     pdf.drawLine(330, y + 10, 540, y + 10, 0.5);
     pdf.setFont(10, false);
