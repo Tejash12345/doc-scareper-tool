@@ -1721,7 +1721,7 @@ class OnboardingApp {
         xml = engine.fillByLabel(xml, "Location of branches", v("registeredAddress"));
         xml = engine.fillByLabel(xml, "Information about clients", v("natureOfBusiness") + ", " + v("registeredAddress"));
         xml = engine.fillByLabel(xml, "Whether listed on recognized stock", stockListed === "Yes" ? "Yes" : "No");
-        xml = engine.fillByLabel(xml, "Ownership and control structure", legalStatus + " - " + companyName);
+        xml = engine.fillByLabel(xml, "Ownership and control structure", legalStatus + " - " + (this.getFormValue("legalEntityName") || companyName));
         xml = engine.fillByLabel(xml, "Names of natural persons controlling", kmpNames.length > 0 ? kmpNames.join(", ") : contactName);
         xml = engine.fillByLabel(xml, "Purpose and intended nature", "Foreign Exchange Transactions");
         xml = engine.fillByLabel(xml, "Name of Chairman", kmpNames.length > 0 ? kmpNames[0] : contactName);
@@ -1909,6 +1909,7 @@ class OnboardingApp {
 
   renderCorporateProfilePreview() {
     const companyName = this.getFormValue("registeredName") || "NA";
+    const legalEntity = this.getFormValue("legalEntityName") || companyName;
     const legalStatus = this.getRadioValue("legalStatusGroup") || "NA";
     const products = this.getCheckedValues("productsGroup");
     const productStr = products.length > 0 ? products.join(", ") : "NA";
@@ -1944,7 +1945,7 @@ class OnboardingApp {
         </table>
         <table class="preview-table" style="margin-top:16px">
           <tbody>
-            ${this.pRow("Ownership and control structure", legalStatus + " - " + companyName)}
+            ${this.pRow("Ownership and control structure", legalStatus + " - " + legalEntity)}
             ${this.pRow("Names of natural persons controlling the entity", kmpNames.length > 0 ? kmpNames.join(", ") : contactName)}
             ${this.pRow("Purpose and intended nature of the business relationship", "Foreign Exchange Transactions")}
           </tbody>
@@ -2503,7 +2504,7 @@ class OnboardingApp {
 
     const mgmtColW = [35, 225, 235];
     const mgmtRows = [
-      ["Ownership and control structure", `${legalStatus} - ${this.getFormValue("kmpName") || this.getFormValue("contactName")}`],
+      ["Ownership and control structure", `${legalStatus} - ${this.getFormValue("legalEntityName") || this.getFormValue("kmpName") || this.getFormValue("contactName")}`],
       ["Natural persons controlling entity", this.getFormValue("kmpName") || this.getFormValue("contactName")],
       ["Purpose of business relationship", "Foreign Exchange Purchase / TT for Tour Operations"],
       ["Name of Chairman", this.getFormValue("kmpName") || this.getFormValue("ceoName")],
@@ -3095,7 +3096,7 @@ class OnboardingApp {
     ];
 
     const mgmtRows = [
-      ["Ownership and control structure", `${legalStatus} - ${e("kmpName") || e("contactName")}`],
+      ["Ownership and control structure", `${legalStatus} - ${e("legalEntityName") || e("kmpName") || e("contactName")}`],
       ["Names of natural persons controlling entity", e("kmpName") || e("contactName")],
       ["Purpose of business relationship", "Foreign Exchange Purchase / Telegraphic Transfer for Tour Operations"],
       ["Name of Chairman", e("kmpName") || e("ceoName")],
