@@ -1737,8 +1737,7 @@ class OnboardingApp {
       }
 
       else if (type === "mou") {
-        const legalEntity = this.getFormValue("legalEntityName") || companyName;
-        xml = engine.replaceText(xml, "[Company Name]", legalEntity);
+        xml = engine.replaceText(xml, "[Company Name]", companyName);
         xml = engine.replaceText(xml, "[ Company registered Address]", v("registeredAddress"));
       }
 
@@ -1983,7 +1982,6 @@ class OnboardingApp {
 
   renderMouPreview() {
     const companyName = this.getFormValue("registeredName") || "[Company Name]";
-    const legalEntity = this.getFormValue("legalEntityName") || companyName;
     const address = this.getFormValue("registeredAddress") || "[ Company registered Address]";
     const sigName = this.getFormValue("signatoryName") || this.getFormValue("kmpName") || "";
     const sigDesig = this.getFormValue("signatoryDesignation") || "";
@@ -1998,14 +1996,14 @@ class OnboardingApp {
         <p>This MOU is made on this <strong>${today}</strong> ("Effective Date") by and between</p>
         <p><strong>Capital India Finance Limited</strong>, a company incorporated under the laws of India and having its registered office at 701, 7th floor, Aggarwal Corporate Tower, Plot No. 23, District Centre, Rajendra Place, New Delhi &ndash; 110008 through its branch office situated at, hereinafter referred to as <strong>"CIFL"</strong> which expression shall unless the context requires otherwise include its successors and permitted assigns, on one part,</p>
         <p style="text-align:center"><strong>AND</strong></p>
-        <p><strong>${legalEntity}</strong>, a company legal entity incorporated under the applicable laws of India and having its registered office at <strong>${address}</strong>, carrying out the business or subsidiary of Travels and Tour Operator, directly or under implied authority, and hereinafter referred to as <strong>"Client"</strong> which expression shall unless the context requires otherwise include its associates, successors and permitted assigns, on the other part,</p>
-        <p>CIFL and <strong>${legalEntity}</strong>, are individually referred to as a "Party" and collectively referred to as "Parties".</p>
+        <p><strong>${companyName}</strong>, a company legal entity incorporated under the applicable laws of India and having its registered office at <strong>${address}</strong>, carrying out the business or subsidiary of Travels and Tour Operator, directly or under implied authority, and hereinafter referred to as <strong>"Client"</strong> which expression shall unless the context requires otherwise include its associates, successors and permitted assigns, on the other part,</p>
+        <p>CIFL and <strong>${companyName}</strong>, are individually referred to as a "Party" and collectively referred to as "Parties".</p>
 
         <h3 style="margin:20px 0 8px">WHEREAS</h3>
         <p>CIFL is an Authorised Dealer Category II Money Changer engaged in the business of purchase, sale &amp; Remittance of foreign exchange and other foreign exchange related services.</p>
-        <p><strong>${legalEntity}</strong>, is engaged in the business of Overseas Tour Management.</p>
+        <p><strong>${companyName}</strong>, is engaged in the business of Overseas Tour Management.</p>
         <p>CIFL has requisite skill and expertise to provide such foreign exchange services.</p>
-        <p>The <strong>${legalEntity}</strong>, hereby agrees to appoint CIFL to provide foreign exchange services and such other related services on the terms and conditions mentioned hereunder in this MOU to the directors/partners/proprietor's and employees working at its office.</p>
+        <p>The <strong>${companyName}</strong>, hereby agrees to appoint CIFL to provide foreign exchange services and such other related services on the terms and conditions mentioned hereunder in this MOU to the directors/partners/proprietor's and employees working at its office.</p>
 
         <h3 style="margin:20px 0 8px">NOW THEREFORE THIS MOU WITNESSETH AND PARTIES HERETO AGREE AS FOLLOWS:</h3>
 
@@ -2569,7 +2567,6 @@ class OnboardingApp {
 
   downloadMouPdf() {
     const companyName = this.getFormValue("registeredName") || "[Company Name]";
-    const legalEntity = this.getFormValue("legalEntityName") || companyName;
     const address = this.getFormValue("registeredAddress") || "[Company Address]";
     const sigName = this.getFormValue("signatoryName") || this.getFormValue("kmpName") || "";
     const sigDesig = this.getFormValue("signatoryDesignation") || "";
@@ -2597,7 +2594,7 @@ class OnboardingApp {
     y -= 18;
 
     pdf.setFont(9.5, false);
-    y = this.pdfDrawParagraph(pdf, `${legalEntity}, a company/legal entity incorporated under the applicable laws of India and having its registered office at ${address}, carrying out the business of Travels and Tour Operator, hereinafter referred to as "Client"`, m, y, w, 9.5, 13);
+    y = this.pdfDrawParagraph(pdf, `${companyName}, a company/legal entity incorporated under the applicable laws of India and having its registered office at ${address}, carrying out the business of Travels and Tour Operator, hereinafter referred to as "Client"`, m, y, w, 9.5, 13);
     y -= 12;
 
     pdf.setFont(11, true);
@@ -2606,9 +2603,9 @@ class OnboardingApp {
     pdf.setFont(9.5, false);
     y = this.pdfDrawParagraph(pdf, `A. CIFL is holding an Authorized Dealer Category II Money Changer License issued by the Reserve Bank of India ("RBI") and is inter-alia engaged in the business of dealing in Foreign Exchange.`, m, y, w, 9.5, 13);
     y -= 4;
-    y = this.pdfDrawParagraph(pdf, `B. ${legalEntity} is in the business of Overseas Tour Management.`, m, y, w, 9.5, 13);
+    y = this.pdfDrawParagraph(pdf, `B. ${companyName} is in the business of Overseas Tour Management.`, m, y, w, 9.5, 13);
     y -= 4;
-    y = this.pdfDrawParagraph(pdf, `C. ${legalEntity} desires to avail the services of CIFL for sale/purchase of foreign exchange and telegraphic transfer for its customers.`, m, y, w, 9.5, 13);
+    y = this.pdfDrawParagraph(pdf, `C. ${companyName} desires to avail the services of CIFL for sale/purchase of foreign exchange and telegraphic transfer for its customers.`, m, y, w, 9.5, 13);
     y -= 12;
 
     const sections = [
