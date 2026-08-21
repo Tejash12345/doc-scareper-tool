@@ -46,6 +46,13 @@ class OnboardingApp {
         <div class="progress-bar-container">
           <div class="steps-indicator" id="stepsIndicator"></div>
         </div>
+        <div id="formCategoryBar" style="display:none;padding:8px 24px;background:rgba(255,255,255,0.1);border-top:1px solid rgba(255,255,255,0.15);align-items:center;justify-content:center;gap:12px">
+          <label style="font-size:0.8rem;font-weight:600;color:rgba(255,255,255,0.85);white-space:nowrap">Form Category:</label>
+          <select id="formCategoryMain" class="form-input" style="max-width:240px;padding:6px 12px;font-size:0.82rem;border-radius:6px;background:rgba(255,255,255,0.95);color:#333;border:none;font-weight:500" onchange="app.switchFormCategory(this.value)">
+            <option value="cifl">CIFL (Capital India Finance)</option>
+            <option value="indel">Indel Money</option>
+          </select>
+        </div>
       </header>
       <div class="main-container">
         <aside class="sidebar">
@@ -282,6 +289,19 @@ class OnboardingApp {
                 <input class="form-input" type="text" id="annualFx" placeholder="e.g., 50,00,000">
               </div>
             </div>
+            <div class="sub-card" style="margin-top:16px">
+              <div class="sub-card-title">Beneficial Owners / Shareholders</div>
+              <div class="section-desc" style="margin-bottom:12px">Add persons holding more than 10% shares. Each person needs their own PAN and share percentage.</div>
+              <div id="boRows">
+                <div class="bo-row" style="display:grid;grid-template-columns:1fr 140px 1fr 120px;gap:8px;margin-bottom:8px;align-items:end">
+                  <div class="form-group" style="margin-bottom:0"><label class="form-label">Name</label><input class="form-input bo-name" type="text" id="boName1" placeholder="Person name"></div>
+                  <div class="form-group" style="margin-bottom:0"><label class="form-label">DOB</label><input class="form-input bo-dob" type="text" id="boDob1" placeholder="DD/MM/YYYY"></div>
+                  <div class="form-group" style="margin-bottom:0"><label class="form-label">PAN Number</label><input class="form-input bo-pan" type="text" id="boPan1" placeholder="PAN" maxlength="10" style="text-transform:uppercase"></div>
+                  <div class="form-group" style="margin-bottom:0"><label class="form-label">Share %</label><input class="form-input bo-share" type="text" id="boShare1" placeholder="e.g., 100%"></div>
+                </div>
+              </div>
+              <button class="btn btn-outline btn-sm" type="button" onclick="app.addBoRow()">+ Add Person</button>
+            </div>
             <div class="form-actions">
               <button class="btn btn-secondary" onclick="app.prevStep()">
                 <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="19" y1="12" x2="5" y2="12"/><polyline points="12 19 5 12 12 5"/></svg>
@@ -450,12 +470,24 @@ class OnboardingApp {
         </div>
         <div class="card no-print" style="margin-bottom:16px">
           <div class="card-body" style="padding:0">
+            <div style="padding:10px 16px;border-bottom:1px solid var(--border);display:flex;align-items:center;gap:10px">
+              <label style="font-size:0.8rem;font-weight:600;color:var(--text-secondary);white-space:nowrap">Form Category:</label>
+              <select id="formCategorySelect" class="form-input" style="max-width:220px;padding:6px 10px;font-size:0.8rem" onchange="app.switchFormCategory(this.value)">
+                <option value="cifl">CIFL (Capital India)</option>
+                <option value="indel">Indel Money</option>
+              </select>
+            </div>
             <div id="docTabs" class="doc-tabs">
-              <button class="doc-tab active" data-doc="onboarding" onclick="app.switchDocPreview('onboarding')">Client Onboarding</button>
-              <button class="doc-tab" data-doc="authSignatory" onclick="app.switchDocPreview('authSignatory')">Auth Signatory Letter</button>
-              <button class="doc-tab" data-doc="beneficialOwnership" onclick="app.switchDocPreview('beneficialOwnership')">Beneficial Ownership</button>
-              <button class="doc-tab" data-doc="corporateProfile" onclick="app.switchDocPreview('corporateProfile')">Corporate Profile / KYC</button>
-              <button class="doc-tab" data-doc="mou" onclick="app.switchDocPreview('mou')">Tour Operator MOU</button>
+              <button class="doc-tab active" data-doc="onboarding" data-category="cifl" onclick="app.switchDocPreview('onboarding')">Client Onboarding</button>
+              <button class="doc-tab" data-doc="authSignatory" data-category="cifl" onclick="app.switchDocPreview('authSignatory')">Auth Signatory Letter</button>
+              <button class="doc-tab" data-doc="beneficialOwnership" data-category="cifl" onclick="app.switchDocPreview('beneficialOwnership')">Beneficial Ownership</button>
+              <button class="doc-tab" data-doc="corporateProfile" data-category="cifl" onclick="app.switchDocPreview('corporateProfile')">Corporate Profile / KYC</button>
+              <button class="doc-tab" data-doc="mou" data-category="cifl" onclick="app.switchDocPreview('mou')">Tour Operator MOU</button>
+              <button class="doc-tab" data-doc="indelOnboarding" data-category="indel" style="display:none" onclick="app.switchDocPreview('indelOnboarding')">Corporate Onboarding</button>
+              <button class="doc-tab" data-doc="indelAuthSignatory" data-category="indel" style="display:none" onclick="app.switchDocPreview('indelAuthSignatory')">Auth Signatory</button>
+              <button class="doc-tab" data-doc="indelBeneficialOwnership" data-category="indel" style="display:none" onclick="app.switchDocPreview('indelBeneficialOwnership')">Beneficial Ownership</button>
+              <button class="doc-tab" data-doc="indelFieldVerification" data-category="indel" style="display:none" onclick="app.switchDocPreview('indelFieldVerification')">Field Verification</button>
+              <button class="doc-tab" data-doc="indelMou" data-category="indel" style="display:none" onclick="app.switchDocPreview('indelMou')">MOU</button>
             </div>
             <div style="padding:12px 16px;display:flex;gap:8px;border-top:1px solid var(--border)" id="docDownloadBar">
               <button class="btn btn-primary btn-sm" onclick="app.downloadCurrentPdf()" id="btnDownloadPdf" style="justify-content:center;flex:1">
@@ -781,6 +813,9 @@ class OnboardingApp {
 
     const datePatterns = t.match(/\b(\d{2}[\/\-]\d{2}[\/\-]\d{4})\b/g);
 
+    const globalDobMatch = t.match(/(?:Date\s*of\s*Birth|DOB|D\.O\.B|Birth\s*Date)\s*[:\-]?\s*(\d{2}[\/\-]\d{2}[\/\-]\d{4})/i);
+    if (globalDobMatch) fields.globalDob = globalDobMatch[1].replace(/-/g, "/");
+
     if (docType === "Bank Statement") {
       const namePatterns = [
         /(?:Account\s*(?:Holder|Name))\s*[:\-]?\s*(?:(?:MR|MS|MRS|SHRI|SMT|M\/S)\s+)?([A-Z][A-Z\s.&]+?)(?=\s*(?:Address|Account|Mobile|Email|Customer|Joint|Nominee|Branch|\d|$))/i,
@@ -922,8 +957,21 @@ class OnboardingApp {
       const categoryMatch = t.match(/(?:SOCIAL\s*CATEGORY)\s*[:\-]?\s*(GENERAL|SC|ST|OBC)/i);
       if (categoryMatch) fields.socialCategory = categoryMatch[1].trim();
 
-      const ownerNameMatch = t.match(/(?:NAME\s*(?:OF\s*)?(?:OWNER|PROPRIETOR|PARTNER|DIRECTOR)S?)\s*[:\-]?\s*([A-Z][A-Z\s]+?)(?=\s*(?:MOBILE|EMAIL|ADDRESS|DATE|$))/i);
+      const ownerNameMatch = t.match(/(?:NAME\s*(?:OF\s*)?(?:OWNER|PROPRIETOR|PARTNER|DIRECTOR)S?)\s*[:\-]?\s*([A-Z][A-Z\s]+?)(?=\s*(?:MOBILE|EMAIL|ADDRESS|DATE|PAN|AADHAR|AADHAAR|$))/i);
       if (ownerNameMatch) fields.ownerName = ownerNameMatch[1].trim();
+
+      const ownerDesigMatch = t.match(/(?:NAME\s*OF\s*)(OWNER|PROPRIETOR|PARTNER|DIRECTOR)S?\b/i);
+      if (ownerDesigMatch) {
+        const raw = ownerDesigMatch[1].trim();
+        fields.udyamDesignation = raw.charAt(0).toUpperCase() + raw.slice(1).toLowerCase();
+      }
+
+      const udyamPersonPans = [...t.matchAll(/\b([A-Z]{5}\d{4}[A-Z])\b/g)].map(m => m[1]);
+      const entPan = fields.panNumber || "";
+      const udyamIndivPans = udyamPersonPans.filter(p => p !== entPan);
+      if (udyamIndivPans.length > 0 && !fields.gstPersonPans) {
+        fields.gstPersonPans = udyamIndivPans;
+      }
     }
 
     if (docType === "PAN Card") {
@@ -931,6 +979,14 @@ class OnboardingApp {
       if (panMatch) fields.panNumber = panMatch[1];
       const nameMatch = t.match(/(?:Name)\s*[:\-]?\s*([A-Z][A-Z\s]+?)(?=\s*(?:Father|Date|DOB|\d|$))/i);
       if (nameMatch) fields.panHolderName = nameMatch[1].trim();
+      const dobPatterns = [
+        /(?:Date\s*of\s*Birth|DOB|D\.O\.B)\s*[:\-]?\s*(\d{2}[\/\-]\d{2}[\/\-]\d{4})/i,
+        /(?:Birth)\s*[:\-]?\s*(\d{2}[\/\-]\d{2}[\/\-]\d{4})/i,
+      ];
+      for (const p of dobPatterns) {
+        const m = t.match(p);
+        if (m) { fields.panDob = m[1].replace(/-/g, "/"); break; }
+      }
     }
 
     if (docType === "GST Certificate") {
@@ -993,6 +1049,7 @@ class OnboardingApp {
       const compName = (fields.gstTradeName || "").toUpperCase();
       const extractPersonNames = (block, isDir) => {
         const names = [];
+        const personPans = [];
         const patterns = [
           /(?:\bName\b)\s*[:\-]?\s*([A-Z][A-Za-z\s.]+?)(?=\s*(?:Designation|Resident|Status|DIN|PAN|Father|Date|Mobile|Photo|Name\b|Trade\b|Legal\b|Additional\b|Constitution\b|Address\b|Period\b|Type\b|Particulars\b|Annexure\b|Details\b|Signature\b|Total\b|\d{1,3}\s|$))/gi,
           /(?:\bName\b)\s+([A-Z][a-z]+(?:\s+[A-Za-z][a-z]+)+)/g,
@@ -1015,6 +1072,16 @@ class OnboardingApp {
         if (unique.length > 0) {
           if (isDir) fields.gstDirectors = unique;
           else fields.gstPartners = unique;
+        }
+        const allPans = [...block.matchAll(/\b([A-Z]{5}\d{4}[A-Z])\b/g)].map(m => m[1]);
+        const entityPan = fields.panNumber || (fields.gstNumber ? fields.gstNumber.substring(2, 12) : "");
+        const individualPans = allPans.filter(p => p !== entityPan);
+        if (individualPans.length > 0) {
+          fields.gstPersonPans = individualPans;
+        }
+        const dobMatches = [...block.matchAll(/(?:Date\s*of\s*Birth|DOB|D\.O\.B|Birth\s*Date)\s*[:\-]?\s*(\d{2}[\/\-]\d{2}[\/\-]\d{4})/gi)].map(m => m[1].replace(/-/g, "/"));
+        if (dobMatches.length > 0) {
+          fields.personDobs = dobMatches;
         }
       };
 
@@ -1084,6 +1151,25 @@ class OnboardingApp {
       if (compNameMatch) fields.companyName = compNameMatch[1].trim();
       const incDateMatch = t.match(/(?:date\s*of\s*incorporation)\s*[:\-]?\s*(\d{2}[\/\-]\d{2}[\/\-]\d{4})/i);
       if (incDateMatch) fields.dateOfIncorporation = incDateMatch[1].replace(/-/g, "/");
+
+      const dirBlock = t.match(/(?:Directors?|Subscribers?|Signatories|Promoters?)([\s\S]*?)$/i);
+      if (dirBlock) {
+        const dirNames = [];
+        const dirPans = [];
+        const nameMatches = [...dirBlock[1].matchAll(/(?:Name|Director)\s*[:\-]?\s*([A-Z][A-Za-z\s.]+?)(?=\s*(?:DIN|PAN|Father|Address|Designation|Director|Name\b|\d|$))/gi)];
+        for (const nm of nameMatches) {
+          const n = nm[1].trim();
+          if (n.length > 2 && n.length < 60 && !/\b(LIMITED|PRIVATE|LLP|COMPANY|PVT|LTD)\b/i.test(n)) dirNames.push(n);
+        }
+        const panMatches = [...dirBlock[1].matchAll(/\b([A-Z]{5}\d{4}[A-Z])\b/g)].map(m => m[1]);
+        const entPan = fields.panNumber || "";
+        const indivPans = panMatches.filter(p => p !== entPan);
+        if (dirNames.length > 0 && !fields.gstDirectors) {
+          fields.gstDirectors = [...new Set(dirNames)];
+          if (indivPans.length > 0) fields.gstPersonPans = indivPans;
+          if (!fields.gstPersonDesignations) fields.gstPersonDesignations = dirNames.map(() => "Director");
+        }
+      }
     }
 
     if (docType === "Document") {
@@ -1098,6 +1184,33 @@ class OnboardingApp {
       }
       const addrMatch = t.match(/(?:Address|Office|Premises)\s*[:\-]?\s*([A-Za-z0-9][A-Za-z0-9\s,.\-\/]+?\d{6})/i);
       if (addrMatch) fields.genericAddress = addrMatch[1].trim();
+
+      const personBlock = t.match(/(?:Directors?|Partners?|Promoters?|Authorized\s*(?:Person|Signatory)|Proprietor|Managing\s*(?:Partner|Director))([\s\S]*?)$/i);
+      if (personBlock && !fields.gstDirectors && !fields.gstPartners) {
+        const pNames = [];
+        const pDesigs = [];
+        const isDir = /director/i.test(personBlock[0]);
+        const nameMs = [...personBlock[1].matchAll(/(?:Name|Director|Partner|Proprietor)\s*[:\-]?\s*([A-Z][A-Za-z\s.]+?)(?=\s*(?:DIN|PAN|Designation|Address|Father|Director|Partner|Name\b|\d|$))/gi)];
+        for (const nm of nameMs) {
+          const n = nm[1].trim();
+          if (n.length > 2 && n.length < 60 && !/\b(LIMITED|PRIVATE|LLP|COMPANY|PVT|LTD)\b/i.test(n)) pNames.push(n);
+        }
+        if (pNames.length > 0) {
+          const unique = [...new Set(pNames)];
+          if (isDir) { fields.gstDirectors = unique; pDesigs.push(...unique.map(() => "Director")); }
+          else { fields.gstPartners = unique; pDesigs.push(...unique.map(() => "Partner")); }
+          if (!fields.gstPersonDesignations) fields.gstPersonDesignations = pDesigs;
+        }
+        const docPans = [...personBlock[1].matchAll(/\b([A-Z]{5}\d{4}[A-Z])\b/g)].map(m => m[1]);
+        const entPan = fields.panNumber || "";
+        const indivPans = docPans.filter(p => p !== entPan);
+        if (indivPans.length > 0 && !fields.gstPersonPans) fields.gstPersonPans = indivPans;
+      }
+
+      const desigMatch = t.match(/(?:Designation|Status)\s*[:\-\/]?\s*(Partner|Director|Proprietor|Managing\s*Partner|Designated\s*Partner|Managing\s*Director|Trustee|Karta)/i);
+      if (desigMatch && !fields.gstPersonDesignations) {
+        fields.gstPersonDesignations = [desigMatch[1].trim()];
+      }
     }
 
     return fields;
@@ -1206,6 +1319,8 @@ class OnboardingApp {
       if (offInput1) { offInput1.value = cleanName; offInput1.classList.add("auto-filled"); }
     }
 
+    this.autoFillBeneficialOwners(d, personNames, desig);
+
     setVal("bankName", d.bankName, "BANK");
 
     const legalStatus = this.detectLegalStatus(d, companyName);
@@ -1276,7 +1391,9 @@ class OnboardingApp {
     const count = container.querySelectorAll(".kmp-row").length + 1;
     const row = document.createElement("div");
     row.className = "kmp-row form-grid single";
-    row.innerHTML = '<div class="form-group kmp-row-group"><label class="form-label">KMP ' + count + '</label><div class="kmp-input-wrap"><input class="form-input kmp-input" type="text" placeholder="KMP name"><button class="btn-remove-kmp" type="button" onclick="app.removeKmpRow(this)" title="Remove">&times;</button></div></div>';
+    const kmpLabel = this.activeFormCategory === "indel" ? "Person " + count : "KMP " + count;
+    const kmpPlaceholder = this.activeFormCategory === "indel" ? "Person name" : "KMP name";
+    row.innerHTML = '<div class="form-group kmp-row-group"><label class="form-label">' + kmpLabel + '</label><div class="kmp-input-wrap"><input class="form-input kmp-input" type="text" placeholder="' + kmpPlaceholder + '"><button class="btn-remove-kmp" type="button" onclick="app.removeKmpRow(this)" title="Remove">&times;</button></div></div>';
     container.appendChild(row);
   }
 
@@ -1290,7 +1407,9 @@ class OnboardingApp {
     const count = container.querySelectorAll(".kmp-row").length + 1;
     const row = document.createElement("div");
     row.className = "kmp-row form-grid single";
-    row.innerHTML = '<div class="form-group kmp-row-group"><label class="form-label">Director/Partner ' + count + '</label><div class="kmp-input-wrap"><input class="form-input director-input" type="text" placeholder="Director/Partner name"><button class="btn-remove-kmp" type="button" onclick="app.removeDirectorRow(this)" title="Remove">&times;</button></div></div>';
+    const dirLabel = this.activeFormCategory === "indel" ? "Director " + count : "Director/Partner " + count;
+    const dirPlaceholder = this.activeFormCategory === "indel" ? "Director name" : "Director/Partner name";
+    row.innerHTML = '<div class="form-group kmp-row-group"><label class="form-label">' + dirLabel + '</label><div class="kmp-input-wrap"><input class="form-input director-input" type="text" placeholder="' + dirPlaceholder + '"><button class="btn-remove-kmp" type="button" onclick="app.removeDirectorRow(this)" title="Remove">&times;</button></div></div>';
     container.appendChild(row);
   }
 
@@ -1304,13 +1423,71 @@ class OnboardingApp {
     const count = container.querySelectorAll(".kmp-row").length + 1;
     const row = document.createElement("div");
     row.className = "kmp-row form-grid single";
-    row.innerHTML = '<div class="form-group kmp-row-group"><label class="form-label">Official ' + count + '</label><div class="kmp-input-wrap"><input class="form-input official-input" type="text" placeholder="Official name"><button class="btn-remove-kmp" type="button" onclick="app.removeOfficialRow(this)" title="Remove">&times;</button></div></div>';
+    const offLabel = this.activeFormCategory === "indel" ? "Official " + count : "Official " + count;
+    const offPlaceholder = this.activeFormCategory === "indel" ? "Authorised official name" : "Official name";
+    row.innerHTML = '<div class="form-group kmp-row-group"><label class="form-label">' + offLabel + '</label><div class="kmp-input-wrap"><input class="form-input official-input" type="text" placeholder="' + offPlaceholder + '"><button class="btn-remove-kmp" type="button" onclick="app.removeOfficialRow(this)" title="Remove">&times;</button></div></div>';
     container.appendChild(row);
   }
 
   removeOfficialRow(btn) {
     const row = btn.closest(".kmp-row");
     if (row) row.remove();
+  }
+
+  addBoRow() {
+    const container = document.getElementById("boRows");
+    const count = container.querySelectorAll(".bo-row").length + 1;
+    const row = document.createElement("div");
+    row.className = "bo-row";
+    row.style.cssText = "display:grid;grid-template-columns:1fr 140px 1fr 120px 36px;gap:8px;margin-bottom:8px;align-items:end";
+    row.innerHTML = '<div class="form-group" style="margin-bottom:0"><label class="form-label">Name</label><input class="form-input bo-name" type="text" placeholder="Person name"></div><div class="form-group" style="margin-bottom:0"><label class="form-label">DOB</label><input class="form-input bo-dob" type="text" placeholder="DD/MM/YYYY"></div><div class="form-group" style="margin-bottom:0"><label class="form-label">PAN Number</label><input class="form-input bo-pan" type="text" placeholder="PAN" maxlength="10" style="text-transform:uppercase"></div><div class="form-group" style="margin-bottom:0"><label class="form-label">Share %</label><input class="form-input bo-share" type="text" placeholder="e.g., 50%"></div><div style="display:flex;align-items:center;height:38px"><button class="btn-remove-kmp" type="button" onclick="app.removeBoRow(this)" title="Remove">&times;</button></div>';
+    container.appendChild(row);
+  }
+
+  removeBoRow(btn) {
+    const row = btn.closest(".bo-row");
+    if (row) row.remove();
+  }
+
+  getBeneficialOwners() {
+    const rows = document.querySelectorAll("#boRows .bo-row");
+    const owners = [];
+    rows.forEach(row => {
+      const name = row.querySelector(".bo-name")?.value?.trim();
+      const dob = row.querySelector(".bo-dob")?.value?.trim();
+      const pan = row.querySelector(".bo-pan")?.value?.trim();
+      const share = row.querySelector(".bo-share")?.value?.trim();
+      if (name) owners.push({ name, dob: dob || "", pan: pan || "", sharePercent: share || "" });
+    });
+    return owners;
+  }
+
+  autoFillBeneficialOwners(d, personNames, desig) {
+    const boContainer = document.getElementById("boRows");
+    if (!boContainer) return;
+    const names = personNames.length > 0 ? personNames : (d.ownerName ? [d.ownerName] : (d.panHolderName ? [d.panHolderName] : []));
+    if (names.length === 0) return;
+    const personPans = d.gstPersonPans || [];
+    const personDobs = d.personDobs || (d.panDob ? [d.panDob] : (d.globalDob ? [d.globalDob] : []));
+    const entityPan = d.panNumber || "";
+    const shareEach = names.length === 1 ? "100%" : Math.round(100 / names.length) + "%";
+    const fillRow = (row, idx) => {
+      if (!row) return;
+      const nameInput = row.querySelector(".bo-name");
+      const dobInput = row.querySelector(".bo-dob");
+      const panInput = row.querySelector(".bo-pan");
+      const shareInput = row.querySelector(".bo-share");
+      if (nameInput) { nameInput.value = names[idx]; nameInput.classList.add("auto-filled"); }
+      if (dobInput && personDobs[idx]) { dobInput.value = personDobs[idx]; dobInput.classList.add("auto-filled"); }
+      if (panInput) { panInput.value = personPans[idx] || entityPan; panInput.classList.add("auto-filled"); }
+      if (shareInput) { shareInput.value = shareEach; shareInput.classList.add("auto-filled"); }
+    };
+    fillRow(boContainer.querySelector(".bo-row"), 0);
+    for (let i = 1; i < names.length; i++) {
+      this.addBoRow();
+      const rows = boContainer.querySelectorAll(".bo-row");
+      fillRow(rows[rows.length - 1], i);
+    }
   }
 
   getDirectorNames() {
@@ -1325,6 +1502,7 @@ class OnboardingApp {
 
   detectDesignation(d, companyName) {
     if (d.gstPersonDesignations && d.gstPersonDesignations.length > 0) return d.gstPersonDesignations[0];
+    if (d.udyamDesignation) return d.udyamDesignation;
     if (d.gstDirectors) return "Director";
     if (d.gstPartners) return "Partner";
     if (d.gstConstitution) {
@@ -1501,6 +1679,8 @@ class OnboardingApp {
       c.classList.toggle("completed", i < step);
     });
 
+    const catBar = document.getElementById("formCategoryBar");
+    if (catBar) catBar.style.display = step > 0 ? "flex" : "none";
     if (step === 4) this.renderPreview();
     window.scrollTo({ top: 0, behavior: "smooth" });
   }
@@ -1541,15 +1721,90 @@ class OnboardingApp {
   }
 
   renderPreview() {
-    this.activeDocPreview = "onboarding";
-    this.switchDocPreview("onboarding");
+    const cat = this.activeFormCategory || "cifl";
+    const firstDoc = cat === "indel" ? "indelOnboarding" : "onboarding";
+    this.activeDocPreview = firstDoc;
+    this.switchDocPreview(firstDoc);
+  }
+
+  switchFormCategory(category) {
+    this.activeFormCategory = category;
+    const mainSel = document.getElementById("formCategoryMain");
+    const previewSel = document.getElementById("formCategorySelect");
+    if (mainSel) mainSel.value = category;
+    if (previewSel) previewSel.value = category;
+    document.querySelectorAll(".doc-tab").forEach(t => {
+      t.style.display = t.dataset.category === category ? "" : "none";
+      t.classList.remove("active");
+    });
+    const firstDoc = category === "indel" ? "indelOnboarding" : "onboarding";
+    this.switchDocPreview(firstDoc);
+    this.applyFormLabels(category);
+  }
+
+  applyFormLabels(category) {
+    const isIndel = category === "indel";
+    const setText = (el, text) => {
+      if (!el) return;
+      for (const node of el.childNodes) {
+        if (node.nodeType === 3 && node.textContent.trim().length > 0) {
+          node.textContent = text + " ";
+          return;
+        }
+      }
+    };
+    const fieldLabel = (id) => document.getElementById(id)?.closest(".form-group")?.querySelector(".form-label");
+    const subCardTitle = (id) => document.getElementById(id)?.closest(".sub-card")?.querySelector(".sub-card-title");
+    const groupLabel = (id) => document.getElementById(id)?.closest(".form-group")?.querySelector(".form-label");
+
+    const step1Header = document.querySelector('[data-section="1"] .card-header');
+    setText(step1Header, isIndel ? "Corporate Entity Details" : "Company Details");
+    setText(fieldLabel("registeredName"), isIndel ? "1. Name of Corporate Entity" : "1. Registered Name");
+    setText(fieldLabel("registeredAddress"), isIndel ? "2. Registered Address" : "2. Registered Office Address");
+    setText(fieldLabel("principalPlace"), isIndel ? "3. Location of Head Office" : "3. Principal Place of Business");
+    setText(fieldLabel("panNo"), isIndel ? "5. PAN of the Entity" : "5. PAN No");
+    setText(fieldLabel("natureOfBusiness"), isIndel ? "6. Nature of Business / Type of Activity" : "6. Nature of Business");
+    setText(groupLabel("stockExchangeGroup"), isIndel ? "7. Location of Branches" : "7. Listed on Stock Exchange?");
+    setText(fieldLabel("companyWebsite"), isIndel ? "8. Website ID, If Any" : "8. Company Website");
+    const productsLabel = document.getElementById("productsGroup")?.closest(".form-group")?.querySelector(".form-label");
+    setText(productsLabel, isIndel ? "9. Products Offered / Nature of Services" : "9. Products to be Availed");
+    setText(fieldLabel("annualFx"), isIndel ? "10. Annual Estimated Foreign Exchange Turnover" : "10. Annual Estimated Foreign Exchange Required (INR)");
+
+    const stockGroup = document.getElementById("stockExchangeGroup");
+    const stockNameInput = document.getElementById("stockExchangeName");
+    if (stockGroup && stockNameInput) {
+      if (isIndel) {
+        stockGroup.style.display = "none";
+        stockNameInput.style.display = "";
+        stockNameInput.placeholder = "Location of branches in India/abroad";
+      } else {
+        stockGroup.style.display = "";
+        const checked = stockGroup.querySelector('input[name="stockExchange"]:checked');
+        stockNameInput.style.display = checked && checked.value === "Yes" ? "" : "none";
+        stockNameInput.placeholder = "Name of stock exchange(s)";
+      }
+    }
+
+    const step2Header = document.querySelector('[data-section="2"] .card-header');
+    setText(step2Header, isIndel ? "Contact Details & Key Personnel" : "Contact Details & Key Managerial Persons");
+    setText(subCardTitle("contactName"), isIndel ? "11. Contact / Authorized Person" : "11. Contact Person / Coordinator");
+    setText(subCardTitle("kmpName"), isIndel ? "12. Natural Persons Controlling the Entity" : "12. Key Managerial Person (KMP)");
+    setText(fieldLabel("kmpName"), isIndel ? "Name of natural person" : "Name of KMP who controls business activities");
+    setText(subCardTitle("ceoName"), isIndel ? "13. Name of Chief Executive Officer" : "13. Chief Executive Officer");
+    setText(subCardTitle("mdName"), isIndel ? "14. Name of Managing Director" : "14. Managing Director / Partner / Trustee");
+    setText(subCardTitle("directorName1"), isIndel ? "15. Names of Other Directors" : "15. Directors / Partners");
+    setText(fieldLabel("directorName1"), isIndel ? "Director name" : "Name (as per MCA)");
+    setText(subCardTitle("officialName1"), isIndel ? "16. Officials Authorised to Transact FX" : "16. Authorized Officials for FX Transactions");
+    setText(fieldLabel("officialName1"), isIndel ? "Name of authorised official" : "Name of authorized official");
+
+    setText(subCardTitle("bankName"), isIndel ? "17. Names of Bankers" : "17. Banking Details");
   }
 
   switchDocPreview(docId) {
     this.activeDocPreview = docId;
     document.querySelectorAll(".doc-tab").forEach(t => t.classList.toggle("active", t.dataset.doc === docId));
     const pdfBtn = document.getElementById("btnDownloadPdf");
-    if (pdfBtn) pdfBtn.style.display = "";
+    if (pdfBtn) pdfBtn.style.display = docId.startsWith("indel") ? "none" : "";
     const previewEl = document.getElementById("previewContent");
     const renderers = {
       onboarding: () => this.renderOnboardingPreview(),
@@ -1557,6 +1812,11 @@ class OnboardingApp {
       beneficialOwnership: () => this.renderBeneficialOwnershipPreview(),
       corporateProfile: () => this.renderCorporateProfilePreview(),
       mou: () => this.renderMouPreview(),
+      indelOnboarding: () => this.renderIndelOnboardingPreview(),
+      indelAuthSignatory: () => this.renderIndelAuthSignatoryPreview(),
+      indelBeneficialOwnership: () => this.renderIndelBeneficialOwnershipPreview(),
+      indelFieldVerification: () => this.renderIndelFieldVerificationPreview(),
+      indelMou: () => this.renderIndelMouPreview(),
     };
     previewEl.innerHTML = renderers[docId]();
   }
@@ -1577,6 +1837,11 @@ class OnboardingApp {
       onboarding: () => this.downloadTemplateDocx("onboarding"),
       authSignatory: () => this.downloadTemplateDocx("authSignatory"),
       beneficialOwnership: () => this.downloadTemplateDocx("beneficialOwnership"),
+      indelOnboarding: () => this.downloadTemplateDocx("indelOnboarding"),
+      indelAuthSignatory: () => this.downloadTemplateDocx("indelAuthSignatory"),
+      indelBeneficialOwnership: () => this.downloadTemplateDocx("indelBeneficialOwnership"),
+      indelFieldVerification: () => this.downloadTemplateDocx("indelFieldVerification"),
+      indelMou: () => this.downloadTemplateDocx("indelMou"),
       corporateProfile: () => this.downloadTemplateDocx("corporateProfile"),
       mou: () => this.downloadTemplateDocx("mou"),
     };
@@ -1590,6 +1855,11 @@ class OnboardingApp {
       beneficialOwnership: "templates/beneficial-ownership.docx",
       corporateProfile: "templates/corporate-profile.docx",
       mou: "templates/mou.docx",
+      indelOnboarding: "templates/indel-onboarding.docx",
+      indelAuthSignatory: "templates/indel-auth-signatory.docx",
+      indelBeneficialOwnership: "templates/indel-beneficial-ownership.docx",
+      indelFieldVerification: "templates/indel-field-verification.docx",
+      indelMou: "templates/indel-mou.docx",
     };
     const filenameMap = {
       onboarding: "Client_Onboarding_Form",
@@ -1597,6 +1867,11 @@ class OnboardingApp {
       beneficialOwnership: "Beneficial_Ownership",
       corporateProfile: "Corporate_Profile",
       mou: "Tour_Operator_MOU",
+      indelOnboarding: "Indel_Corporate_Onboarding",
+      indelAuthSignatory: "Indel_Auth_Signatory",
+      indelBeneficialOwnership: "Indel_Beneficial_Ownership",
+      indelFieldVerification: "Indel_Field_Verification",
+      indelMou: "Indel_MOU",
     };
 
     this.showLoading("Generating DOCX from template...");
@@ -1681,27 +1956,20 @@ class OnboardingApp {
 
       else if (type === "beneficialOwnership") {
         xml = xml.replace(/>Date:\s*<\/w:t>/i, ">Date: " + engine.escXml(today) + "</w:t>");
-        const boPersons = directors.length > 0 ? directors : [contactName];
+        const boOwners = this.getBeneficialOwners();
+        const boFallbackNames = directors.length > 0 ? directors : [contactName];
+        const boData = boOwners.length > 0 ? boOwners : boFallbackNames.map(name => ({ name, pan: v("panNo"), sharePercent: this.getFormValue("sharesPercent") || (boFallbackNames.length === 1 ? "100%" : Math.round(100 / boFallbackNames.length) + "%") }));
         xml = xml.replace(/_{5,}(\s*authorized|\s*<\/w:t>[\s\S]*?authorized)/i, engine.escXml(sigName) + "$1");
         xml = xml.replace(/M\/s\s*_{5,}/i, "M/s " + engine.escXml(companyName));
         xml = xml.replace(/registered office at\s*_{5,}/i, "registered office at " + engine.escXml(v("registeredAddress")));
-        const sharePercent = this.getFormValue("sharesPercent") || (boPersons.length === 1 ? "100%" : Math.round(100 / boPersons.length) + "%");
-        if (boPersons[0]) {
-          xml = engine.fillTableCell(xml, 1, 1, boPersons[0]);
-          xml = engine.fillTableCell(xml, 1, 2, sigDesig);
-          xml = engine.fillTableCell(xml, 1, 3, sharePercent);
-          xml = engine.fillTableCell(xml, 1, 4, v("panNo"));
-        }
-        if (boPersons.length > 1) {
-          xml = engine.fillTableCell(xml, 2, 1, boPersons[1]);
-          xml = engine.fillTableCell(xml, 2, 2, sigDesig);
-          xml = engine.fillTableCell(xml, 2, 3, sharePercent);
-        }
-        if (boPersons.length > 2) {
-          xml = engine.fillTableCell(xml, 3, 1, boPersons[2]);
-          xml = engine.fillTableCell(xml, 3, 2, sigDesig);
-          xml = engine.fillTableCell(xml, 3, 3, sharePercent);
-        }
+        boData.forEach((p, i) => {
+          if (i < 3) {
+            xml = engine.fillTableCell(xml, i + 1, 1, p.name);
+            xml = engine.fillTableCell(xml, i + 1, 2, sigDesig);
+            xml = engine.fillTableCell(xml, i + 1, 3, p.sharePercent);
+            xml = engine.fillTableCell(xml, i + 1, 4, p.pan);
+          }
+        });
         let msM;
         while ((msM = xml.match(/M\/s\s*_{3,}/))) { xml = xml.replace(msM[0], "M/s " + engine.escXml(companyName)); }
         xml = xml.replace(/>Name:\s*<\/w:t>/i, ">Name: " + engine.escXml(sigName) + "</w:t>");
@@ -1755,6 +2023,124 @@ class OnboardingApp {
           desigCount++;
           return desigCount === 2 ? ">Designation: " + engine.escXml(sigDesig) + "</w:t>" : m;
         });
+      }
+
+      else if (type === "indelOnboarding") {
+        xml = engine.fillByLabel(xml, "Name of corporate entity", companyName);
+        xml = engine.fillByLabel(xml, "Registered address", v("registeredAddress"));
+        xml = engine.fillByLabel(xml, "Location of Head Office", this.getFormValue("principalPlace") || v("registeredAddress"));
+        xml = engine.fillByLabel(xml, "Date of Incorporation", v("dateOfIncorporation"));
+        xml = engine.fillByLabel(xml, "PAN of the entity", v("panNo"));
+        xml = engine.fillByLabel(xml, "Nature of business", v("natureOfBusiness"));
+        xml = engine.fillByLabel(xml, "Products offered by the entity", productStr);
+        xml = engine.fillByLabel(xml, "Location of branches", v("registeredAddress"));
+        xml = engine.fillByLabel(xml, "Names of natural persons controlling", kmpNames.length > 0 ? kmpNames.join(", ") : contactName);
+        xml = engine.fillByLabel(xml, "Purpose and intended nature", "Foreign Exchange Transactions");
+        xml = engine.fillByLabel(xml, "Name of Chairman", kmpNames.length > 0 ? kmpNames[0] : contactName);
+        xml = engine.fillByLabel(xml, "Name of Managing Director", v("mdName"));
+        xml = engine.fillByLabel(xml, "Name of Chief Executive Officer", v("ceoName"));
+        xml = engine.fillByLabel(xml, "Names of other directors", directors.length > 0 ? directors.join(", ") : "NA");
+        xml = engine.fillByLabel(xml, "Names of officials", officials.length > 0 ? officials.join(", ") : sigName);
+        xml = engine.fillByLabel(xml, "Names of bankers", v("bankName"));
+        xml = engine.fillByLabel(xml, "Annual estimated foreign exchange", this.getFormValue("annualFx") || "NA");
+        xml = xml.replace(/>Name\s+:\s*<\/w:t>/i, ">Name: " + engine.escXml(sigName) + "</w:t>");
+        xml = xml.replace(/>Designation:\s*<\/w:t>/i, ">Designation: " + engine.escXml(sigDesig) + "</w:t>");
+        xml = xml.replace(/>Date:\s*<\/w:t>/i, ">Date: " + engine.escXml(today) + "</w:t>");
+      }
+
+      else if (type === "indelAuthSignatory") {
+        xml = engine.replaceText(xml, "Travel Safe Travel India", companyName);
+        xml = xml.replace(
+          /<w:r>(<w:rPr>[\s\S]*?<\/w:rPr>)<w:t[^>]*>11<\/w:t><\/w:r>\s*<w:r><w:rPr>[\s\S]*?<w:vertAlign[\s\S]*?<\/w:rPr><w:t[^>]*>TH<\/w:t><\/w:r>\s*<w:r><w:rPr>[\s\S]*?<\/w:rPr><w:t[^>]*>\s*September\s+2025<\/w:t><\/w:r>/i,
+          '<w:r>$1<w:t xml:space="preserve">' + engine.escXml(today) + '</w:t></w:r>'
+        );
+        const authPersons = officials.length > 0 ? officials : (directors.length > 0 ? directors : [contactName]);
+        authPersons.forEach((name, i) => {
+          if (i < 3) {
+            xml = engine.fillTableCell(xml, i + 1, 1, name);
+            xml = engine.fillTableCell(xml, i + 1, 2, sigDesig);
+          }
+        });
+        xml = xml.replace(/>For<\/w:t>/, ">For " + engine.escXml(companyName) + "</w:t>");
+        xml = xml.replace(/>Authorised persons name[^<]*<\/w:t>/i, ">Authorised persons name – " + engine.escXml(sigName) + "</w:t>");
+        xml = xml.replace(/>Designation\s*-[^<]*<\/w:t>/i, ">Designation - " + engine.escXml(sigDesig) + "</w:t>");
+        xml = xml.replace(/>Company name and seal[^<]*<\/w:t>/i, ">Company name and seal: " + engine.escXml(companyName) + "</w:t>");
+      }
+
+      else if (type === "indelBeneficialOwnership") {
+        xml = xml.replace(/(>)…[…\s.]+Registered/i, "$1" + engine.escXml(companyName) + " Registered");
+        xml = xml.replace(/(>)…[…\s.]+\(Wherever/i, "$1" + engine.escXml(v("cinNo")) + " (Wherever");
+        xml = xml.replace(/(Address:[\s\S]{0,300}?>)…[…\s.]+(<\/w:t>)/i, "$1" + engine.escXml(v("registeredAddress")) + "$2");
+        const indelBoOwners = this.getBeneficialOwners();
+        const indelBoFallback = kmpNames.length > 0 ? kmpNames : [contactName];
+        const indelBoData = indelBoOwners.length > 0 ? indelBoOwners : indelBoFallback.map(name => ({ name, pan: v("panNo"), sharePercent: this.getFormValue("sharesPercent") || (indelBoFallback.length === 1 ? "100%" : Math.round(100 / indelBoFallback.length) + "%") }));
+        indelBoData.forEach((p, i) => {
+          if (i < 3) {
+            xml = engine.fillTableCell(xml, i + 2, 0, String(i + 1));
+            xml = engine.fillTableCell(xml, i + 2, 1, p.name);
+            xml = engine.fillTableCell(xml, i + 2, 2, p.dob || "");
+            xml = engine.fillTableCell(xml, i + 2, 3, "Indian");
+            xml = engine.fillTableCell(xml, i + 2, 4, v("registeredAddress"));
+            xml = engine.fillTableCell(xml, i + 2, 5, "PAN: " + (p.pan || v("panNo")));
+            xml = engine.fillTableCell(xml, i + 2, 7, p.sharePercent);
+          }
+        });
+        xml = xml.replace(
+          />…[…\s.]*Designation\s*\/\s*Position:\s*…[…\s.]*Date:\s*…[…\s.]*<\/w:t>/i,
+          ">" + engine.escXml(sigName) + " Designation / Position: " + engine.escXml(sigDesig) + " Date: " + engine.escXml(today) + "</w:t>"
+        );
+        xml = xml.replace(/>Axis<\/w:t>/, ">Indel Money</w:t>");
+        xml = xml.replace(/>Bank<\/w:t>/, ">Limited</w:t>");
+      }
+
+      else if (type === "indelFieldVerification") {
+        xml = xml.replace(
+          /(VENDOR[’']S NAME:\s*)…[…\s.]*(\s*ADDRESS:)/i,
+          "$1" + engine.escXml(companyName) + " $2"
+        );
+        xml = xml.replace(
+          /(>)…[…\s.]+(\s*Pan card No:)/i,
+          "$1" + engine.escXml(v("registeredAddress")) + " $2"
+        );
+        xml = xml.replace(
+          /(Pan card No:\s*)…[…\s.]+/i,
+          "$1" + engine.escXml(v("panNo"))
+        );
+        const fvFields = [
+          ["Contact\\/Authorized Person:", contactName],
+          ["Office Contact No:", v("contactMobile")],
+          ["E-Mail for Communication:", v("contactEmail")],
+          ["Web Site ID, If any:", this.getFormValue("companyWebsite") || "NA"],
+          ["Primary Business activities", v("natureOfBusiness")],
+          ["Primary Bank name", v("bankName")],
+        ];
+        for (const [label, value] of fvFields) {
+          const re = new RegExp(
+            "(" + label + "[\\s\\S]{0,500}?<w:t[^>]*>)[\\u2026\\s.\"\\u201d]+(<\\/w:t>)", "i"
+          );
+          xml = xml.replace(re, "$1" + engine.escXml(value) + "$2");
+        }
+      }
+
+      else if (type === "indelMou") {
+        xml = engine.replaceText(xml, "[Company Name]", companyName);
+        xml = engine.replaceText(xml, "[Company rgistered address]", v("registeredAddress"));
+        xml = engine.replaceText(xml, "[Company registered address]", v("registeredAddress"));
+        xml = engine.replaceText(xml, "LUXURY TRIPS", companyName);
+        xml = xml.replace(/07\s+MAY\s+2025/i, engine.escXml(today));
+        xml = xml.replace(
+          /<w:t xml:space="preserve">\s{20,}<\/w:t>/,
+          '<w:t xml:space="preserve">' + engine.escXml(companyName) + '</w:t>'
+        );
+        let indelNameCount = 0;
+        xml = xml.replace(/>Name:\s*<\/w:t>/gi, (m) => {
+          indelNameCount++;
+          return indelNameCount === 2 ? ">Name: " + engine.escXml(sigName) + "</w:t>" : m;
+        });
+        xml = xml.replace(
+          />Designatio<\/w:t><\/w:r>\s*<w:r>(?:<w:rPr>[\s\S]*?<\/w:rPr>)?<w:t[^>]*>n:<\/w:t><\/w:r>/,
+          ">Designation: " + engine.escXml(sigDesig) + "</w:t></w:r>"
+        );
       }
 
       await engine.setDocumentXml(xml);
@@ -1887,8 +2273,15 @@ class OnboardingApp {
     const sigDesig = this.getFormValue("signatoryDesignation") || "Director / Company Secretary";
     const directors = this.getDirectorNames();
     const contactName = this.getFormValue("contactName") || sigName;
-    const boPersons = directors.length > 0 ? directors : [contactName];
+    const boOwners = this.getBeneficialOwners();
+    const boFallback = directors.length > 0 ? directors : [contactName];
+    const boData = boOwners.length > 0 ? boOwners : boFallback.map(name => ({ name, pan: this.getFormValue("panNo") || "", sharePercent: this.getFormValue("sharesPercent") || (boFallback.length === 1 ? "100%" : Math.round(100 / boFallback.length) + "%") }));
     const today = this.todayFormatted();
+    const boRows = [];
+    for (let i = 0; i < Math.max(3, boData.length); i++) {
+      const p = boData[i];
+      boRows.push(`<tr><th>${i + 1}</th><td>${p ? p.name : ""}</td><td>${p ? (this.getFormValue("contactDesignation") || sigDesig) : ""}</td><td>${p ? p.sharePercent : ""}</td><td>${p ? p.pan : ""}</td></tr>`);
+    }
 
     return `
       <div class="preview-container">
@@ -1903,9 +2296,7 @@ class OnboardingApp {
         <table class="preview-table">
           <thead><tr><th style="width:40px">Sr.No.</th><td><strong>Name and address of the natural person/s</strong></td><td><strong>Designation</strong></td><td><strong>Percentage of shares held</strong></td><td><strong>ID No (PAN/Aadhar/Driving License/Passport)</strong></td></tr></thead>
           <tbody>
-            <tr><th>1</th><td>${boPersons[0] || ""}</td><td>${boPersons[0] ? (this.getFormValue("contactDesignation") || sigDesig) : ""}</td><td>${boPersons[0] ? (this.getFormValue("sharesPercent") || "100%") : ""}</td><td>${this.getFormValue("panNo") || ""}</td></tr>
-            <tr><th>2</th><td>${boPersons[1] || ""}</td><td>${boPersons[1] ? (this.getFormValue("contactDesignation") || sigDesig) : ""}</td><td>${boPersons[1] ? (this.getFormValue("sharesPercent") || Math.round(100 / boPersons.length) + "%") : ""}</td><td></td></tr>
-            <tr><th>3</th><td>${boPersons[2] || ""}</td><td>${boPersons[2] ? (this.getFormValue("contactDesignation") || sigDesig) : ""}</td><td>${boPersons[2] ? (this.getFormValue("sharesPercent") || Math.round(100 / boPersons.length) + "%") : ""}</td><td></td></tr>
+            ${boRows.join("\n            ")}
           </tbody>
         </table>
         <p style="margin-top:8px"><strong>Website:</strong> ${this.getFormValue("companyWebsite") || "NA"}</p>
@@ -2103,6 +2494,230 @@ class OnboardingApp {
           <li>TCS Declaration</li>
           <li>Any other documentation as may be required by the remitting bank</li>
         </ul>
+      </div>`;
+  }
+
+  renderIndelOnboardingPreview() {
+    const companyName = this.getFormValue("registeredName") || "[Company Name]";
+    const address = this.getFormValue("registeredAddress") || "NA";
+    const sigName = this.getFormValue("signatoryName") || this.getFormValue("kmpName") || "";
+    const sigDesig = this.getFormValue("signatoryDesignation") || "";
+    const today = this.todayFormatted();
+    const contactName = this.getFormValue("contactName") || sigName;
+    const kmpNames = this.getKmpNames();
+    const directors = typeof this.getDirectorNames === "function" ? this.getDirectorNames() : [];
+    const officials = typeof this.getOfficialNames === "function" ? this.getOfficialNames() : [];
+    const products = this.getCheckedValues("productsGroup");
+    const productStr = products.length > 0 ? products.join(", ") : "NA";
+
+    return `
+      <div class="preview-container">
+        <div class="preview-header">
+          <h1>Customer Profile &mdash; For Onboarding Corporate Entities / Agents</h1>
+          <p style="text-align:center;font-size:0.85rem;color:var(--text-secondary)">INDEL MONEY LIMITED &bull; New Customer</p>
+        </div>
+        <table class="preview-table">
+          <tbody>
+            <tr><th>1</th><td>Name of corporate entity</td><td><strong>${companyName}</strong></td></tr>
+            <tr><th>2</th><td>Registered address</td><td>${address}</td></tr>
+            <tr><th>3</th><td>Location of Head Office</td><td>${this.getFormValue("principalPlace") || address}</td></tr>
+            <tr><th>4</th><td>Date of Incorporation</td><td>${this.getFormValue("dateOfIncorporation") || "NA"}</td></tr>
+            <tr><th>5</th><td>PAN of the entity</td><td>${this.getFormValue("panNo") || "NA"}</td></tr>
+            <tr><th>6</th><td>Nature of business / type of activity</td><td>${this.getFormValue("natureOfBusiness") || "NA"}</td></tr>
+            <tr><th>7</th><td>Products offered / nature of services</td><td>${productStr}</td></tr>
+            <tr><th>8</th><td>Location of branches in India/abroad</td><td>${address}</td></tr>
+            <tr><th>9</th><td>Names of natural persons controlling the entity</td><td>${kmpNames.length > 0 ? kmpNames.join(", ") : contactName}</td></tr>
+            <tr><th>10</th><td>Purpose and intended nature of business relationship</td><td>Foreign Exchange Transactions</td></tr>
+            <tr><th>11</th><td>Names of Key Personnel (Chairman, MD, CEO, Directors)</td><td>${kmpNames.length > 0 ? kmpNames.join(", ") : contactName}</td></tr>
+            <tr><th>12</th><td>Names of officials authorized to transact foreign exchange</td><td>${officials.length > 0 ? officials.join(", ") : sigName || "NA"}</td></tr>
+            <tr><th>13</th><td>Names of bankers</td><td>${this.getFormValue("bankName") || "NA"}</td></tr>
+            <tr><th></th><td>Annual estimated foreign exchange turnover</td><td>${this.getFormValue("annualFx") || "NA"}</td></tr>
+          </tbody>
+        </table>
+        <div style="margin-top:24px;padding:16px;background:var(--bg-secondary);border-radius:8px">
+          <p style="font-size:0.85rem;font-style:italic">"We hereby certify and declare that all our transactions are bonafide transactions and that we will abide by the prevailing RBI rules, regulations, directives and notifications."</p>
+          <div style="margin-top:16px;display:flex;justify-content:flex-end">
+            <div style="text-align:right">
+              <div>Name: <strong>${sigName}</strong></div>
+              <div>Designation: ${sigDesig}</div>
+              <div>Date: ${today}</div>
+            </div>
+          </div>
+        </div>
+      </div>`;
+  }
+
+  renderIndelAuthSignatoryPreview() {
+    const companyName = this.getFormValue("registeredName") || "[Company Name]";
+    const sigName = this.getFormValue("signatoryName") || this.getFormValue("kmpName") || "";
+    const sigDesig = this.getFormValue("signatoryDesignation") || "";
+    const today = this.todayFormatted();
+    const officials = typeof this.getOfficialNames === "function" ? this.getOfficialNames() : [];
+
+    let tableRows = "";
+    const authPersons = officials.length > 0 ? officials : (sigName ? [sigName] : []);
+    authPersons.forEach((name, i) => {
+      tableRows += `<tr><td>${i + 1}</td><td>${name}</td><td>${i === 0 ? sigDesig : ""}</td><td></td></tr>`;
+    });
+    for (let i = authPersons.length; i < 3; i++) {
+      tableRows += `<tr><td>${i + 1}</td><td></td><td></td><td></td></tr>`;
+    }
+
+    return `
+      <div class="preview-container">
+        <div class="preview-header">
+          <h1>LIST OF AUTHORIZED PERSONS</h1>
+          <p style="text-align:center;font-size:0.85rem;color:var(--text-secondary)">INDEL MONEY LIMITED</p>
+        </div>
+        <p style="text-align:right"><strong>Date:</strong> ${today}</p>
+        <p>To,<br>The Manager,<br><strong>Indel Money Limited</strong>, Hyderabad</p>
+        <p>This is to certify that the following persons are authorized to undertake foreign Exchange Transactions on behalf of <strong>${companyName}</strong></p>
+        <table class="preview-table">
+          <thead><tr><th>Sl No</th><td><strong>Name of Official</strong></td><td><strong>Designation</strong></td><td><strong>Signature</strong></td></tr></thead>
+          <tbody>${tableRows}</tbody>
+        </table>
+        <div style="margin-top:24px;text-align:right">
+          <div>For <strong>${companyName}</strong></div>
+          <div style="margin-top:12px">Name: <strong>${sigName}</strong></div>
+          <div>Designation: ${sigDesig}</div>
+          <div style="margin-top:4px;font-size:0.85rem;color:var(--text-secondary)">Company name and seal</div>
+        </div>
+      </div>`;
+  }
+
+  renderIndelBeneficialOwnershipPreview() {
+    const companyName = this.getFormValue("registeredName") || "[Company Name]";
+    const address = this.getFormValue("registeredAddress") || "NA";
+    const sigName = this.getFormValue("signatoryName") || this.getFormValue("kmpName") || "";
+    const sigDesig = this.getFormValue("signatoryDesignation") || "";
+    const today = this.todayFormatted();
+    const kmpNames = this.getKmpNames();
+    const contactName = this.getFormValue("contactName") || sigName;
+    const indelBoOwners = this.getBeneficialOwners();
+    const indelBoFallback = kmpNames.length > 0 ? kmpNames : [contactName];
+    const indelBoData = indelBoOwners.length > 0 ? indelBoOwners : indelBoFallback.map(name => ({ name, pan: this.getFormValue("panNo") || "", sharePercent: this.getFormValue("sharesPercent") || (indelBoFallback.length === 1 ? "100%" : Math.round(100 / indelBoFallback.length) + "%") }));
+
+    let boRows = "";
+    indelBoData.forEach((p, i) => {
+      boRows += `<tr><td>${i + 1}</td><td>${p.name}</td><td>${p.dob || ""}</td><td>Indian</td><td>${address}</td><td>PAN: ${p.pan}</td><td>${p.sharePercent}</td></tr>`;
+    });
+
+    return `
+      <div class="preview-container">
+        <div class="preview-header">
+          <h1>DECLARATION OF BENEFICIAL OWNERSHIP</h1>
+          <p style="text-align:center;font-size:0.85rem;color:var(--text-secondary)">INDEL MONEY LIMITED &bull; NOT APPLICABLE FOR SOLE PROPRIETORSHIP ACCOUNTS</p>
+        </div>
+        <p><strong>Name of the Customer/Company:</strong> ${companyName}</p>
+        <p><strong>Registered Number:</strong> ${this.getFormValue("cinNo") || "NA"}</p>
+        <p><strong>Registered Address:</strong> ${address}</p>
+        <table class="preview-table" style="margin-top:16px">
+          <thead><tr><th>Sr No.</th><td><strong>Full Name</strong></td><td><strong>DOB</strong></td><td><strong>Nationality</strong></td><td><strong>Address</strong></td><td><strong>KYC Documents</strong></td><td><strong>Controlling ownership (%)</strong></td></tr></thead>
+          <tbody>${boRows}</tbody>
+        </table>
+        <div style="margin-top:24px;text-align:right">
+          <div>For and on behalf of <strong>${companyName}</strong></div>
+          <div style="margin-top:12px">Full Name: <strong>${sigName}</strong></div>
+          <div>Designation / Position: ${sigDesig}</div>
+          <div>Date: ${today}</div>
+        </div>
+      </div>`;
+  }
+
+  renderIndelFieldVerificationPreview() {
+    const companyName = this.getFormValue("registeredName") || "[Company Name]";
+    const address = this.getFormValue("registeredAddress") || "NA";
+    const contactName = this.getFormValue("contactName") || this.getFormValue("kmpName") || "";
+
+    return `
+      <div class="preview-container">
+        <div class="preview-header">
+          <h1>FIELD VERIFICATION REPORT</h1>
+          <p style="text-align:center;font-size:0.85rem;color:var(--text-secondary)">INDEL MONEY LTD</p>
+        </div>
+        <table class="preview-table">
+          <tbody>
+            <tr><td style="width:40%"><strong>VENDOR'S NAME</strong></td><td>${companyName}</td></tr>
+            <tr><td><strong>ADDRESS</strong></td><td>${address}</td></tr>
+            <tr><td><strong>Pan card No</strong></td><td>${this.getFormValue("panNo") || "NA"}</td></tr>
+            <tr><td><strong>DATE AND TIME OF VISIT</strong></td><td></td></tr>
+            <tr><td><strong>STAFF NAME &amp; EMPLOYEE ID</strong></td><td></td></tr>
+          </tbody>
+        </table>
+        <h3 style="margin:20px 0 8px">CHECK POINTS TO CONFIRM</h3>
+        <table class="preview-table">
+          <tbody>
+            <tr><th>1</th><td>Company displayed Signage Board with Company Name</td><td>Yes / No</td></tr>
+            <tr><th>2</th><td>Place of Business and Address proof provided are same</td><td>Yes / No</td></tr>
+            <tr><th>3</th><td>Is Office premises in rental or Owned</td><td>Rental / Owned / Residential</td></tr>
+            <tr><th>4</th><td>Is the vendor having Office Set-up</td><td>Yes / No</td></tr>
+            <tr><th>5</th><td>Is GST registered Entity</td><td>${this.getFormValue("gstNo") ? "Yes" : "No"}</td></tr>
+            <tr><th>6</th><td>GST Registered Address and Place of Business same</td><td>Yes / No</td></tr>
+          </tbody>
+        </table>
+        <h3 style="margin:20px 0 8px">Additional Details</h3>
+        <table class="preview-table">
+          <tbody>
+            <tr><td><strong>Contact / Authorized Person</strong></td><td>${contactName}</td></tr>
+            <tr><td><strong>Office Contact No</strong></td><td>${this.getFormValue("contactMobile") || "NA"}</td></tr>
+            <tr><td><strong>E-Mail for Communication</strong></td><td>${this.getFormValue("contactEmail") || "NA"}</td></tr>
+            <tr><td><strong>Website</strong></td><td>${this.getFormValue("companyWebsite") || "NA"}</td></tr>
+            <tr><td><strong>Primary Business activities</strong></td><td>${this.getFormValue("natureOfBusiness") || "NA"}</td></tr>
+            <tr><td><strong>Primary Bank name</strong></td><td>${this.getFormValue("bankName") || "NA"}</td></tr>
+          </tbody>
+        </table>
+      </div>`;
+  }
+
+  renderIndelMouPreview() {
+    const companyName = this.getFormValue("registeredName") || "[Company Name]";
+    const address = this.getFormValue("registeredAddress") || "[Company registered Address]";
+    const sigName = this.getFormValue("signatoryName") || this.getFormValue("kmpName") || "";
+    const sigDesig = this.getFormValue("signatoryDesignation") || "";
+    const today = this.todayFormatted();
+
+    return `
+      <div class="preview-container">
+        <div class="preview-header">
+          <h1>MEMORANDUM OF UNDERSTANDING (MOU)</h1>
+          <p style="text-align:center;font-size:0.85rem;color:var(--text-secondary)">INDEL MONEY LIMITED</p>
+        </div>
+
+        <p>This MOU is made on this <strong>${today}</strong> ("Effective Date") by and between</p>
+        <p><strong>Indel Money Limited</strong> (IML), a company incorporated under the laws of India and having its registered office at Kerala, operating through branch at Mayur Vihar Delhi, hereinafter referred to as <strong>"IML"</strong>,</p>
+        <p style="text-align:center"><strong>AND</strong></p>
+        <p><strong>${companyName}</strong>, having its registered office at <strong>${address}</strong>, carrying out the business of Travels and Tour Operator, hereinafter referred to as <strong>"Client"</strong>,</p>
+
+        <h3 style="margin:20px 0 8px">WHEREAS</h3>
+        <p>IML is an Authorised Dealer Category II Money Changer engaged in the business of purchase, sale &amp; Remittance of foreign exchange.</p>
+        <p><strong>${companyName}</strong> is engaged in the business of Overseas Tour Management.</p>
+
+        <h3 style="margin:20px 0 8px">SCOPE OF SERVICES</h3>
+        <p>The Client hereby appoints IML for providing foreign exchange services including sale/purchase of foreign currency and telegraphic transfers.</p>
+
+        <h3 style="margin:20px 0 8px">TERM</h3>
+        <p>Initial Term: 2 years from Effective Date, auto-renewal for 1 year periods. Either party may terminate with 30 days written notice.</p>
+
+        <p style="margin-top:20px"><strong>IN WITNESS WHEREOF</strong>, the Parties have signed and executed this MOU.</p>
+
+        <table class="preview-table" style="margin-top:24px">
+          <tbody>
+            <tr>
+              <td style="width:50%;vertical-align:top;padding:16px">
+                <strong>FOR AND ON BEHALF OF</strong><br>
+                <strong>Indel Money Limited</strong><br><br>
+                Name:<br>
+                Designation:<br>
+              </td>
+              <td style="width:50%;vertical-align:top;padding:16px">
+                <strong>FOR AND ON BEHALF OF</strong><br>
+                <strong>${companyName}</strong><br><br>
+                Name: <strong>${sigName}</strong><br>
+                Designation: ${sigDesig}<br>
+              </td>
+            </tr>
+          </tbody>
+        </table>
       </div>`;
   }
 
@@ -2398,26 +3013,26 @@ class OnboardingApp {
     pdf.setTextColor(0, 0, 0);
     y -= 22;
 
-    const ownerAddr = `${ownerName}, ${address}`;
-    const ownerLines = pdf.wrapText(ownerAddr, colW[1] - 8, 8);
-    const row1H = Math.max(ownerLines.length * 11 + 8, 24);
+    const pdfBoOwners = this.getBeneficialOwners();
+    const pdfBoFallback = [ownerName];
+    const pdfBoData = pdfBoOwners.length > 0 ? pdfBoOwners : pdfBoFallback.map(name => ({ name, pan: this.getFormValue("panNo") || "", sharePercent: this.getFormValue("sharesPercent") || "100%" }));
+    const desig = this.getFormValue("contactDesignation") || "Proprietor";
 
-    pdf.drawRect(m, y - row1H, w, row1H, "#F2F4F8");
-    pdf.setFont(8, false);
-    cx = m;
-    pdf.drawText("1", cx + 4, y - 10); pdf.drawCellBorder(cx, y - row1H, colW[0], row1H); cx += colW[0];
-    ownerLines.forEach((ln, i) => pdf.drawText(ln, cx + 4, y - 10 - i * 11)); pdf.drawCellBorder(cx, y - row1H, colW[1], row1H); cx += colW[1];
-    pdf.drawText(this.getFormValue("contactDesignation") || "Proprietor", cx + 4, y - 10); pdf.drawCellBorder(cx, y - row1H, colW[2], row1H); cx += colW[2];
-    pdf.drawText(this.getFormValue("sharesPercent") || "100%", cx + 4, y - 10); pdf.drawCellBorder(cx, y - row1H, colW[3], row1H); cx += colW[3];
-    pdf.drawText(this.getFormValue("panNo") || "", cx + 4, y - 10); pdf.drawCellBorder(cx, y - row1H, colW[4], row1H);
-    y -= row1H;
-
-    for (let i = 2; i <= 3; i++) {
-      cx = m;
+    for (let i = 0; i < Math.max(3, pdfBoData.length); i++) {
+      const p = pdfBoData[i];
+      const cellAddr = p ? `${p.name}, ${address}` : "";
+      const cellLines = p ? pdf.wrapText(cellAddr, colW[1] - 8, 8) : [""];
+      const rH = Math.max(cellLines.length * 11 + 8, 24);
+      if (i % 2 === 0) pdf.drawRect(m, y - rH, w, rH, "#F2F4F8");
       pdf.setFont(8, false);
-      pdf.drawText(String(i), cx + 4, y - 10); pdf.drawCellBorder(cx, y - 24, colW[0], 24); cx += colW[0];
-      colW.slice(1).forEach(cw => { pdf.drawCellBorder(cx, y - 24, cw, 24); cx += cw; });
-      y -= 24;
+      cx = m;
+      pdf.drawText(String(i + 1), cx + 4, y - 10); pdf.drawCellBorder(cx, y - rH, colW[0], rH); cx += colW[0];
+      if (p) cellLines.forEach((ln, li) => pdf.drawText(ln, cx + 4, y - 10 - li * 11));
+      pdf.drawCellBorder(cx, y - rH, colW[1], rH); cx += colW[1];
+      pdf.drawText(p ? desig : "", cx + 4, y - 10); pdf.drawCellBorder(cx, y - rH, colW[2], rH); cx += colW[2];
+      pdf.drawText(p ? p.sharePercent : "", cx + 4, y - 10); pdf.drawCellBorder(cx, y - rH, colW[3], rH); cx += colW[3];
+      pdf.drawText(p ? p.pan : "", cx + 4, y - 10); pdf.drawCellBorder(cx, y - rH, colW[4], rH);
+      y -= rH;
     }
 
     y -= 16;
