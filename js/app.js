@@ -1739,6 +1739,17 @@ class OnboardingApp {
       else if (type === "mou") {
         xml = engine.replaceText(xml, "[Company Name]", companyName);
         xml = engine.replaceText(xml, "[ Company registered Address]", v("registeredAddress"));
+        xml = xml.replace(/_{3,}/g, "");
+        let nameCount = 0;
+        xml = xml.replace(/>Name:\s*<\/w:t>/gi, (m) => {
+          nameCount++;
+          return nameCount === 2 ? ">Name: " + engine.escXml(sigName) + "</w:t>" : m;
+        });
+        let desigCount = 0;
+        xml = xml.replace(/>Designation:\s*<\/w:t>/gi, (m) => {
+          desigCount++;
+          return desigCount === 2 ? ">Designation: " + engine.escXml(sigDesig) + "</w:t>" : m;
+        });
       }
 
       await engine.setDocumentXml(xml);
