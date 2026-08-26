@@ -820,6 +820,10 @@ class OnboardingApp {
         (/\b(opening\s*balance|closing\s*balance|debit|credit)\b/.test(lower) && lower.includes("account"))) {
       return "Bank Statement";
     }
+    if (/\b(invoice|proforma|quotation|payment\s*receipt|tax\s*invoice|bill\s*of\s*supply)\b/.test(lower) ||
+        (lower.includes("total") && /\b(amount|qty|quantity|rate|subtotal|grand\s*total)\b/.test(lower))) {
+      return "Invoice";
+    }
     if (/\bpermanent\s*account\s*number\b/.test(lower) || (/\bpan\b/.test(lower) && lower.includes("income tax"))) {
       return "PAN Card";
     }
@@ -1219,6 +1223,91 @@ class OnboardingApp {
       }
     }
 
+    if (docType === "Invoice") {
+      const panM = t.match(/\b([A-Z]{5}\d{4}[A-Z])\b/);
+      if (panM) fields.panNumber = panM[1];
+
+      const gstM = t.match(/\b(\d{2}[A-Z]{5}\d{4}[A-Z]\d[A-Z\d][A-Z\d])\b/);
+      if (gstM) fields.gstNumber = gstM[1];
+
+      const compPatterns = [
+        /(?:From|Seller|Biller|Company|Firm|Issued\s*by|Travel\s*Agent|Agent\s*Name|Remitter)\s*[:\-]?\s*([A-Z][A-Z\s&.\-'()]+?)(?=\s*(?:Address|PAN|GST|Phone|Mobile|Email|Invoice|GSTIN|Destination|Travel|Account|\d{6}|$))/i,
+        /(?:M\/s|M\/S)\s+([A-Z][A-Za-z\s&.\-'()]+?)(?=\s+\d|,|\s+(?:Address|PAN|GST|Invoice|GSTIN|Destination|Travel|Account|\d{6})|\s*$)/i,
+        /(?:Invoice\s*(?:from|by))\s*[:\-]?\s*([A-Z][A-Z\s&.\-'()]+?)(?=\s+(?:PAN|GST|Invoice|Address|\d)|$)/i,
+      ];
+      for (const p of compPatterns) {
+        const m = t.match(p);
+        if (m && m[1].trim().length > 2 && !/^(INVOICE|PROFORMA|TAX|DATE|TOTAL|AMOUNT)/i.test(m[1].trim())) {
+          fields.genericName = m[1].trim().replace(/\s+(PVT|PRIVATE|LIMITED|LTD)\.?$/i, (x) => x);
+          break;
+        }
+      }
+
+      const addrM = t.match(/(?:Address|Office|Premises)\s*[:\-]?\s*([A-Za-z0-9][A-Za-z0-9\s,.\-\/]+?\d{6})/i);
+      if (addrM) fields.genericAddress = addrM[1].trim();
+
+      const invNoM = t.match(/(?:Invoice\s*(?:No|Number|#|Ref))\s*[:\-]?\s*([A-Za-z0-9\-\/]+)/i);
+      if (invNoM) fields.invoiceNumber = invNoM[1].trim();
+
+      const amtPatterns = [
+        /(?:Grand\s*Total|Total\s*Amount|Net\s*Amount|Payable|Total\s*Payable|Amount\s*Payable)\s*[:\-]?\s*(?:(?:INR|USD|EUR|GBP|Rs\.?|₹|\$|€|£)\s*)?([0-9,]+(?:\.\d{1,2})?)/i,
+        /(?:INR|USD|EUR|GBP|Rs\.?|₹|\$|€|£)\s*([0-9,]+(?:\.\d{1,2})?)(?:\s*(?:only|total|payable))/i,
+      ];
+      for (const p of amtPatterns) {
+        const m = t.match(p);
+        if (m) { fields.invoiceAmount = m[1].trim(); break; }
+      }
+
+      const currM = t.match(/\b(USD|EUR|GBP|AED|THB|SGD|MYR|JPY|AUD|CAD|CHF|SAR|QAR|KWD|OMR|BHD|NZD|SEK|NOK|DKK|HKD|CNY|KRW)\b/i);
+      if (currM) fields.invoiceCurrency = currM[1].toUpperCase();
+
+      const destPatterns = [
+        /(?:Destination|Travel\s+to\b|Travelling\s+to\b|Tour\s+to\b|Trip\s+to\b)\s*[:\-]?\s*([A-Z][A-Za-z]+(?:\s*,\s*[A-Z][A-Za-z]+)*)/i,
+        /(?:Country)\s*[:\-]\s*([A-Z][A-Za-z]+(?:\s*,\s*[A-Z][A-Za-z]+)*)/i,
+      ];
+      for (const p of destPatterns) {
+        const m = t.match(p);
+        if (m && m[1].trim().length > 2) { fields.invoiceDestination = m[1].trim(); break; }
+      }
+
+      const dateRangeM = t.match(/(?:Travel\s*Date|Date\s*of\s*Travel|Tour\s*Date|Trip\s*Date)\s*[:\-]?\s*(\d{1,2}[\/-]\w{3,9}[\/-]\d{2,4})\s*(?:to|-)\s*(\d{1,2}[\/-]\w{3,9}[\/-]\d{2,4})/i);
+      if (dateRangeM) {
+        fields.invoiceDateFrom = dateRangeM[1];
+        fields.invoiceDateTo = dateRangeM[2];
+      } else {
+        const dateFromM = t.match(/(?:From|Departure|Start\s*Date|Check[\s-]*in|Travel\s*Date)\s*[:\-]?\s*(\d{1,2}[\/-]\w{3,9}[\/-]\d{2,4})/i);
+        if (dateFromM) fields.invoiceDateFrom = dateFromM[1];
+        const dateToM = t.match(/(?:To|Return|End\s*Date|Check[\s-]*out)\s*[:\-]?\s*(\d{1,2}[\/-]\w{3,9}[\/-]\d{2,4})/i);
+        if (dateToM) fields.invoiceDateTo = dateToM[1];
+      }
+
+      const paxM = t.match(/(?:(?:No|Number)\.?\s*of\s*(?:Passengers?|Pax|Travell?ers?|Guests?|Persons?)|Passengers?|Pax)\s*[:\-]?\s*(\d+)/i);
+      if (paxM) fields.invoicePax = paxM[1];
+
+      const benefPatterns = [
+        /(?:Beneficiary\s*(?:Name)?|Payee|Pay\s*to|Remit\s*to)\s*[:\-]?\s*([A-Z][A-Za-z\s&.\-']+?)(?=\s+(?:SWIFT|BIC|IBAN|Account|Bank|Address|PAN|GST|Phone|Mobile|Email|\d)|,|$)/i,
+      ];
+      for (const p of benefPatterns) {
+        const m = t.match(p);
+        if (m && m[1].trim().length > 2) { fields.invoiceBeneficiary = m[1].trim(); break; }
+      }
+
+      const swiftM = t.match(/(?:SWIFT|BIC)\s*[:\-]?\s*([A-Z]{6}[A-Z0-9]{2,5})/i);
+      if (swiftM) fields.invoiceSwift = swiftM[1].toUpperCase();
+
+      const ibanM = t.match(/(?:IBAN)\s*[:\-]?\s*([A-Z]{2}\d{2}[A-Z0-9]{4,30})/i);
+      if (ibanM) fields.invoiceIban = ibanM[1];
+
+      const bankAccM = t.match(/(?:Account\s*(?:No|Number|#))\s*[:\-]?\s*(\d{8,20})/i);
+      if (bankAccM) fields.invoiceAccountNo = bankAccM[1];
+
+      const bankNameM = t.match(/(?:Bank\s*Name|Beneficiary\s*Bank|Bank)\s*[:\-]?\s*([A-Z][A-Za-z\s&.\-]+?)(?=\s+(?:Branch|Account|IFSC|SWIFT|Contact|Authorized|Director|$)|,|$)/i);
+      if (bankNameM) fields.invoiceBankName = bankNameM[1].trim();
+
+      const personM = t.match(/(?:Contact|Authorized|Signatory|Director|Partner|Proprietor)\s*[:\-]?\s*([A-Z][A-Za-z\s.]+?)(?=\s+(?:PAN|GST|DIN|Phone|Mobile|Email|Address|\d)|,|$)/i);
+      if (personM && personM[1].trim().length > 2) fields.genericPerson = personM[1].trim();
+    }
+
     if (docType === "Document") {
       const namePatterns = [
         /(?:Company|Firm|Business|Enterprise|Entity|Organisation|Organization)\s*(?:Name)?\s*[:\-]?\s*([A-Z][A-Z\s&.\-]+?)(?=\s{2,}|\n|(?:Address|Date|Registration|Mobile|Phone|Email|$))/i,
@@ -1370,6 +1459,23 @@ class OnboardingApp {
 
     setVal("bankName", d.bankName, "BANK");
 
+    setVal("txnInvoiceNo", d.invoiceNumber, "INV");
+    setVal("txnAmount", d.invoiceAmount, "INV");
+    setVal("txnCurrency", d.invoiceCurrency, "INV");
+    setVal("txnDestination", d.invoiceDestination, "INV");
+    setVal("txnDateFrom", d.invoiceDateFrom, "INV");
+    setVal("txnDateTo", d.invoiceDateTo, "INV");
+    setVal("txnTravelers", d.invoicePax, "INV");
+    setVal("txnBenefName", d.invoiceBeneficiary, "INV");
+    setVal("txnSwiftCode", d.invoiceSwift, "INV");
+    setVal("txnIban", d.invoiceIban, "INV");
+    setVal("txnBenefAccount", d.invoiceAccountNo, "INV");
+    setVal("txnBenefBank", d.invoiceBankName, "INV");
+    if (d.genericPerson && !cleanName) {
+      setVal("contactName", d.genericPerson, "INV");
+      setVal("signatoryName", d.genericPerson, "INV");
+    }
+
     const legalStatus = this.detectLegalStatus(d, companyName);
     if (legalStatus) {
       this.selectRadio("legalStatusGroup", legalStatus);
@@ -1406,8 +1512,8 @@ class OnboardingApp {
     const badgeId = "badge_" + fieldId;
     const el = document.getElementById(badgeId);
     if (!el || !source) return;
-    const labels = { UDYAM: "UDYAM", GST: "GST", BANK: "BANK", PAN: "PAN", CoI: "CoI", DOC: "DOC", AUTO: "AUTO" };
-    const classes = { UDYAM: "udyam", GST: "gst", BANK: "bank", PAN: "pan", CoI: "coi", DOC: "doc", AUTO: "auto" };
+    const labels = { UDYAM: "UDYAM", GST: "GST", BANK: "BANK", PAN: "PAN", CoI: "CoI", DOC: "DOC", AUTO: "AUTO", INV: "INV" };
+    const classes = { UDYAM: "udyam", GST: "gst", BANK: "bank", PAN: "pan", CoI: "coi", DOC: "doc", AUTO: "auto", INV: "inv" };
     el.textContent = labels[source] || source;
     el.className = "source-badge " + (classes[source] || "auto");
   }
