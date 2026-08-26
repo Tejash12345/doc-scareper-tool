@@ -48,9 +48,13 @@ class OnboardingApp {
         </div>
         <div id="formCategoryBar" style="display:none;padding:8px 24px;background:rgba(255,255,255,0.1);border-top:1px solid rgba(255,255,255,0.15);align-items:center;justify-content:center;gap:12px">
           <label style="font-size:0.8rem;font-weight:600;color:rgba(255,255,255,0.85);white-space:nowrap">Form Category:</label>
-          <select id="formCategoryMain" class="form-input" style="max-width:240px;padding:6px 12px;font-size:0.82rem;border-radius:6px;background:rgba(255,255,255,0.95);color:#333;border:none;font-weight:500" onchange="app.switchFormCategory(this.value)">
-            <option value="cifl">CIFL (Capital India Finance)</option>
-            <option value="indel">Indel Money</option>
+          <select id="formCategoryMain" class="form-input" style="max-width:280px;padding:6px 12px;font-size:0.82rem;border-radius:6px;background:rgba(255,255,255,0.95);color:#333;border:none;font-weight:500" onchange="app.switchFormCategory(this.value)">
+            <option value="cifl">CIFL - Onboarding</option>
+            <option value="indel">Indel - Onboarding</option>
+            <option value="ciflFit">CIFL - FIT Transactions</option>
+            <option value="ciflMice">CIFL - MICE Transactions</option>
+            <option value="indelFit">Indel - FIT Transactions</option>
+            <option value="indelMice">Indel - MICE Transactions</option>
           </select>
         </div>
       </header>
@@ -289,6 +293,31 @@ class OnboardingApp {
                 <input class="form-input" type="text" id="annualFx" placeholder="e.g., 50,00,000">
               </div>
             </div>
+            <div class="sub-card" id="txnFieldsCard" style="margin-top:16px;display:none">
+              <div class="sub-card-title">Transaction Details</div>
+              <div class="section-desc" style="margin-bottom:12px">Fill in the transaction-specific details for your documents. These fields appear in the preview and downloaded forms.</div>
+              <div class="form-grid">
+                <div class="form-group"><label class="form-label">Destination Country</label><input class="form-input" type="text" id="txnDestination" placeholder="e.g., Thailand, Dubai"></div>
+                <div class="form-group"><label class="form-label">Number of Travelers</label><input class="form-input" type="text" id="txnTravelers" placeholder="e.g., 5"></div>
+                <div class="form-group"><label class="form-label">Travel Date From</label><input class="form-input" type="text" id="txnDateFrom" placeholder="DD/MM/YYYY"></div>
+                <div class="form-group"><label class="form-label">Travel Date To</label><input class="form-input" type="text" id="txnDateTo" placeholder="DD/MM/YYYY"></div>
+                <div class="form-group"><label class="form-label">Currency</label><input class="form-input" type="text" id="txnCurrency" placeholder="e.g., USD, EUR"></div>
+                <div class="form-group"><label class="form-label">Remittance Amount</label><input class="form-input" type="text" id="txnAmount" placeholder="e.g., 10,000"></div>
+                <div class="form-group"><label class="form-label">Invoice Number</label><input class="form-input" type="text" id="txnInvoiceNo" placeholder="e.g., INV-2026-001"></div>
+                <div class="form-group"><label class="form-label">Corporate Name (if different)</label><input class="form-input" type="text" id="txnCorporateName" placeholder="For TA/CU docs - appointing company"></div>
+              </div>
+              <div class="sub-card" style="margin-top:12px;background:var(--bg-tertiary);padding:12px">
+                <div class="sub-card-title" style="font-size:0.8rem">Beneficiary Details</div>
+                <div class="form-grid">
+                  <div class="form-group"><label class="form-label">Beneficiary Name</label><input class="form-input" type="text" id="txnBenefName" placeholder="Beneficiary name"></div>
+                  <div class="form-group"><label class="form-label">Beneficiary Bank</label><input class="form-input" type="text" id="txnBenefBank" placeholder="Bank name"></div>
+                  <div class="form-group"><label class="form-label">Account Number</label><input class="form-input" type="text" id="txnBenefAccount" placeholder="Account number"></div>
+                  <div class="form-group"><label class="form-label">Bank Address</label><input class="form-input" type="text" id="txnBenefBankAddr" placeholder="Bank address"></div>
+                  <div class="form-group"><label class="form-label">Swift Code</label><input class="form-input" type="text" id="txnSwiftCode" placeholder="SWIFT/BIC code"></div>
+                  <div class="form-group"><label class="form-label">IBAN</label><input class="form-input" type="text" id="txnIban" placeholder="IBAN number"></div>
+                </div>
+              </div>
+            </div>
             <div class="sub-card" style="margin-top:16px">
               <div class="sub-card-title">Beneficial Owners / Shareholders</div>
               <div class="section-desc" style="margin-bottom:12px">Add persons holding more than 10% shares. Each person needs their own PAN and share percentage.</div>
@@ -472,9 +501,13 @@ class OnboardingApp {
           <div class="card-body" style="padding:0">
             <div style="padding:10px 16px;border-bottom:1px solid var(--border);display:flex;align-items:center;gap:10px">
               <label style="font-size:0.8rem;font-weight:600;color:var(--text-secondary);white-space:nowrap">Form Category:</label>
-              <select id="formCategorySelect" class="form-input" style="max-width:220px;padding:6px 10px;font-size:0.8rem" onchange="app.switchFormCategory(this.value)">
-                <option value="cifl">CIFL (Capital India)</option>
-                <option value="indel">Indel Money</option>
+              <select id="formCategorySelect" class="form-input" style="max-width:260px;padding:6px 10px;font-size:0.8rem" onchange="app.switchFormCategory(this.value)">
+                <option value="cifl">CIFL - Onboarding</option>
+                <option value="indel">Indel - Onboarding</option>
+                <option value="ciflFit">CIFL - FIT Transactions</option>
+                <option value="ciflMice">CIFL - MICE Transactions</option>
+                <option value="indelFit">Indel - FIT Transactions</option>
+                <option value="indelMice">Indel - MICE Transactions</option>
               </select>
             </div>
             <div id="docTabs" class="doc-tabs">
@@ -488,6 +521,20 @@ class OnboardingApp {
               <button class="doc-tab" data-doc="indelBeneficialOwnership" data-category="indel" style="display:none" onclick="app.switchDocPreview('indelBeneficialOwnership')">Beneficial Ownership</button>
               <button class="doc-tab" data-doc="indelFieldVerification" data-category="indel" style="display:none" onclick="app.switchDocPreview('indelFieldVerification')">Field Verification</button>
               <button class="doc-tab" data-doc="indelMou" data-category="indel" style="display:none" onclick="app.switchDocPreview('indelMou')">MOU</button>
+              <button class="doc-tab" data-doc="ciflFitA2" data-category="ciflFit" style="display:none" onclick="app.switchDocPreview('ciflFitA2')">Form A2</button>
+              <button class="doc-tab" data-doc="ciflFitTcs" data-category="ciflFit" style="display:none" onclick="app.switchDocPreview('ciflFitTcs')">TCS Declaration</button>
+              <button class="doc-tab" data-doc="ciflFitFlight" data-category="ciflFit" style="display:none" onclick="app.switchDocPreview('ciflFitFlight')">Flight Declaration</button>
+              <button class="doc-tab" data-doc="ciflFitVisa" data-category="ciflFit" style="display:none" onclick="app.switchDocPreview('ciflFitVisa')">Visa Declaration</button>
+              <button class="doc-tab" data-doc="ciflFitCountry" data-category="ciflFit" style="display:none" onclick="app.switchDocPreview('ciflFitCountry')">Country Declaration</button>
+              <button class="doc-tab" data-doc="ciflMiceA2" data-category="ciflMice" style="display:none" onclick="app.switchDocPreview('ciflMiceA2')">Form A2 (MICE)</button>
+              <button class="doc-tab" data-doc="ciflMiceTcs" data-category="ciflMice" style="display:none" onclick="app.switchDocPreview('ciflMiceTcs')">TCS Declaration</button>
+              <button class="doc-tab" data-doc="ciflMiceCu" data-category="ciflMice" style="display:none" onclick="app.switchDocPreview('ciflMiceCu')">Corporate Undertaking</button>
+              <button class="doc-tab" data-doc="ciflMiceTa" data-category="ciflMice" style="display:none" onclick="app.switchDocPreview('ciflMiceTa')">TA Undertaking</button>
+              <button class="doc-tab" data-doc="indelFitA2" data-category="indelFit" style="display:none" onclick="app.switchDocPreview('indelFitA2')">Form A2 (Tour)</button>
+              <button class="doc-tab" data-doc="indelFitPassenger" data-category="indelFit" style="display:none" onclick="app.switchDocPreview('indelFitPassenger')">Passenger Details</button>
+              <button class="doc-tab" data-doc="indelFitTcs" data-category="indelFit" style="display:none" onclick="app.switchDocPreview('indelFitTcs')">TCS Declaration</button>
+              <button class="doc-tab" data-doc="indelMiceA2" data-category="indelMice" style="display:none" onclick="app.switchDocPreview('indelMiceA2')">Form A2 (MICE)</button>
+              <button class="doc-tab" data-doc="indelMiceTcs" data-category="indelMice" style="display:none" onclick="app.switchDocPreview('indelMiceTcs')">TCS Declaration</button>
             </div>
             <div style="padding:12px 16px;display:flex;gap:8px;border-top:1px solid var(--border)" id="docDownloadBar">
               <button class="btn btn-primary btn-sm" onclick="app.downloadCurrentPdf()" id="btnDownloadPdf" style="justify-content:center;flex:1">
@@ -1722,7 +1769,12 @@ class OnboardingApp {
 
   renderPreview() {
     const cat = this.activeFormCategory || "cifl";
-    const firstDoc = cat === "indel" ? "indelOnboarding" : "onboarding";
+    const firstDocMap = {
+      cifl: "onboarding", indel: "indelOnboarding",
+      ciflFit: "ciflFitA2", ciflMice: "ciflMiceA2",
+      indelFit: "indelFitA2", indelMice: "indelMiceA2"
+    };
+    const firstDoc = firstDocMap[cat] || "onboarding";
     this.activeDocPreview = firstDoc;
     this.switchDocPreview(firstDoc);
   }
@@ -1737,9 +1789,88 @@ class OnboardingApp {
       t.style.display = t.dataset.category === category ? "" : "none";
       t.classList.remove("active");
     });
-    const firstDoc = category === "indel" ? "indelOnboarding" : "onboarding";
+    const firstDocMap = {
+      cifl: "onboarding", indel: "indelOnboarding",
+      ciflFit: "ciflFitA2", ciflMice: "ciflMiceA2",
+      indelFit: "indelFitA2", indelMice: "indelMiceA2"
+    };
+    const firstDoc = firstDocMap[category] || "onboarding";
     this.switchDocPreview(firstDoc);
-    this.applyFormLabels(category);
+    const labelCat = category.startsWith("indel") ? "indel" : "cifl";
+    this.applyFormLabels(labelCat);
+    const isTxn = category.startsWith("ciflFit") || category.startsWith("ciflMice") || category.startsWith("indelFit") || category.startsWith("indelMice");
+    this.toggleTransactionFields(isTxn);
+  }
+
+  toggleTransactionFields(isTxn) {
+    const hideGroup = (id) => {
+      const el = document.getElementById(id);
+      if (!el) return;
+      const group = el.closest(".form-group");
+      if (group) group.style.display = isTxn ? "none" : "";
+    };
+    const hideSubCard = (id) => {
+      const el = document.getElementById(id);
+      if (!el) return;
+      const card = el.closest(".sub-card");
+      if (card) card.style.display = isTxn ? "none" : "";
+    };
+
+    hideGroup("legalStatusGroup");
+    hideGroup("principalPlace");
+    hideGroup("dateOfIncorporation");
+    hideGroup("natureOfBusiness");
+    hideGroup("stockExchangeGroup");
+    const stockName = document.getElementById("stockExchangeName");
+    if (stockName) stockName.style.display = isTxn ? "none" : "";
+    hideGroup("companyWebsite");
+    hideGroup("udyamNumber");
+    hideGroup("sharesPercent");
+    hideGroup("productsGroup");
+    hideGroup("annualFx");
+
+    hideSubCard("kmpName");
+    hideSubCard("ceoName");
+    hideSubCard("mdName");
+    hideSubCard("directorName1");
+    hideSubCard("officialName1");
+
+    hideSubCard("bankName");
+    const caseGroup = document.getElementById("caseRegisteredGroup");
+    if (caseGroup) {
+      const card = caseGroup.closest(".sub-card");
+      if (card) card.style.display = isTxn ? "none" : "";
+    }
+
+    const step1Header = document.querySelector('[data-section="1"] .card-header');
+    const step2Header = document.querySelector('[data-section="2"] .card-header');
+    const step3Header = document.querySelector('[data-section="3"] .card-header');
+    const setText = (el, text) => {
+      if (!el) return;
+      for (const node of el.childNodes) {
+        if (node.nodeType === 3 && node.textContent.trim().length > 0) {
+          node.textContent = text + " ";
+          return;
+        }
+      }
+    };
+    if (isTxn) {
+      setText(step1Header, "Transaction - Company Details");
+      const sectionTitle = document.querySelector('[data-section="1"] .section-title');
+      const sectionDesc = document.querySelector('[data-section="1"] .section-desc');
+      if (sectionTitle) sectionTitle.textContent = "Company Information for Transaction Documents";
+      if (sectionDesc) sectionDesc.textContent = "Only the fields required for transaction forms are shown. Review the auto-filled data from your uploaded documents.";
+      setText(step2Header, "Contact & Signatory");
+      setText(step3Header, "Authorized Signatory");
+    } else {
+      const sectionTitle = document.querySelector('[data-section="1"] .section-title');
+      const sectionDesc = document.querySelector('[data-section="1"] .section-desc');
+      if (sectionTitle) sectionTitle.textContent = "Registered Company Information";
+      if (sectionDesc) sectionDesc.textContent = "All fields auto-filled from your uploaded documents. Review and edit if needed.";
+    }
+
+    const txnCard = document.getElementById("txnFieldsCard");
+    if (txnCard) txnCard.style.display = isTxn ? "" : "none";
   }
 
   applyFormLabels(category) {
@@ -1804,7 +1935,8 @@ class OnboardingApp {
     this.activeDocPreview = docId;
     document.querySelectorAll(".doc-tab").forEach(t => t.classList.toggle("active", t.dataset.doc === docId));
     const pdfBtn = document.getElementById("btnDownloadPdf");
-    if (pdfBtn) pdfBtn.style.display = docId.startsWith("indel") ? "none" : "";
+    const isTxn = docId.startsWith("ciflFit") || docId.startsWith("ciflMice") || docId.startsWith("indelFit") || docId.startsWith("indelMice");
+    if (pdfBtn) pdfBtn.style.display = (docId.startsWith("indel") || isTxn) ? "none" : "";
     const previewEl = document.getElementById("previewContent");
     const renderers = {
       onboarding: () => this.renderOnboardingPreview(),
@@ -1817,8 +1949,22 @@ class OnboardingApp {
       indelBeneficialOwnership: () => this.renderIndelBeneficialOwnershipPreview(),
       indelFieldVerification: () => this.renderIndelFieldVerificationPreview(),
       indelMou: () => this.renderIndelMouPreview(),
+      ciflFitA2: () => this.renderCiflFitA2Preview(),
+      ciflFitTcs: () => this.renderCiflFitTcsPreview(),
+      ciflFitFlight: () => this.renderCiflFitFlightPreview(),
+      ciflFitVisa: () => this.renderCiflFitVisaPreview(),
+      ciflFitCountry: () => this.renderCiflFitCountryPreview(),
+      ciflMiceA2: () => this.renderCiflMiceA2Preview(),
+      ciflMiceTcs: () => this.renderCiflMiceTcsPreview(),
+      ciflMiceCu: () => this.renderCiflMiceCuPreview(),
+      ciflMiceTa: () => this.renderCiflMiceTaPreview(),
+      indelFitA2: () => this.renderIndelFitA2Preview(),
+      indelFitPassenger: () => this.renderIndelFitPassengerPreview(),
+      indelFitTcs: () => this.renderIndelFitTcsPreview(),
+      indelMiceA2: () => this.renderIndelMiceA2Preview(),
+      indelMiceTcs: () => this.renderIndelMiceTcsPreview(),
     };
-    previewEl.innerHTML = renderers[docId]();
+    previewEl.innerHTML = renderers[docId] ? renderers[docId]() : "<p>No preview available</p>";
   }
 
   downloadCurrentPdf() {
@@ -1833,19 +1979,8 @@ class OnboardingApp {
   }
 
   downloadCurrentDocx() {
-    const map = {
-      onboarding: () => this.downloadTemplateDocx("onboarding"),
-      authSignatory: () => this.downloadTemplateDocx("authSignatory"),
-      beneficialOwnership: () => this.downloadTemplateDocx("beneficialOwnership"),
-      indelOnboarding: () => this.downloadTemplateDocx("indelOnboarding"),
-      indelAuthSignatory: () => this.downloadTemplateDocx("indelAuthSignatory"),
-      indelBeneficialOwnership: () => this.downloadTemplateDocx("indelBeneficialOwnership"),
-      indelFieldVerification: () => this.downloadTemplateDocx("indelFieldVerification"),
-      indelMou: () => this.downloadTemplateDocx("indelMou"),
-      corporateProfile: () => this.downloadTemplateDocx("corporateProfile"),
-      mou: () => this.downloadTemplateDocx("mou"),
-    };
-    if (map[this.activeDocPreview]) map[this.activeDocPreview]();
+    const type = this.activeDocPreview;
+    this.downloadTemplateDocx(type);
   }
 
   async downloadTemplateDocx(type) {
@@ -1860,6 +1995,20 @@ class OnboardingApp {
       indelBeneficialOwnership: "templates/indel-beneficial-ownership.docx",
       indelFieldVerification: "templates/indel-field-verification.docx",
       indelMou: "templates/indel-mou.docx",
+      ciflFitA2: "templates/cifl-fit-a2.docx",
+      ciflFitTcs: "templates/cifl-fit-tcs.docx",
+      ciflFitFlight: "templates/cifl-fit-flight-decl.docx",
+      ciflFitVisa: "templates/cifl-fit-visa-decl.docx",
+      ciflFitCountry: "templates/cifl-fit-country-decl.docx",
+      ciflMiceA2: "templates/cifl-mice-a2.docx",
+      ciflMiceTcs: "templates/cifl-mice-tcs.docx",
+      ciflMiceCu: "templates/cifl-mice-cu.docx",
+      ciflMiceTa: "templates/cifl-mice-ta.docx",
+      indelFitA2: "templates/indel-fit-a2.docx",
+      indelFitPassenger: "templates/indel-fit-passenger.docx",
+      indelFitTcs: "templates/indel-fit-tcs.docx",
+      indelMiceA2: "templates/indel-mice-a2.docx",
+      indelMiceTcs: "templates/indel-mice-tcs.docx",
     };
     const filenameMap = {
       onboarding: "Client_Onboarding_Form",
@@ -1872,6 +2021,20 @@ class OnboardingApp {
       indelBeneficialOwnership: "Indel_Beneficial_Ownership",
       indelFieldVerification: "Indel_Field_Verification",
       indelMou: "Indel_MOU",
+      ciflFitA2: "CIFL_FIT_Form_A2",
+      ciflFitTcs: "CIFL_FIT_TCS_Declaration",
+      ciflFitFlight: "CIFL_FIT_Flight_Declaration",
+      ciflFitVisa: "CIFL_FIT_Visa_Declaration",
+      ciflFitCountry: "CIFL_FIT_Country_Declaration",
+      ciflMiceA2: "CIFL_MICE_Form_A2",
+      ciflMiceTcs: "CIFL_MICE_TCS_Declaration",
+      ciflMiceCu: "CIFL_MICE_Corporate_Undertaking",
+      ciflMiceTa: "CIFL_MICE_TA_Undertaking",
+      indelFitA2: "Indel_FIT_Form_A2",
+      indelFitPassenger: "Indel_FIT_Passenger_Details",
+      indelFitTcs: "Indel_FIT_TCS_Declaration",
+      indelMiceA2: "Indel_MICE_Form_A2",
+      indelMiceTcs: "Indel_MICE_TCS_Declaration",
     };
 
     this.showLoading("Generating DOCX from template...");
@@ -2141,6 +2304,127 @@ class OnboardingApp {
           />Designatio<\/w:t><\/w:r>\s*<w:r>(?:<w:rPr>[\s\S]*?<\/w:rPr>)?<w:t[^>]*>n:<\/w:t><\/w:r>/,
           ">Designation: " + engine.escXml(sigDesig) + "</w:t></w:r>"
         );
+      }
+
+      else if (type === "ciflFitA2" || type === "ciflMiceA2") {
+        xml = xml.replace(/>\s*Date\s*:\s*<\/w:t>/i, ">Date: " + engine.escXml(today) + "</w:t>");
+        xml = xml.replace(/>Date\s*<\/w:t>/i, ">Date: " + engine.escXml(today) + "</w:t>");
+        xml = engine.fillTableCell(xml, 0, 1, companyName);
+        xml = engine.fillTableCell(xml, 1, 1, v("registeredAddress"));
+        xml = engine.fillTableCell(xml, 2, 1, contactName + ", " + (this.getFormValue("contactMobile") || "") + ", " + (this.getFormValue("contactEmail") || ""));
+        xml = xml.replace(/>For\s*<\/w:t>/i, ">For " + engine.escXml(companyName) + "</w:t>");
+        xml = xml.replace(/>Authorised\s*Signatory\s*<\/w:t>/i, ">Authorised Signatory: " + engine.escXml(sigName) + "</w:t>");
+      }
+
+      else if (type === "ciflFitTcs" || type === "ciflMiceTcs") {
+        xml = xml.replace(/>\s*Date\s*:\s*<\/w:t>/i, ">Date: " + engine.escXml(today) + "</w:t>");
+        xml = xml.replace(/>Date\s*:\s*-?\s*<\/w:t>/i, ">Date: " + engine.escXml(today) + "</w:t>");
+        xml = xml.replace(/>Date\s*<\/w:t>/i, ">Date: " + engine.escXml(today) + "</w:t>");
+        xml = xml.replace(/>For:\s*<\/w:t>/i, ">For: " + engine.escXml(companyName) + "</w:t>");
+        xml = xml.replace(/>For\s*<\/w:t>/i, ">For " + engine.escXml(companyName) + "</w:t>");
+        xml = xml.replace(/>\(Authorized\s*Signatory\)\s*<\/w:t>/i, ">(Authorized Signatory): " + engine.escXml(sigName) + "</w:t>");
+        xml = xml.replace(/>Authorized\s*Signatory\s*<\/w:t>/i, ">Authorized Signatory: " + engine.escXml(sigName) + "</w:t>");
+      }
+
+      else if (type === "ciflFitFlight") {
+        xml = xml.replace(/>\s*Date\s*:\s*<\/w:t>/i, ">Date: " + engine.escXml(today) + "</w:t>");
+        xml = xml.replace(/>Date\s*<\/w:t>/i, ">Date: " + engine.escXml(today) + "</w:t>");
+        xml = xml.replace(/>For:\s*<\/w:t>/i, ">For: " + engine.escXml(companyName) + "</w:t>");
+        xml = xml.replace(/>For\s*<\/w:t>/i, ">For " + engine.escXml(companyName) + "</w:t>");
+        xml = xml.replace(/>Authorized\s*Signatory\s*<\/w:t>/i, ">Authorized Signatory: " + engine.escXml(sigName) + "</w:t>");
+        xml = xml.replace(/>Name:\s*<\/w:t>/i, ">Name: " + engine.escXml(sigName) + "</w:t>");
+        xml = xml.replace(/>Designation\s*<\/w:t>/i, ">Designation: " + engine.escXml(sigDesig) + "</w:t>");
+      }
+
+      else if (type === "ciflFitVisa") {
+        xml = xml.replace(/>\s*Date\s*:\s*<\/w:t>/i, ">Date: " + engine.escXml(today) + "</w:t>");
+        xml = xml.replace(/>Date\s*<\/w:t>/i, ">Date: " + engine.escXml(today) + "</w:t>");
+        xml = xml.replace(/>For:\s*<\/w:t>/i, ">For: " + engine.escXml(companyName) + "</w:t>");
+        xml = xml.replace(/>For\s*<\/w:t>/i, ">For " + engine.escXml(companyName) + "</w:t>");
+        xml = xml.replace(/>Authorized\s*Signatory\s*<\/w:t>/i, ">Authorized Signatory: " + engine.escXml(sigName) + "</w:t>");
+        xml = xml.replace(/>Name:\s*<\/w:t>/i, ">Name: " + engine.escXml(sigName) + "</w:t>");
+        xml = xml.replace(/>Designation\s*<\/w:t>/i, ">Designation: " + engine.escXml(sigDesig) + "</w:t>");
+      }
+
+      else if (type === "ciflFitCountry") {
+        xml = xml.replace(/>\s*Date\s*:\s*<\/w:t>/i, ">Date: " + engine.escXml(today) + "</w:t>");
+        xml = xml.replace(/>Date\s*<\/w:t>/i, ">Date: " + engine.escXml(today) + "</w:t>");
+        xml = xml.replace(/>TRAVEL\s+TOURS\s*<\/w:t>/i, ">" + engine.escXml(companyName) + "</w:t>");
+        xml = xml.replace(/>INDIA\s*<\/w:t>/i, "></w:t>");
+        xml = xml.replace(/>Authorised\s*Signatory\s*<\/w:t>/i, ">Authorised Signatory: " + engine.escXml(sigName) + "</w:t>");
+      }
+
+      else if (type === "ciflMiceCu") {
+        xml = xml.replace(/>\s*Date\s*:\s*<\/w:t>/i, ">Date: " + engine.escXml(today) + "</w:t>");
+        xml = xml.replace(/>Date\s*<\/w:t>/i, ">Date: " + engine.escXml(today) + "</w:t>");
+        xml = engine.replaceText(xml, "[TA NAme]", companyName);
+        xml = engine.replaceText(xml, "[TA Name]", companyName);
+        xml = engine.replaceText(xml, "[Corporate Name]", companyName);
+        xml = engine.replaceText(xml, "[CORPORATE NAME]", companyName);
+        xml = xml.replace(/>For:\s*<\/w:t>/i, ">For: " + engine.escXml(companyName) + "</w:t>");
+        xml = xml.replace(/>Authorized\s*Signatory\s*<\/w:t>/i, ">Authorized Signatory: " + engine.escXml(sigName) + "</w:t>");
+        xml = xml.replace(/>Authorised\s*Signatory\s*<\/w:t>/i, ">Authorised Signatory: " + engine.escXml(sigName) + "</w:t>");
+        xml = xml.replace(/>Name\s*<\/w:t>/i, ">Name: " + engine.escXml(sigName) + "</w:t>");
+        xml = xml.replace(/>Name:\s*<\/w:t>/i, ">Name: " + engine.escXml(sigName) + "</w:t>");
+        xml = xml.replace(/>Designation:\s*Director\s*<\/w:t>/i, ">Designation: " + engine.escXml(sigDesig) + "</w:t>");
+        xml = xml.replace(/>Designation\s*:\s*<\/w:t>/i, ">Designation: " + engine.escXml(sigDesig) + "</w:t>");
+      }
+
+      else if (type === "ciflMiceTa") {
+        xml = xml.replace(/>\s*Date\s*:\s*<\/w:t>/i, ">Date: " + engine.escXml(today) + "</w:t>");
+        xml = xml.replace(/>Date\s*<\/w:t>/i, ">Date: " + engine.escXml(today) + "</w:t>");
+        xml = engine.replaceText(xml, "[CORPORATE NAME]", companyName);
+        xml = engine.replaceText(xml, "[TA Name]", companyName);
+        xml = engine.replaceText(xml, "[TA NAme]", companyName);
+        xml = engine.replaceText(xml, "[AMOUNT]", "");
+        xml = xml.replace(/>pan card number:\s*<\/w:t>/i, ">pan card number: " + engine.escXml(v("panNo")) + "</w:t>");
+        xml = xml.replace(/_{5,}/g, engine.escXml(v("panNo")));
+        xml = xml.replace(/>For\s*<\/w:t>/i, ">For " + engine.escXml(companyName) + "</w:t>");
+        xml = xml.replace(/>Authorized\s*Signatory\s*<\/w:t>/i, ">Authorized Signatory: " + engine.escXml(sigName) + "</w:t>");
+        xml = xml.replace(/>Authorised\s*Signatory\s*<\/w:t>/i, ">Authorised Signatory: " + engine.escXml(sigName) + "</w:t>");
+      }
+
+      else if (type === "indelFitA2" || type === "indelMiceA2") {
+        xml = xml.replace(/>\s*Date\s*:\s*<\/w:t>/i, ">Date: " + engine.escXml(today) + "</w:t>");
+        xml = xml.replace(/>Date\s*<\/w:t>/i, ">Date: " + engine.escXml(today) + "</w:t>");
+        xml = xml.replace(/02-04-2025/g, engine.escXml(today));
+        xml = engine.fillTableCell(xml, 0, 1, companyName);
+        xml = engine.fillTableCell(xml, 1, 1, v("registeredAddress"));
+        xml = engine.fillTableCell(xml, 2, 1, contactName + ", " + (this.getFormValue("contactMobile") || "") + ", " + (this.getFormValue("contactEmail") || ""));
+        if (type === "indelFitA2") {
+          xml = engine.fillTableCell(xml, 3, 1, "TOUR");
+        }
+        xml = xml.replace(/>Authorized\s*Signature\s*<\/w:t>/i, ">Authorized Signature: " + engine.escXml(sigName) + "</w:t>");
+        xml = xml.replace(/>Authorised\s*Signatory\s*<\/w:t>/i, ">Authorised Signatory: " + engine.escXml(sigName) + "</w:t>");
+      }
+
+      else if (type === "indelFitPassenger") {
+        xml = xml.replace(/02-04-2025/g, engine.escXml(today));
+        xml = xml.replace(/>\s*Date\s*:\s*<\/w:t>/i, ">Date: " + engine.escXml(today) + "</w:t>");
+        xml = xml.replace(/>Date\s*<\/w:t>/i, ">Date: " + engine.escXml(today) + "</w:t>");
+        const boData = this.getBeneficialOwners();
+        boData.forEach((p, i) => {
+          if (i < 6) {
+            xml = engine.fillTableCell(xml, i + 1, 0, p.name);
+            xml = engine.fillTableCell(xml, i + 1, 1, p.pan || v("panNo"));
+            xml = engine.fillTableCell(xml, i + 1, 2, p.dob || "");
+          }
+        });
+        xml = xml.replace(/>Authorized\s*Signatory\s*<\/w:t>/i, ">Authorized Signatory: " + engine.escXml(sigName) + "</w:t>");
+        xml = xml.replace(/>Authorised\s*Signatory\s*<\/w:t>/i, ">Authorised Signatory: " + engine.escXml(sigName) + "</w:t>");
+        xml = xml.replace(/_{10,}/g, "");
+      }
+
+      else if (type === "indelFitTcs" || type === "indelMiceTcs") {
+        xml = xml.replace(/>\s*Date\s*:\s*<\/w:t>/i, ">Date: " + engine.escXml(today) + "</w:t>");
+        xml = xml.replace(/>Date\s*<\/w:t>/i, ">Date: " + engine.escXml(today) + "</w:t>");
+        xml = xml.replace(/0nd\s*April.?2025/gi, engine.escXml(today));
+        xml = xml.replace(/>\(Authorized\s*Signatory\)\s*<\/w:t>/i, ">(Authorized Signatory): " + engine.escXml(sigName) + "</w:t>");
+        xml = xml.replace(/>Authorized\s*Signatory\s*<\/w:t>/i, ">Authorized Signatory: " + engine.escXml(sigName) + "</w:t>");
+        xml = xml.replace(/>For:\s*<\/w:t>/i, ">For: " + engine.escXml(companyName) + "</w:t>");
+        xml = xml.replace(/>For\s*<\/w:t>/i, ">For " + engine.escXml(companyName) + "</w:t>");
+        xml = xml.replace(/>For \(TA Name\)<\/w:t>/i, ">For " + engine.escXml(companyName) + "</w:t>");
+        xml = xml.replace(/_{3,}/g, "");
       }
 
       await engine.setDocumentXml(xml);
@@ -2719,6 +3003,314 @@ class OnboardingApp {
           </tbody>
         </table>
       </div>`;
+  }
+
+  renderA2PreviewTable(title, subtitle, purposeDefault) {
+    const v = (id) => this.getFormValue(id) || "";
+    const companyName = v("registeredName") || "[Company Name]";
+    const contactName = v("contactName") || v("signatoryName") || "";
+    const today = this.todayFormatted();
+    const curr = v("txnCurrency");
+    const amt = v("txnAmount");
+    const currQty = (curr || amt) ? (curr + " " + amt).trim() : "";
+    return `
+      <div class="preview-container">
+        <div class="preview-header">
+          <h1>${title}</h1>
+          <p style="text-align:center;font-size:0.85rem">${subtitle}</p>
+        </div>
+        <p style="text-align:right">Date: <strong>${today}</strong></p>
+        <table class="preview-table">
+          <thead><tr><th style="width:40px">Sr.</th><td><strong>Particulars</strong></td><td><strong>Details</strong></td></tr></thead>
+          <tbody>
+            ${this.pRow("1. Remitter Full Name / Address", companyName + ", " + v("registeredAddress"))}
+            ${this.pRow("2. Contact Person, Mobile & Email", contactName + ", " + v("contactMobile") + ", " + v("contactEmail"))}
+            ${this.pRow("3. PAN Number", v("panNo"))}
+            ${this.pRow("4. Purpose of Remittance", purposeDefault)}
+            ${this.pRow("5. Currency & Quantity", currQty)}
+            ${this.pRow("6. Beneficiary Name", v("txnBenefName"))}
+            ${this.pRow("7. Beneficiary Bank Name", v("txnBenefBank"))}
+            ${this.pRow("8. Beneficiary Account Number", v("txnBenefAccount"))}
+            ${this.pRow("9. Beneficiary Bank Address", v("txnBenefBankAddr"))}
+            ${this.pRow("10. Swift Code / Routing No", v("txnSwiftCode"))}
+            ${this.pRow("11. ABA / BLZ / Sort Code / Bank Code", "")}
+            ${this.pRow("12. IBAN International", v("txnIban"))}
+            ${this.pRow("13. Invoice Number / Group Name", v("txnInvoiceNo"))}
+            ${this.pRow("14. Correspondent Bank Charges", "")}
+          </tbody>
+        </table>
+        <div class="preview-signature">
+          <div class="signature-block">
+            <div style="height:40px"></div>
+            <div class="signature-line">Authorized Signatory</div>
+            <div>Name: <strong>${v("signatoryName")}</strong></div>
+            <div>For: <strong>${companyName}</strong></div>
+          </div>
+        </div>
+      </div>`;
+  }
+
+  renderTcsPreviewContent(title, subtitle, variant) {
+    const v = (id) => this.getFormValue(id) || "";
+    const companyName = v("registeredName") || "[Company Name]";
+    const today = this.todayFormatted();
+    const isIndel = variant.startsWith("indel");
+    const travelers = v("txnTravelers") || "_____";
+    const dest = v("txnDestination") || "_______";
+    const amt = v("txnAmount") ? (v("txnCurrency") + " " + v("txnAmount")).trim() : "_______";
+    return `
+      <div class="preview-container">
+        <div class="preview-header">
+          <h1>${title}</h1>
+          <p style="text-align:center;font-size:0.85rem">${subtitle}</p>
+        </div>
+        <p>Date: <strong>${today}</strong></p>
+        <p>To,<br>${isIndel ? "Indel Money Limited" : "Capital India Finance Limited"}<br>${isIndel ? "Delhi Branch" : "Mumbai"}</p>
+        <div style="margin:16px 0;padding:12px;border:1px solid var(--border);border-radius:6px">
+          <p><strong>Option A:</strong> We hereby declare we have collected TCS from <strong>${travelers}</strong> no. of passengers travelling to <strong>${dest}</strong> as per applicable rate for remittance amount of <strong>${amt}</strong> Currency dated <strong>${today}</strong>. We further declare that we will deposit TCS collected from above passengers to the government within the stipulated timelines.</p>
+        </div>
+        <div style="margin:16px 0;padding:12px;border:1px solid var(--border);border-radius:6px">
+          <p><strong>Option B:</strong> Not collected TCS as the Buyer is liable and has deducted TDS on the entire overseas tour package as per Income Tax Act.</p>
+        </div>
+        <div class="preview-signature">
+          <div class="signature-block">
+            <div style="height:40px"></div>
+            <div>For <strong>${companyName}</strong></div>
+            <div class="signature-line">(Authorized Signatory): <strong>${v("signatoryName")}</strong></div>
+          </div>
+        </div>
+      </div>`;
+  }
+
+  renderCiflFitA2Preview() {
+    return this.renderA2PreviewTable("APPLICATION CUM DECLARATION FORM - A2", "For Release of Foreign Exchange (FIT / Tour Remittance)", "TOUR");
+  }
+
+  renderCiflFitTcsPreview() {
+    return this.renderTcsPreviewContent("TCS Declaration", "Tax Collected at Source - FIT", "cifl");
+  }
+
+  renderCiflFitFlightPreview() {
+    const v = (id) => this.getFormValue(id) || "";
+    const companyName = v("registeredName") || "[Company Name]";
+    const sigName = v("signatoryName") || "";
+    const today = this.todayFormatted();
+    return `
+      <div class="preview-container">
+        <div class="preview-header"><h1>Flight Declaration</h1></div>
+        <p style="text-align:right">Date: <strong>${today}</strong></p>
+        <p>To,<br>Capital India Finance Limited<br>Mumbai</p>
+        <p>Sub: Declaration regarding flight tickets</p>
+        <p>Dear Sir/Madam,</p>
+        <p>We, <strong>${companyName}</strong>, hereby declare that the flight tickets for the passengers mentioned in the invoice are not yet available at the time of remittance. We undertake to provide the flight details once the tickets are issued.</p>
+        <p>Invoice No: <strong>${v("txnInvoiceNo") || "___________"}</strong><br>Remittance Amount: <strong>${v("txnAmount") ? (v("txnCurrency") + " " + v("txnAmount")).trim() : "___________"}</strong><br>Number of Passengers: <strong>${v("txnTravelers") || "___________"}</strong></p>
+        <div class="preview-signature">
+          <div class="signature-block">
+            <div style="height:40px"></div>
+            <div class="signature-line">Authorized Signatory</div>
+            <div>Name: <strong>${sigName}</strong></div>
+            <div>Designation: <strong>${v("signatoryDesignation")}</strong></div>
+            <div>For: <strong>${companyName}</strong></div>
+          </div>
+        </div>
+      </div>`;
+  }
+
+  renderCiflFitVisaPreview() {
+    const v = (id) => this.getFormValue(id) || "";
+    const companyName = v("registeredName") || "[Company Name]";
+    const sigName = v("signatoryName") || "";
+    const today = this.todayFormatted();
+    return `
+      <div class="preview-container">
+        <div class="preview-header"><h1>Visa Declaration</h1></div>
+        <p style="text-align:right">Date: <strong>${today}</strong></p>
+        <p>To,<br>Capital India Finance Limited<br>Mumbai</p>
+        <p>Sub: Declaration regarding visa status</p>
+        <p>Dear Sir/Madam,</p>
+        <p>We, <strong>${companyName}</strong>, hereby declare that the visas for the passengers mentioned in the invoice are not yet available at the time of remittance. We undertake that the visas will be obtained before the date of travel.</p>
+        <p>Invoice No: <strong>${v("txnInvoiceNo") || "___________"}</strong><br>Currency & Amount: <strong>${v("txnAmount") ? (v("txnCurrency") + " " + v("txnAmount")).trim() : "___________"}</strong><br>Number of Passengers: <strong>${v("txnTravelers") || "___________"}</strong></p>
+        <div class="preview-signature">
+          <div class="signature-block">
+            <div style="height:40px"></div>
+            <div class="signature-line">Authorized Signatory</div>
+            <div>Name: <strong>${sigName}</strong></div>
+            <div>Designation: <strong>${v("signatoryDesignation")}</strong></div>
+            <div>For: <strong>${companyName}</strong></div>
+          </div>
+        </div>
+      </div>`;
+  }
+
+  renderCiflFitCountryPreview() {
+    const v = (id) => this.getFormValue(id) || "";
+    const companyName = v("registeredName") || "[Company Name]";
+    const sigName = v("signatoryName") || "";
+    const today = this.todayFormatted();
+    return `
+      <div class="preview-container">
+        <div class="preview-header"><h1>Different Country Declaration</h1></div>
+        <p style="text-align:right">Date: <strong>${today}</strong></p>
+        <p>To,<br>Capital India Finance Limited<br>Mumbai</p>
+        <p>Sub: Declaration regarding beneficiary bank in different country</p>
+        <p>Dear Sir/Madam,</p>
+        <p>We, <strong>${companyName}</strong>, hereby declare that the beneficiary bank account is in a country different from the country of travel. The details are as follows:</p>
+        <table class="preview-table">
+          <tbody>
+            ${this.pRow("Currency & Amount", v("txnAmount") ? (v("txnCurrency") + " " + v("txnAmount")).trim() : "")}
+            ${this.pRow("Beneficiary Name", v("txnBenefName"))}
+            ${this.pRow("Beneficiary Address", v("txnBenefBankAddr"))}
+            ${this.pRow("Beneficiary Bank", v("txnBenefBank"))}
+            ${this.pRow("Swift Code", v("txnSwiftCode"))}
+          </tbody>
+        </table>
+        <div class="preview-signature">
+          <div class="signature-block">
+            <div style="height:40px"></div>
+            <div class="signature-line">Authorized Signatory</div>
+            <div>Name: <strong>${sigName}</strong></div>
+            <div>For: <strong>${companyName}</strong></div>
+          </div>
+        </div>
+      </div>`;
+  }
+
+  renderCiflMiceA2Preview() {
+    return this.renderA2PreviewTable("APPLICATION CUM DECLARATION FORM - A2 (MICE)", "For Release of Foreign Exchange (MICE / Non-LRS)", "MICE");
+  }
+
+  renderCiflMiceTcsPreview() {
+    return this.renderTcsPreviewContent("TCS Declaration (MICE)", "Tax Collected at Source - MICE", "cifl");
+  }
+
+  renderCiflMiceCuPreview() {
+    const v = (id) => this.getFormValue(id) || "";
+    const companyName = v("registeredName") || "[Corporate Name]";
+    const corpName = v("txnCorporateName") || companyName;
+    const sigName = v("signatoryName") || "";
+    const sigDesig = v("signatoryDesignation") || "";
+    const today = this.todayFormatted();
+    const dest = v("txnDestination") || "[Country]";
+    const dateFrom = v("txnDateFrom") || "__________";
+    const dateTo = v("txnDateTo") || "__________";
+    const travelers = v("txnTravelers") || "_____";
+    const amt = v("txnAmount") ? (v("txnCurrency") + " " + v("txnAmount")).trim() : "[Amount]";
+    return `
+      <div class="preview-container">
+        <div class="preview-header"><h1>Corporate Undertaking (MICE)</h1></div>
+        <p style="text-align:right">Date: <strong>${today}</strong></p>
+        <p>To Whomsoever It May Concern</p>
+        <p>This is to certify that <strong>${corpName}</strong> has appointed <strong>${companyName}</strong> to arrange an incentive trip to <strong>${dest}</strong> from <strong>${dateFrom}</strong> to <strong>${dateTo}</strong> for about <strong>${travelers}</strong> employees of <strong>${corpName}</strong>.</p>
+        <p>We hereby authorize the remittance of foreign exchange amounting to <strong>${amt}</strong> through the appointed travel agent for the said trip.</p>
+        <p>PAN: <strong>${v("panNo")}</strong></p>
+        <p>All remittances related to the above said trip shall be initiated by <strong>${corpName}</strong>.</p>
+        <div class="preview-signature">
+          <div class="signature-block">
+            <div style="height:40px"></div>
+            <div>For <strong>${corpName}</strong></div>
+            <div class="signature-line">Authorized Signatory</div>
+            <div>Name: <strong>${sigName}</strong></div>
+            <div>Designation: <strong>${sigDesig}</strong></div>
+          </div>
+        </div>
+      </div>`;
+  }
+
+  renderCiflMiceTaPreview() {
+    const v = (id) => this.getFormValue(id) || "";
+    const companyName = v("registeredName") || "[TA Name]";
+    const corpName = v("txnCorporateName") || "[Corporate Name]";
+    const sigName = v("signatoryName") || "";
+    const today = this.todayFormatted();
+    const dest = v("txnDestination") || "[Country]";
+    const dateFrom = v("txnDateFrom") || "__________";
+    const dateTo = v("txnDateTo") || "__________";
+    const travelers = v("txnTravelers") || "_____";
+    const amt = v("txnAmount") ? (v("txnCurrency") + " " + v("txnAmount")).trim() : "_____";
+    return `
+      <div class="preview-container">
+        <div class="preview-header"><h1>Travel Agent Undertaking (MICE)</h1></div>
+        <p style="text-align:right">Date: <strong>${today}</strong></p>
+        <p>To Whomsoever It May Concern</p>
+        <p>We, <strong>${companyName}</strong>, hereby undertake that:</p>
+        <ul style="margin:12px 0;padding-left:24px">
+          <li>We have been appointed by <strong>${corpName}</strong> to arrange a MICE trip</li>
+          <li>Destination: <strong>${dest}</strong></li>
+          <li>Travel Dates: <strong>${dateFrom}</strong> to <strong>${dateTo}</strong></li>
+          <li>Number of Travelers: <strong>${travelers}</strong></li>
+          <li>Remittance Amount: <strong>${amt}</strong></li>
+        </ul>
+        <p>PAN: <strong>${v("panNo")}</strong></p>
+        <div class="preview-signature">
+          <div class="signature-block">
+            <div style="height:40px"></div>
+            <div>For <strong>${companyName}</strong></div>
+            <div class="signature-line">Authorized Signatory</div>
+            <div>Name: <strong>${sigName}</strong></div>
+          </div>
+        </div>
+      </div>`;
+  }
+
+  renderIndelFitA2Preview() {
+    return this.renderA2PreviewTable("FORM A2 - Tour Remittance", "Indel Money Limited, Delhi Branch - Release of Foreign Exchange under LRS", "TOUR");
+  }
+
+  renderIndelFitPassengerPreview() {
+    const v = (id) => this.getFormValue(id) || "";
+    const companyName = v("registeredName") || "[Company Name]";
+    const sigName = v("signatoryName") || "";
+    const today = this.todayFormatted();
+    const boData = this.getBeneficialOwners();
+    let paxRows = "";
+    for (let i = 0; i < 6; i++) {
+      const p = boData[i] || {};
+      paxRows += `<tr><td>${p.name || ""}</td><td>${p.pan || ""}</td><td>${p.dob || ""}</td><td></td><td>${v("txnCurrency")}</td><td>${v("txnAmount")}</td></tr>`;
+    }
+    return `
+      <div class="preview-container">
+        <div class="preview-header">
+          <h1>Passenger Details cum Declaration</h1>
+          <p style="text-align:center;font-size:0.85rem">Indel Money Limited, Delhi Branch</p>
+        </div>
+        <p style="text-align:right">Date: <strong>${today}</strong></p>
+        <table class="preview-table">
+          <thead><tr><th>Pax Name</th><th>PAN Number</th><th>DOB</th><th>Passport No</th><th>Currency</th><th>Forex Amt</th></tr></thead>
+          <tbody>${paxRows}</tbody>
+        </table>
+        <div style="margin:16px 0">
+          <h3>Declaration & Undertaking</h3>
+          <ol style="font-size:0.85rem;padding-left:20px">
+            <li>INR received from passengers per RBI/Income Tax guidelines</li>
+            <li>Documents verified and retained for passengers in Schedule I</li>
+            <li>Indel Money's right to refuse suspicious transactions</li>
+            <li>No responsibility for rejection by remitting/corresponding banks</li>
+            <li>Remitted amount used for bonafide purpose only</li>
+            <li>Compliance with FEMA 1999</li>
+            <li>Amount deducted from individual LRS quota</li>
+          </ol>
+        </div>
+        <div class="preview-signature">
+          <div class="signature-block">
+            <div style="height:40px"></div>
+            <div class="signature-line">Authorized Signatory</div>
+            <div>Name: <strong>${sigName}</strong></div>
+            <div>For: <strong>${companyName}</strong></div>
+          </div>
+        </div>
+      </div>`;
+  }
+
+  renderIndelFitTcsPreview() {
+    return this.renderTcsPreviewContent("TCS Declaration - Tour Remittance", "Indel Money Limited, Delhi Branch", "indel");
+  }
+
+  renderIndelMiceA2Preview() {
+    return this.renderA2PreviewTable("FORM A2 - MICE", "Indel Money Limited, New Delhi Branch - Release of Foreign Exchange (MICE)", "");
+  }
+
+  renderIndelMiceTcsPreview() {
+    return this.renderTcsPreviewContent("TCS Declaration (MICE)", "Indel Money Limited, New Delhi", "indel");
   }
 
   todayFormatted() {
