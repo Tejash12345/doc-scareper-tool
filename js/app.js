@@ -1739,10 +1739,18 @@ class OnboardingApp {
   }
 
   updateAccuracy() {
+    const isHiddenByToggle = (el) => {
+      let node = el;
+      while (node && node !== document.body) {
+        if (node.style && node.style.display === "none" && !node.classList.contains("form-section")) return true;
+        node = node.parentElement;
+      }
+      return false;
+    };
     const allInputs = document.querySelectorAll(".form-input, .form-textarea");
     let filled = 0, total = 0;
     allInputs.forEach(el => {
-      if (el.id && el.id !== "stockExchangeName" && el.id !== "caseDetails") {
+      if (el.id && el.id !== "stockExchangeName" && el.id !== "caseDetails" && !isHiddenByToggle(el)) {
         total++;
         if (el.value.trim()) filled++;
       }
@@ -1750,12 +1758,14 @@ class OnboardingApp {
 
     const radioGroups = document.querySelectorAll(".radio-group");
     radioGroups.forEach(g => {
+      if (isHiddenByToggle(g)) return;
       total++;
       if (g.querySelector(".radio-item.selected")) filled++;
     });
 
     const checkboxGroups = document.querySelectorAll(".checkbox-group");
     checkboxGroups.forEach(g => {
+      if (isHiddenByToggle(g)) return;
       total++;
       if (g.querySelector(".checkbox-item.checked")) filled++;
     });
@@ -1775,11 +1785,21 @@ class OnboardingApp {
       sources[f.docType] = f.fieldsExtracted || 0;
     });
 
+    const remaining = total - filled;
+    const hasInvoice = Object.keys(sources).includes("Invoice");
+    const isTxnCategory = ["ciflFit", "ciflMice", "indelFit", "indelMice"].includes(this.activeFormCategory);
+    let tip = "";
+    if (remaining > 0 && isTxnCategory && !hasInvoice) {
+      tip = `<div style="margin-top:8px;padding:8px;background:#fff3cd;border-radius:6px;font-size:0.78rem;color:#856404">Upload an <strong>Invoice PDF</strong> to auto-fill transaction fields (currency, amount, beneficiary, etc.)</div>`;
+    } else if (remaining > 0 && remaining <= 5) {
+      tip = `<div style="margin-top:8px;padding:8px;background:#e8f5e9;border-radius:6px;font-size:0.78rem;color:#2e7d32">Almost done! Fill remaining fields manually or upload more documents.</div>`;
+    }
     summary.innerHTML = `
       <div class="extraction-item"><span class="extraction-label">Total Fields</span><span class="extraction-count">${total}</span></div>
       <div class="extraction-item"><span class="extraction-label">Auto-filled</span><span class="extraction-count" style="color:var(--success)">${filled}</span></div>
-      <div class="extraction-item"><span class="extraction-label">Remaining</span><span class="extraction-count" style="color:var(--warning)">${total - filled}</span></div>
+      <div class="extraction-item"><span class="extraction-label">Remaining</span><span class="extraction-count" style="color:var(--warning)">${remaining}</span></div>
       ${Object.entries(sources).map(([k, v]) => `<div class="extraction-item"><span class="extraction-label">${k}</span><span class="extraction-count">${v} fields</span></div>`).join("")}
+      ${tip}
     `;
 
     const badge = document.getElementById("companyFieldCount");
@@ -1906,6 +1926,7 @@ class OnboardingApp {
     this.applyFormLabels(labelCat);
     const isTxn = category.startsWith("ciflFit") || category.startsWith("ciflMice") || category.startsWith("indelFit") || category.startsWith("indelMice");
     this.toggleTransactionFields(isTxn);
+    this.updateAccuracy();
   }
 
   toggleTransactionFields(isTxn) {
@@ -2546,7 +2567,8 @@ class OnboardingApp {
   }
 
   pRow(label, value) {
-    return `<tr><td style="width:260px;font-weight:500;background:#f9f9f9">${label}</td><td>${value || "—"}</td></tr>`;
+    const display = value ? `<strong>${value}</strong>` : `<span style="color:#999;font-style:italic">To be filled</span>`;
+    return `<tr><td style="width:260px;font-weight:500;background:#f9f9f9">${label}</td><td>${display}</td></tr>`;
   }
 
   renderOnboardingPreview() {
