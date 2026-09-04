@@ -1835,6 +1835,9 @@ class OnboardingApp {
 
     const remaining = total - filled;
 
+    const stepNames = { "1": "Company Details", "2": "Contact & KMP", "3": "Banking & Compliance" };
+    const stepIcons = { "1": "&#127970;", "2": "&#128100;", "3": "&#127974;" };
+
     const getFieldLabel = (el) => {
       const subCard = el.closest(".sub-card");
       const sectionTitle = subCard?.querySelector(".sub-card-title, .sub-card-header")?.textContent?.replace(/\*/g, "").trim() || "";
@@ -1843,93 +1846,169 @@ class OnboardingApp {
       if (sectionTitle && sectionTitle !== lbl) lbl = sectionTitle + " → " + lbl;
       return lbl;
     };
+    const getStepNum = (el) => el.closest(".form-section")?.dataset?.section || "0";
 
+    const stepStats = {};
     const emptyFieldNames = [];
     allInputs.forEach(el => {
-      if (el.id && el.id !== "stockExchangeName" && el.id !== "caseDetails" && !isHiddenByToggle(el) && !el.value.trim()) {
-        emptyFieldNames.push({ label: getFieldLabel(el), id: el.id });
+      if (el.id && el.id !== "stockExchangeName" && el.id !== "caseDetails" && !isHiddenByToggle(el)) {
+        const step = getStepNum(el);
+        if (!stepStats[step]) stepStats[step] = { filled: 0, empty: 0, emptyFields: [] };
+        if (el.value.trim()) { stepStats[step].filled++; }
+        else {
+          stepStats[step].empty++;
+          const field = { label: getFieldLabel(el), id: el.id, step };
+          stepStats[step].emptyFields.push(field);
+          emptyFieldNames.push(field);
+        }
       }
     });
     radioGroups.forEach(g => {
-      if (isHiddenByToggle(g) || g.querySelector(".radio-item.selected")) return;
-      const subCard = g.closest(".sub-card");
-      const sectionTitle = subCard?.querySelector(".sub-card-title, .sub-card-header")?.textContent?.replace(/\*/g, "").trim() || "";
-      let lbl = g.closest(".form-group")?.querySelector(".form-label")?.textContent?.replace(/\*/g, "").replace(/\d+\.\s*/g, "").trim() || "Selection";
-      if (sectionTitle && sectionTitle !== lbl) lbl = sectionTitle + " → " + lbl;
-      emptyFieldNames.push({ label: lbl, id: "" });
+      if (isHiddenByToggle(g)) return;
+      const step = getStepNum(g);
+      if (!stepStats[step]) stepStats[step] = { filled: 0, empty: 0, emptyFields: [] };
+      if (g.querySelector(".radio-item.selected")) { stepStats[step].filled++; }
+      else {
+        stepStats[step].empty++;
+        const subCard = g.closest(".sub-card");
+        const sectionTitle = subCard?.querySelector(".sub-card-title, .sub-card-header")?.textContent?.replace(/\*/g, "").trim() || "";
+        let lbl = g.closest(".form-group")?.querySelector(".form-label")?.textContent?.replace(/\*/g, "").replace(/\d+\.\s*/g, "").trim() || "Selection";
+        if (sectionTitle && sectionTitle !== lbl) lbl = sectionTitle + " → " + lbl;
+        const field = { label: lbl, id: "", step };
+        stepStats[step].emptyFields.push(field);
+        emptyFieldNames.push(field);
+      }
+    });
+    checkboxGroups.forEach(g => {
+      if (isHiddenByToggle(g)) return;
+      const step = getStepNum(g);
+      if (!stepStats[step]) stepStats[step] = { filled: 0, empty: 0, emptyFields: [] };
+      if (g.querySelector(".checkbox-item.checked")) stepStats[step].filled++;
+      else stepStats[step].empty++;
     });
 
     const fieldDocMap = [
       { doc: "PAN Card", reason: "PAN number is printed on PAN Card issued by Income Tax Dept", keywords: ["pan"], icon: "&#128179;" },
       { doc: "GST Certificate", reason: "GSTIN is on GST Registration Certificate from GST portal", keywords: ["gstin", "gst number", "gst"], icon: "&#128196;" },
       { doc: "Udyam / MSME Certificate", reason: "Udyam number, business details are on Udyam Registration Certificate", keywords: ["udyam", "msme", "nature of business", "nic"], icon: "&#127981;" },
-      { doc: "Certificate of Incorporation / MOA", reason: "CIN, incorporation date, directors are on CoI issued by MCA", keywords: ["incorporation", "cin", "director"], icon: "&#128220;" },
-      { doc: "Bank Statement / Cancelled Cheque", reason: "Bank name, account no, IFSC, branch are on bank statement or cancelled cheque", keywords: ["bank", "ifsc", "branch", "account no"], icon: "&#127974;" },
-      { doc: "Invoice / Proforma Invoice", reason: "Amount, currency, beneficiary details are on the vendor/travel invoice", keywords: ["invoice", "currency", "amount", "beneficiary", "swift", "iban", "destination", "travel", "pax", "txn"], icon: "&#128451;" },
-      { doc: "Company Letterhead / Profile", reason: "Website, email, phone can be found on company letterhead or website", keywords: ["website", "email", "mobile", "phone", "contact"], icon: "&#127760;" },
+      { doc: "Certificate of Incorporation / MOA", reason: "CIN, date of incorporation, directors listed on CoI issued by MCA", keywords: ["incorporation", "cin", "director"], icon: "&#128220;" },
+      { doc: "Bank Statement / Cancelled Cheque", reason: "Bank name, A/C no, IFSC, branch printed on bank statement or cancelled cheque", keywords: ["bank", "ifsc", "branch", "account no"], icon: "&#127974;" },
+      { doc: "Invoice / Proforma Invoice", reason: "Amount, currency, beneficiary, SWIFT/IBAN are on the vendor/travel invoice", keywords: ["invoice", "currency", "amount", "beneficiary", "swift", "iban", "destination", "travel", "pax", "txn"], icon: "&#128451;" },
+      { doc: "Company Letterhead / Profile", reason: "Website, email, phone are on company letterhead or website", keywords: ["website", "email", "mobile", "phone", "contact"], icon: "&#127760;" },
       { doc: "Board Resolution", reason: "Authorized signatory details are in the Board Resolution document", keywords: ["official", "signatory", "authorized"], icon: "&#128221;" },
-      { doc: "Shareholder Agreement / MOA", reason: "Beneficial owner name, DOB, PAN, shareholding % are in MOA or Shareholder Agreement", keywords: ["beneficial", "shareholder", "bo", "share %", "share"], icon: "&#128101;" }
+      { doc: "Shareholder Agreement / MOA", reason: "Beneficial owner name, DOB, PAN, shareholding % found in MOA or Shareholder Agreement", keywords: ["beneficial", "shareholder", "bo", "share %", "share"], icon: "&#128101;" }
     ];
 
     const uploadedDocTypes = this.uploadedFiles.filter(f => f.status === "success").map(f => (f.docType || "").replace(" + AI", "").toLowerCase());
 
-    const missingList = emptyFieldNames.map(f => {
+    const enrichField = (f) => {
       const key = (f.label + " " + f.id).toLowerCase();
       let matched = null;
       for (const entry of fieldDocMap) {
         if (entry.keywords.some(kw => key.includes(kw))) { matched = entry; break; }
       }
       const isUploaded = matched ? uploadedDocTypes.some(d => matched.doc.toLowerCase().split("/").some(part => d.includes(part.trim().split(" ")[0].toLowerCase()))) : false;
-      return {
-        label: f.label,
-        id: f.id,
-        doc: matched?.doc || "Manual Entry Required",
-        reason: matched?.reason || "This field needs to be filled manually — not available in standard documents",
+      return { ...f,
+        doc: matched?.doc || "Manual Entry",
+        reason: matched?.reason || "Fill manually — not typically found in uploaded documents",
         icon: matched?.icon || "&#9997;",
-        isUploaded,
         status: !matched ? "manual" : (isUploaded ? "not-found" : "missing-doc")
       };
-    });
+    };
 
-    let missingHtml = "";
-    if (remaining > 0 && this.uploadedFiles.some(f => f.status === "success")) {
-      missingHtml = `<div style="margin-top:10px;border-top:1px solid var(--border);padding-top:10px">
-        <div style="font-size:0.82rem;font-weight:700;color:var(--gray-800);margin-bottom:8px;display:flex;align-items:center;gap:5px">
-          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="var(--accent)" stroke-width="2.5"><circle cx="12" cy="12" r="10"/><line x1="12" y1="16" x2="12" y2="12"/><line x1="12" y1="8" x2="12.01" y2="8"/></svg>
-          Missing Fields (${remaining})
-        </div>`;
+    const hasUploads = this.uploadedFiles.some(f => f.status === "success");
 
-      missingList.forEach(f => {
-        const colors = { "missing-doc": { bg: "#dbeafe", border: "#93c5fd", text: "#1e40af", badge: "#2563eb", badgeText: "Upload needed" },
-          "not-found": { bg: "#fef3c7", border: "#fcd34d", text: "#92400e", badge: "#d97706", badgeText: "Not in uploaded doc" },
-          "manual": { bg: "#f3f4f6", border: "#d1d5db", text: "#4b5563", badge: "#6b7280", badgeText: "Fill manually" } };
-        const c = colors[f.status];
-        missingHtml += `
-          <div style="margin-bottom:6px;padding:8px 10px;background:${c.bg};border-left:3px solid ${c.border};border-radius:0 6px 6px 0">
+    let stepOverviewHtml = "";
+    if (hasUploads) {
+      const category = this.activeFormCategory || "cifl";
+      const catLabel = document.querySelector("#formCategory")?.selectedOptions?.[0]?.text || category.toUpperCase();
+      stepOverviewHtml = `<div style="margin-top:10px;border-top:1px solid var(--border);padding-top:10px">
+        <div style="font-size:0.82rem;font-weight:700;color:var(--gray-800);margin-bottom:4px;display:flex;align-items:center;gap:5px">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="var(--accent)" stroke-width="2.5"><path d="M9 5H7a2 2 0 0 0-2 2v12a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V7a2 2 0 0 0-2-2h-2"/><rect x="9" y="3" width="6" height="4" rx="1"/><path d="M9 14l2 2 4-4"/></svg>
+          Form Audit — ${catLabel}
+        </div>
+        <div style="font-size:0.7rem;color:var(--text-secondary);margin-bottom:8px">${remaining === 0 ? "All fields complete!" : `${remaining} field${remaining > 1 ? "s" : ""} need attention across ${Object.keys(stepStats).filter(s => (stepStats[s]?.empty || 0) > 0 && s !== "0").length} section${Object.keys(stepStats).filter(s => (stepStats[s]?.empty || 0) > 0 && s !== "0").length > 1 ? "s" : ""}`}</div>`;
+
+      for (const stepKey of ["1", "2", "3"]) {
+        const st = stepStats[stepKey];
+        if (!st) continue;
+        const stepTotal = st.filled + st.empty;
+        const pct = stepTotal > 0 ? Math.round((st.filled / stepTotal) * 100) : 100;
+        const barColor = pct === 100 ? "var(--success)" : (pct >= 70 ? "var(--warning)" : "var(--danger)");
+        const statusIcon = pct === 100 ? "&#10004;" : (pct >= 70 ? "&#9888;" : "&#10060;");
+
+        stepOverviewHtml += `
+          <div style="margin-bottom:${st.empty > 0 ? '2' : '8'}px;padding:8px 10px;background:var(--bg);border:1px solid var(--border);border-radius:8px">
             <div style="display:flex;align-items:center;gap:6px;margin-bottom:4px">
-              <span style="font-size:1rem">${f.icon}</span>
-              <strong style="font-size:0.78rem;color:${c.text};flex:1">${f.label}</strong>
-              <span style="font-size:0.62rem;background:${c.badge};color:white;padding:1px 6px;border-radius:8px;white-space:nowrap">${c.badgeText}</span>
+              <span style="font-size:0.9rem">${stepIcons[stepKey] || ""}</span>
+              <strong style="font-size:0.78rem;color:var(--gray-800);flex:1">Step ${stepKey}: ${stepNames[stepKey]}</strong>
+              <span style="font-size:0.7rem;color:${barColor};font-weight:700">${statusIcon} ${pct}%</span>
             </div>
-            <div style="font-size:0.72rem;color:var(--gray-600);margin-bottom:3px">${f.reason}</div>
-            ${f.status !== "manual" ? `<div style="font-size:0.72rem;color:${c.text};font-weight:600">&#128206; ${f.doc}</div>` : ""}
+            <div style="height:4px;background:var(--gray-200);border-radius:2px;overflow:hidden;margin-bottom:4px">
+              <div style="height:100%;width:${pct}%;background:${barColor};border-radius:2px;transition:width 0.3s"></div>
+            </div>
+            <div style="font-size:0.68rem;color:var(--text-secondary)">${st.filled}/${stepTotal} filled${st.empty > 0 ? ` — <span style="color:var(--danger);font-weight:600">${st.empty} missing</span>` : ""}</div>
           </div>`;
-      });
 
-      missingHtml += `</div>`;
-    } else if (remaining === 0 && this.uploadedFiles.some(f => f.status === "success")) {
-      missingHtml = `<div style="margin-top:8px;padding:10px;background:#d1fae5;border-radius:6px;font-size:0.82rem;color:#065f46;text-align:center">
-        <div style="font-size:1.5rem;margin-bottom:4px">&#10004;</div>
-        <strong>All fields filled!</strong><br><span style="font-size:0.75rem">Your documents covered everything.</span>
-      </div>`;
+        if (st.empty > 0 && st.emptyFields.length > 0) {
+          st.emptyFields.forEach(f => {
+            const ef = enrichField(f);
+            const colors = { "missing-doc": { bg: "#dbeafe", border: "#93c5fd", text: "#1e40af", badge: "#2563eb", badgeText: "Upload needed" },
+              "not-found": { bg: "#fef3c7", border: "#fcd34d", text: "#92400e", badge: "#d97706", badgeText: "Not in uploaded doc" },
+              "manual": { bg: "#f3f4f6", border: "#d1d5db", text: "#4b5563", badge: "#6b7280", badgeText: "Fill manually" } };
+            const c = colors[ef.status];
+            stepOverviewHtml += `
+              <div style="margin:0 0 4px 12px;padding:6px 8px;background:${c.bg};border-left:3px solid ${c.border};border-radius:0 6px 6px 0">
+                <div style="display:flex;align-items:center;gap:5px;margin-bottom:2px">
+                  <span style="font-size:0.85rem">${ef.icon}</span>
+                  <strong style="font-size:0.74rem;color:${c.text};flex:1">${ef.label}</strong>
+                  <span style="font-size:0.58rem;background:${c.badge};color:white;padding:1px 5px;border-radius:8px;white-space:nowrap">${c.badgeText}</span>
+                </div>
+                <div style="font-size:0.68rem;color:var(--gray-500)">${ef.reason}</div>
+                ${ef.status !== "manual" ? `<div style="font-size:0.68rem;color:${c.text};font-weight:600;margin-top:2px">&#128206; ${ef.doc}</div>` : ""}
+              </div>`;
+          });
+          stepOverviewHtml += `<div style="height:6px"></div>`;
+        }
+      }
+
+      const docsNeeded = {};
+      emptyFieldNames.forEach(f => {
+        const ef = enrichField(f);
+        if (ef.status !== "manual") {
+          if (!docsNeeded[ef.doc]) docsNeeded[ef.doc] = { count: 0, icon: ef.icon };
+          docsNeeded[ef.doc].count++;
+        }
+      });
+      const docEntries = Object.entries(docsNeeded).sort((a, b) => b[1].count - a[1].count);
+      if (docEntries.length > 0) {
+        stepOverviewHtml += `
+          <div style="margin-top:4px;padding:8px;background:var(--primary-light);border-radius:8px;border:1px solid #93c5fd">
+            <div style="font-size:0.75rem;font-weight:700;color:var(--primary-dark);margin-bottom:5px">&#128203; Documents to Upload</div>
+            ${docEntries.map(([doc, info]) => `<div style="font-size:0.72rem;color:var(--primary-dark);padding:2px 0;display:flex;align-items:center;gap:4px">
+              <span>${info.icon}</span> <strong>${doc}</strong> <span style="color:var(--gray-500)">→ fills ${info.count} field${info.count > 1 ? "s" : ""}</span>
+            </div>`).join("")}
+          </div>`;
+      }
+
+      if (remaining === 0) {
+        stepOverviewHtml += `
+          <div style="margin-top:8px;padding:10px;background:#d1fae5;border-radius:8px;text-align:center;border:1px solid #6ee7b7">
+            <div style="font-size:1.5rem;margin-bottom:2px">&#10004;</div>
+            <strong style="font-size:0.82rem;color:#065f46">All Fields Complete!</strong>
+            <div style="font-size:0.72rem;color:#047857;margin-top:2px">Your documents covered all ${total} fields. Ready for preview & download.</div>
+          </div>`;
+      }
+
+      stepOverviewHtml += `</div>`;
     }
 
     summary.innerHTML = `
       <div class="extraction-item"><span class="extraction-label">Total Fields</span><span class="extraction-count">${total}</span></div>
       <div class="extraction-item"><span class="extraction-label">Auto-filled</span><span class="extraction-count" style="color:var(--success)">${filled}</span></div>
-      <div class="extraction-item"><span class="extraction-label">Remaining</span><span class="extraction-count" style="color:var(--warning)">${remaining}</span></div>
+      <div class="extraction-item"><span class="extraction-label">Remaining</span><span class="extraction-count" style="color:${remaining === 0 ? 'var(--success)' : 'var(--warning)'}">${remaining}</span></div>
       ${Object.entries(sources).map(([k, v]) => `<div class="extraction-item"><span class="extraction-label">${k}</span><span class="extraction-count">${v} fields</span></div>`).join("")}
-      ${missingHtml}
+      ${stepOverviewHtml}
     `;
 
     const badge = document.getElementById("companyFieldCount");
