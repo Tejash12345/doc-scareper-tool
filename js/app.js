@@ -719,8 +719,6 @@ class OnboardingApp {
       this.selectRadio("stockExchangeGroup", fm.listedOnStockExchange);
       this.selectRadio("caseRegisteredGroup", fm.caseRegistered);
       this.selectCheckbox("productsGroup", ["Telegraphic Transfer", "Forex Prepaid Cards", "Foreign Currency Notes"]);
-      if (!document.getElementById("companyWebsite")?.value) setVal("companyWebsite", "NA", "AUTO");
-      if (!document.getElementById("annualFx")?.value) setVal("annualFx", "NA", "AUTO");
 
       const demoDirectors = typeof this.getDirectorNames === "function" ? this.getDirectorNames() : [];
       const demoPersonCount = demoDirectors.length > 0 ? demoDirectors.length : 1;
@@ -1554,20 +1552,6 @@ class OnboardingApp {
     this.selectCheckbox("productsGroup", ["Telegraphic Transfer", "Forex Prepaid Cards", "Foreign Currency Notes"]);
     this.setBadge("products", "AUTO");
 
-    const naIfEmpty = (id, src) => {
-      if (!document.getElementById(id)?.value) setVal(id, "NA", src || "AUTO");
-    };
-    naIfEmpty("companyWebsite");
-    naIfEmpty("annualFx");
-    naIfEmpty("udyamNumber");
-    naIfEmpty("bankName");
-    naIfEmpty("contactMobile");
-    naIfEmpty("contactEmail");
-    naIfEmpty("ceoMobile");
-    naIfEmpty("ceoEmail");
-    naIfEmpty("mdMobile");
-    naIfEmpty("mdEmail");
-
     const directors = typeof this.getDirectorNames === "function" ? this.getDirectorNames() : [];
     const personCount = directors.length > 0 ? directors.length : 1;
     const sharesPct = personCount === 1 ? "100%" : Math.round(100 / personCount) + "%";
@@ -1948,12 +1932,55 @@ class OnboardingApp {
     if (hasUploads) {
       const category = this.activeFormCategory || "cifl";
       const catLabel = document.querySelector("#formCategory")?.selectedOptions?.[0]?.text || category.toUpperCase();
+      const isTxn = ["ciflFit", "ciflMice", "indelFit", "indelMice"].includes(category);
+      const catDocs = {
+        cifl: [
+          { name: "PAN Card", desc: "Company PAN for KYC verification", required: true },
+          { name: "GST Certificate", desc: "GSTIN, legal/trade name, constitution", required: true },
+          { name: "Udyam / MSME Certificate", desc: "Udyam number, business nature, NIC code", required: false },
+          { name: "Bank Statement / Cancelled Cheque", desc: "Bank name, account, IFSC, branch", required: true },
+          { name: "Certificate of Incorporation", desc: "CIN, directors, date of incorporation", required: false },
+          { name: "Shareholder Agreement / MOA", desc: "Beneficial owner details, shareholding %", required: true }
+        ],
+        indel: [
+          { name: "PAN Card", desc: "Company PAN", required: true },
+          { name: "GST Certificate", desc: "GSTIN, legal name, constitution", required: true },
+          { name: "Bank Statement", desc: "Bank details for settlement", required: true },
+          { name: "Udyam / MSME Certificate", desc: "Business details & registration", required: false }
+        ]
+      };
+      if (isTxn) {
+        const txnDocs = [
+          { name: "Invoice / Proforma Invoice", desc: "Amount, currency, beneficiary, travel dates", required: true },
+          { name: "Form A2 (auto-generated)", desc: "Generated from form data", required: false }
+        ];
+        (catDocs[category.startsWith("cifl") ? "cifl" : "indel"] || []).forEach(d => txnDocs.unshift(d));
+        catDocs[category] = txnDocs;
+      }
+      const requiredDocs = catDocs[category] || catDocs[category.startsWith("indel") ? "indel" : "cifl"] || [];
+      const uploadedLower = uploadedDocTypes.join(" ");
+
+      let docChecklistHtml = "";
+      if (requiredDocs.length > 0) {
+        docChecklistHtml = `<div style="margin-bottom:10px;padding:10px;background:linear-gradient(135deg,#f0f9ff,#ede9fe);border-radius:8px;border:1px solid #c7d2fe">
+          <div style="font-size:0.76rem;font-weight:700;color:var(--gray-800);margin-bottom:6px">&#128203; Required Documents for ${catLabel}:</div>
+          ${requiredDocs.map(d => {
+            const uploaded = uploadedLower.split(" ").some(u => d.name.toLowerCase().split("/").some(p => u.includes(p.trim().split(" ")[0].toLowerCase())));
+            return `<div style="display:flex;align-items:start;gap:6px;padding:3px 0;font-size:0.72rem">
+              <span style="color:${uploaded ? 'var(--success)' : 'var(--gray-400)'};font-size:0.85rem;line-height:1">${uploaded ? '&#10004;' : '&#9744;'}</span>
+              <span style="flex:1"><strong style="color:${uploaded ? 'var(--success)' : 'var(--gray-700)'}">${d.name}</strong>${d.required ? '<span style="color:var(--danger);font-size:0.6rem;margin-left:3px">REQUIRED</span>' : ''}<br><span style="color:var(--gray-500);font-size:0.68rem">${d.desc}</span></span>
+            </div>`;
+          }).join("")}
+        </div>`;
+      }
+
       stepOverviewHtml = `<div style="margin-top:10px;border-top:1px solid var(--border);padding-top:10px">
         <div style="font-size:0.82rem;font-weight:700;color:var(--gray-800);margin-bottom:4px;display:flex;align-items:center;gap:5px">
           <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="var(--accent)" stroke-width="2.5"><path d="M9 5H7a2 2 0 0 0-2 2v12a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V7a2 2 0 0 0-2-2h-2"/><rect x="9" y="3" width="6" height="4" rx="1"/><path d="M9 14l2 2 4-4"/></svg>
           Form Audit — ${catLabel}
         </div>
-        <div style="font-size:0.7rem;color:var(--text-secondary);margin-bottom:8px">${remaining === 0 ? "All fields complete!" : `${remaining} field${remaining > 1 ? "s" : ""} need attention across ${Object.keys(stepStats).filter(s => (stepStats[s]?.empty || 0) > 0 && s !== "0").length} section${Object.keys(stepStats).filter(s => (stepStats[s]?.empty || 0) > 0 && s !== "0").length > 1 ? "s" : ""}`}</div>`;
+        <div style="font-size:0.7rem;color:var(--text-secondary);margin-bottom:8px">${remaining === 0 ? "All fields complete!" : `${remaining} field${remaining > 1 ? "s" : ""} need attention across ${Object.keys(stepStats).filter(s => (stepStats[s]?.empty || 0) > 0 && s !== "0").length} section${Object.keys(stepStats).filter(s => (stepStats[s]?.empty || 0) > 0 && s !== "0").length > 1 ? "s" : ""}`}</div>
+        ${docChecklistHtml}`;
 
       for (const stepKey of ["1", "2", "3"]) {
         const st = stepStats[stepKey];
