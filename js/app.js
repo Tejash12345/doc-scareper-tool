@@ -1834,20 +1834,93 @@ class OnboardingApp {
     });
 
     const remaining = total - filled;
-    const hasInvoice = Object.keys(sources).includes("Invoice");
-    const isTxnCategory = ["ciflFit", "ciflMice", "indelFit", "indelMice"].includes(this.activeFormCategory);
-    let tip = "";
-    if (remaining > 0 && isTxnCategory && !hasInvoice) {
-      tip = `<div style="margin-top:8px;padding:8px;background:#fff3cd;border-radius:6px;font-size:0.78rem;color:#856404">Upload an <strong>Invoice PDF</strong> to auto-fill transaction fields (currency, amount, beneficiary, etc.)</div>`;
-    } else if (remaining > 0 && remaining <= 5) {
-      tip = `<div style="margin-top:8px;padding:8px;background:#e8f5e9;border-radius:6px;font-size:0.78rem;color:#2e7d32">Almost done! Fill remaining fields manually or upload more documents.</div>`;
+
+    const getFieldLabel = (el) => {
+      let lbl = el.closest(".form-group")?.querySelector(".form-label")?.textContent?.replace(/\*/g, "").replace(/\d+\.\s*/g, "").trim() || "";
+      if (lbl.length < 4) {
+        const section = el.closest(".sub-card, .form-section");
+        const sectionTitle = section?.querySelector("h3, .sub-card-header, .form-label")?.textContent?.replace(/\*/g, "").replace(/\d+\.\s*/g, "").trim() || "";
+        if (sectionTitle && sectionTitle !== lbl) lbl = sectionTitle + (lbl ? " — " + lbl : "");
+      }
+      if (!lbl || lbl.length < 3) lbl = el.placeholder || el.id.replace(/([A-Z])/g, " $1").trim();
+      return lbl;
+    };
+
+    const emptyFieldNames = [];
+    allInputs.forEach(el => {
+      if (el.id && el.id !== "stockExchangeName" && el.id !== "caseDetails" && !isHiddenByToggle(el) && !el.value.trim()) {
+        emptyFieldNames.push({ label: getFieldLabel(el), id: el.id });
+      }
+    });
+    radioGroups.forEach(g => {
+      if (isHiddenByToggle(g) || g.querySelector(".radio-item.selected")) return;
+      const lbl = g.closest(".form-group")?.querySelector(".form-label")?.textContent?.replace(/\*/g, "").replace(/\d+\.\s*/g, "").trim() || "Selection";
+      emptyFieldNames.push({ label: lbl, id: "" });
+    });
+
+    const docMap = {
+      "GST Certificate / Udyam Certificate": ["gstin", "gst", "udyam", "legal", "trade", "constitution", "nature", "nic", "business"],
+      "PAN Card": ["pan"],
+      "Bank Statement / Cancelled Cheque": ["bank", "ifsc", "branch", "account"],
+      "Invoice / Proforma Invoice": ["invoice", "currency", "amount", "beneficiary", "swift", "iban", "destination", "travel", "pax", "txn"],
+      "Certificate of Incorporation / MOA": ["incorporation", "cin", "registered", "director", "authorized"],
+      "Company Letterhead / Website": ["website", "email", "mobile", "phone", "contact"],
+      "Board Resolution": ["official", "signatory", "authorized"]
+    };
+
+    const neededDocs = {};
+    emptyFieldNames.forEach(f => {
+      const key = (f.label + " " + f.id).toLowerCase();
+      for (const [doc, keywords] of Object.entries(docMap)) {
+        if (keywords.some(kw => key.includes(kw))) {
+          if (!neededDocs[doc]) neededDocs[doc] = [];
+          neededDocs[doc].push(f.label);
+          return;
+        }
+      }
+      if (!neededDocs["Other / Manual Entry"]) neededDocs["Other / Manual Entry"] = [];
+      neededDocs["Other / Manual Entry"].push(f.label);
+    });
+
+    const uploadedDocTypes = this.uploadedFiles.filter(f => f.status === "success").map(f => (f.docType || "").replace(" + AI", "").toLowerCase());
+
+    let missingHtml = "";
+    if (remaining > 0 && this.uploadedFiles.some(f => f.status === "success")) {
+      const entries = Object.entries(neededDocs).filter(([, fields]) => fields.length > 0);
+      if (entries.length > 0) {
+        missingHtml = `<div style="margin-top:10px;border-top:1px solid var(--border);padding-top:10px">
+          <div style="font-size:0.78rem;font-weight:600;color:var(--gray-700);margin-bottom:6px;display:flex;align-items:center;gap:4px">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="var(--accent)" stroke-width="2"><circle cx="12" cy="12" r="10"/><line x1="12" y1="16" x2="12" y2="12"/><line x1="12" y1="8" x2="12.01" y2="8"/></svg>
+            Missing Fields Analysis
+          </div>`;
+        for (const [doc, fields] of entries) {
+          const isUploaded = uploadedDocTypes.some(d => doc.toLowerCase().split("/").some(part => d.includes(part.trim().split(" ")[0].toLowerCase())));
+          const bgColor = doc === "Other / Manual Entry" ? "#f3f4f6" : (isUploaded ? "#fef3c7" : "#dbeafe");
+          const textColor = doc === "Other / Manual Entry" ? "var(--gray-600)" : (isUploaded ? "#92400e" : "var(--primary-dark)");
+          const hint = doc === "Other / Manual Entry" ? "Fill these manually" : (isUploaded ? "Uploaded but info not found in doc" : "Upload this document");
+          missingHtml += `
+            <div style="margin-bottom:6px;padding:8px;background:${bgColor};border-radius:6px">
+              <div style="font-size:0.75rem;font-weight:600;color:${textColor};margin-bottom:3px">${doc}</div>
+              <div style="font-size:0.7rem;color:var(--gray-500);margin-bottom:4px;font-style:italic">${hint}</div>
+              <div style="display:flex;flex-wrap:wrap;gap:3px">
+                ${fields.map(f => `<span style="font-size:0.68rem;background:white;border:1px solid var(--border);padding:1px 5px;border-radius:3px">${f}</span>`).join("")}
+              </div>
+            </div>`;
+        }
+        missingHtml += `</div>`;
+      }
+    } else if (remaining === 0 && this.uploadedFiles.some(f => f.status === "success")) {
+      missingHtml = `<div style="margin-top:8px;padding:8px;background:#d1fae5;border-radius:6px;font-size:0.78rem;color:#065f46;text-align:center">
+        <strong>&#10003; All fields filled!</strong> Your documents covered everything.
+      </div>`;
     }
+
     summary.innerHTML = `
       <div class="extraction-item"><span class="extraction-label">Total Fields</span><span class="extraction-count">${total}</span></div>
       <div class="extraction-item"><span class="extraction-label">Auto-filled</span><span class="extraction-count" style="color:var(--success)">${filled}</span></div>
       <div class="extraction-item"><span class="extraction-label">Remaining</span><span class="extraction-count" style="color:var(--warning)">${remaining}</span></div>
       ${Object.entries(sources).map(([k, v]) => `<div class="extraction-item"><span class="extraction-label">${k}</span><span class="extraction-count">${v} fields</span></div>`).join("")}
-      ${tip}
+      ${missingHtml}
     `;
 
     const badge = document.getElementById("companyFieldCount");
