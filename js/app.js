@@ -10,6 +10,7 @@ class OnboardingApp {
     this.totalFields = 0;
     this.theme = localStorage.getItem("theme") || "light";
     this.geminiKey = localStorage.getItem("geminiApiKey") || "";
+    this.allExtractedTexts = [];
     this.init();
   }
 
@@ -73,9 +74,9 @@ class OnboardingApp {
             <div class="card-body">
               <div class="upload-zone" id="uploadZone">
                 <svg width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="12" y1="18" x2="12" y2="12"/><polyline points="9 15 12 12 15 15"/></svg>
-                <h3>Drop PDFs here</h3>
-                <p>Bank Statement, Udyam Certificate, or any KYC document</p>
-                <input type="file" id="fileInput" accept=".pdf" multiple>
+                <h3>Drop files here</h3>
+                <p>PDF, PNG, JPG — any corporate or KYC document</p>
+                <input type="file" id="fileInput" accept=".pdf,.png,.jpg,.jpeg,.webp" multiple>
               </div>
               <div class="uploaded-files" id="uploadedFiles"></div>
             </div>
@@ -96,6 +97,13 @@ class OnboardingApp {
                 </div>
               </div>
               <div class="extraction-summary" id="extractionSummary" style="margin-top:16px"></div>
+              <div id="reAnalyzeWrap" style="display:none;margin-top:12px;text-align:center">
+                <button onclick="app.reAnalyzeWithAi()" style="background:linear-gradient(135deg,#7c3aed,#a855f7);color:#fff;border:none;padding:8px 18px;border-radius:8px;font-size:0.82rem;font-weight:600;cursor:pointer;display:inline-flex;align-items:center;gap:6px;box-shadow:0 2px 8px rgba(124,58,237,0.3)">
+                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 2l-2 2m-7.61 7.61a5.5 5.5 0 1 1-7.778 7.778 5.5 5.5 0 0 1 7.777-7.777zm0 0L15.5 7.5m0 0l3 3L22 7l-3-3m-3.5 3.5L19 4"/></svg>
+                  Re-analyze with AI
+                </button>
+                <div style="font-size:0.7rem;color:var(--text-muted);margin-top:4px">AI will cross-reference all docs to fill gaps</div>
+              </div>
             </div>
           </div>
           <div class="card" id="aiInsightsCard" style="display:none">
@@ -166,18 +174,18 @@ class OnboardingApp {
             <div class="empty-state">
               <svg width="64" height="64" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/><polyline points="10 9 9 9 8 9"/></svg>
               <h3>Upload Your Documents to Begin</h3>
-              <p>Upload any company PDF documents - Bank Statements, Udyam Certificates, PAN Cards, GST Certificates, CoI, Aadhaar, Trade Licenses - and the system will automatically extract data and fill all onboarding forms.</p>
+              <p>Upload PDF documents or images (PNG/JPG) — Bank Statements, Udyam Certificates, PAN Cards, GST Certificates, CoI, Invoices, Cancelled Cheques — and AI will automatically extract data and fill all forms.</p>
               <div style="display:flex;gap:12px;flex-wrap:wrap;justify-content:center;margin-top:20px">
                 <button class="btn btn-primary btn-lg" onclick="document.getElementById('fileInput').click()">
                   <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>
-                  Select PDF Files
+                  Select Files
                 </button>
                 <button class="btn btn-success btn-lg" onclick="app.loadPreAnalyzedData()">
                   <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/><polyline points="22 4 12 14.01 9 11.01"/></svg>
                   Load Demo Data
                 </button>
               </div>
-              <p style="margin-top:12px;font-size:0.8rem;color:var(--text-secondary)">Supported: Bank Statements, Udyam/MSME, PAN, GST, Certificate of Incorporation, Aadhaar, Trade License</p>
+              <p style="margin-top:12px;font-size:0.8rem;color:var(--text-secondary)">Supported: PDF, PNG, JPG &bull; Bank Statements, Udyam/MSME, PAN, GST, CoI, Invoices, Cancelled Cheques, Aadhaar</p>
               <p style="font-size:0.75rem;color:var(--text-secondary);margin-top:4px">Or click "Load Demo Data" to see a sample auto-fill</p>
             </div>
           </div>
@@ -738,16 +746,152 @@ class OnboardingApp {
   }
 
   async handleFiles(files) {
+    const supported = ["application/pdf", "image/png", "image/jpeg", "image/webp"];
     for (const file of files) {
-      if (file.type !== "application/pdf") {
-        this.showToast("Only PDF files are supported", "error");
+      if (!supported.includes(file.type)) {
+        this.showToast("Supported: PDF, PNG, JPG, WEBP", "error");
         continue;
       }
       if (this.uploadedFiles.find(f => f.name === file.name)) {
         this.showToast(`${file.name} already uploaded`, "warning");
         continue;
       }
-      await this.processFile(file);
+      if (file.type.startsWith("image/")) {
+        await this.processImageFile(file);
+      } else {
+        await this.processFile(file);
+      }
+    }
+  }
+
+  async processImageFile(file) {
+    const fileId = Date.now() + Math.random().toString(36).substring(2);
+    this.uploadedFiles.push({ id: fileId, name: file.name, status: "processing", file });
+    this.renderUploadedFiles();
+
+    try {
+      let text = "";
+      if (typeof Tesseract !== "undefined") {
+        this.showLoading("Running OCR on image...", `Reading ${file.name}`);
+        const worker = await Tesseract.createWorker("eng");
+        const { data } = await worker.recognize(file);
+        text = data.text || "";
+        await worker.terminate();
+      }
+
+      if (this.geminiKey) {
+        this.showLoading("AI analyzing image...", `Gemini Vision reading ${file.name}`);
+        const visionResult = await this.extractImageWithGemini(file);
+        if (visionResult) {
+          if (visionResult._rawText && visionResult._rawText.length > text.length) text = visionResult._rawText;
+          delete visionResult._rawText;
+          const docType = this.detectDocumentType(text);
+          let extracted = this.extractFields(text, docType);
+          extracted = this.mergeAiExtraction(extracted, visionResult);
+          this.allExtractedTexts.push({ filename: file.name, docType, text: text.substring(0, 12000) });
+
+          const idx = this.uploadedFiles.findIndex(f => f.id === fileId);
+          if (idx >= 0) {
+            this.uploadedFiles[idx].status = "success";
+            this.uploadedFiles[idx].docType = docType + " + AI Vision";
+            this.uploadedFiles[idx].fieldsExtracted = Object.keys(extracted).length;
+          }
+          Object.assign(this.extractedData, extracted);
+          this.autoFillForm();
+          this.renderUploadedFiles();
+          this.updateAccuracy();
+          this.hideLoading();
+          this.showToast(`Image processed with AI Vision - ${Object.keys(extracted).length} fields extracted`, "success");
+          this.validateExtractedFields();
+          this.analyzeGapsWithGemini();
+          if (this.uploadedFiles.filter(f => f.status === "success").length > 0) setTimeout(() => this.goToStep(1), 600);
+          return;
+        }
+      }
+
+      if (!text || text.trim().length < 20) {
+        throw new Error("Could not extract text from image. Enable AI (Gemini) for image analysis.");
+      }
+
+      const docType = this.detectDocumentType(text);
+      let extracted = this.extractFields(text, docType);
+      const idx = this.uploadedFiles.findIndex(f => f.id === fileId);
+      if (idx >= 0) {
+        this.uploadedFiles[idx].status = "success";
+        this.uploadedFiles[idx].docType = docType + " (OCR)";
+        this.uploadedFiles[idx].fieldsExtracted = Object.keys(extracted).length;
+      }
+      Object.assign(this.extractedData, extracted);
+      this.autoFillForm();
+      this.renderUploadedFiles();
+      this.updateAccuracy();
+      this.hideLoading();
+      this.showToast(`Image OCR: ${Object.keys(extracted).length} fields extracted`, "success");
+      if (this.uploadedFiles.filter(f => f.status === "success").length > 0) setTimeout(() => this.goToStep(1), 600);
+    } catch (err) {
+      const idx = this.uploadedFiles.findIndex(f => f.id === fileId);
+      if (idx >= 0) this.uploadedFiles[idx].status = "error";
+      this.renderUploadedFiles();
+      this.hideLoading();
+      this.showToast(`Error: ${err.message}`, "error");
+    }
+  }
+
+  async extractImageWithGemini(file) {
+    if (!this.geminiKey) return null;
+    const base64 = await new Promise((resolve, reject) => {
+      const reader = new FileReader();
+      reader.onload = () => resolve(reader.result.split(",")[1]);
+      reader.onerror = () => reject(new Error("Failed to read image"));
+      reader.readAsDataURL(file);
+    });
+    const mimeType = file.type || "image/jpeg";
+    const cat = this.activeFormCategory || "cifl";
+    const catLabel = { cifl: "CIFL Onboarding", indel: "Indel Onboarding", ciflFit: "CIFL FIT Transactions", ciflMice: "CIFL MICE Transactions", indelFit: "Indel FIT Transactions", indelMice: "Indel MICE Transactions" }[cat] || "Corporate Onboarding";
+    const isTxn = cat.includes("Fit") || cat.includes("Mice") || cat.includes("fit") || cat.includes("mice");
+
+    const prompt = `You are an expert at reading Indian business/corporate documents from images. This image is uploaded for a "${catLabel}" form.
+
+Extract ALL data you can see in this image into a JSON object. Read every word, number, stamp, header, watermark, table cell.
+
+Return this structure (use "" for not found):
+{
+  "companyName": "", "legalName": "", "tradeName": "",
+  "registeredAddress": "", "city": "", "state": "", "pinCode": "",
+  "panNumber": "10-char PAN", "gstNumber": "15-char GSTIN", "cinNumber": "",
+  "udyamNumber": "", "msmeCategory": "",
+  "dateOfIncorporation": "DD/MM/YYYY",
+  "constitution": "Private Limited/LLP/Partnership/Proprietorship/etc",
+  "natureOfBusiness": "", "website": "",
+  "contactPerson": "", "contactDesignation": "", "contactMobile": "", "contactEmail": "",
+  "directors": [{"name": "", "designation": "", "pan": "", "dob": "DD/MM/YYYY"}],
+  "bankName": "", "bankBranch": "", "bankAccountNumber": "", "bankIfsc": "", "bankAccountType": "",
+  ${isTxn ? '"invoiceNumber": "", "invoiceAmount": "", "invoiceCurrency": "", "destination": "", "travelDateFrom": "", "travelDateTo": "", "numberOfTravelers": "", "beneficiaryName": "", "beneficiaryBank": "", "swiftCode": "", "iban": "",' : ""}
+  "_rawText": "paste ALL visible text from the image here for backup extraction"
+}
+
+RULES: Return ONLY valid JSON. PAN = 5 letters + 4 digits + 1 letter. GSTIN = 15 chars. Dates = DD/MM/YYYY. Amounts = numbers only.`;
+
+    try {
+      const resp = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${this.geminiKey}`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          contents: [{ parts: [
+            { text: prompt },
+            { inlineData: { mimeType, data: base64 } }
+          ]}],
+          generationConfig: { temperature: 0.05, maxOutputTokens: 4096 }
+        })
+      });
+      if (!resp.ok) return null;
+      const data = await resp.json();
+      const content = data.candidates?.[0]?.content?.parts?.[0]?.text || "";
+      const jsonStr = content.replace(/```json\s*/g, "").replace(/```\s*/g, "").trim();
+      return JSON.parse(jsonStr);
+    } catch (e) {
+      console.warn("Gemini Vision extraction failed:", e);
+      return null;
     }
   }
 
@@ -758,13 +902,15 @@ class OnboardingApp {
     this.showLoading("Extracting data...", `Processing ${file.name}`);
 
     try {
+      const prevAccuracy = this.getAccuracyPercent();
       const text = await this.extractPdfText(file);
       const docType = this.detectDocumentType(text);
       let extracted = this.extractFields(text, docType);
 
       if (this.geminiKey) {
         this.showLoading("AI analyzing document...", `Gemini is reading ${file.name}`);
-        const aiResult = await this.extractWithGemini(text, file.name);
+        this.allExtractedTexts.push({ filename: file.name, docType, text: text.substring(0, 12000) });
+        const aiResult = await this.extractWithGemini(text, file.name, docType);
         if (aiResult) {
           extracted = this.mergeAiExtraction(extracted, aiResult);
         }
@@ -782,9 +928,18 @@ class OnboardingApp {
       this.renderUploadedFiles();
       this.updateAccuracy();
       this.hideLoading();
-      this.showToast(`${docType} processed - ${Object.keys(extracted).length} fields extracted${this.geminiKey ? " (AI enhanced)" : ""}`, "success");
+      const newAccuracy = this.getAccuracyPercent();
+      const boost = newAccuracy - prevAccuracy;
+      const boostText = boost > 0 ? ` (+${boost}% accuracy)` : "";
+      this.showToast(`${docType} processed - ${Object.keys(extracted).length} fields extracted${this.geminiKey ? " (AI enhanced)" : ""}${boostText}`, "success");
+      this.validateExtractedFields();
 
       if (this.geminiKey) {
+        const successCount = this.uploadedFiles.filter(f => f.status === "success").length;
+        if (successCount === 1) this.suggestFormCategory(docType, extracted);
+        if (successCount >= 2 && this.allExtractedTexts.length >= 2) {
+          await this.smartReExtract();
+        }
         this.analyzeGapsWithGemini();
       }
 
@@ -1535,6 +1690,13 @@ class OnboardingApp {
     if (d.bankAccountNumber) setVal("bankAccountNo", d.bankAccountNumber, "BANK");
     if (d.bankIfsc) setVal("bankIfsc", d.bankIfsc, "BANK");
     if (d.bankBranch) setVal("bankBranch", d.bankBranch, "BANK");
+    if (d.bankAccountType) setVal("accountType", d.bankAccountType, "BANK");
+    if (d.annualFxEstimate) setVal("annualFx", d.annualFxEstimate, "AI");
+    if (d.annualTurnover && !d.annualFxEstimate) setVal("annualFx", d.annualTurnover, "AI");
+    if (d.principalPlace && !document.getElementById("principalPlace")?.value) setVal("principalPlace", d.principalPlace, "AI");
+    if (d.cinNumber) setVal("cinNumber", d.cinNumber, "AI");
+    if (d.authorizedSignatory && !document.getElementById("signatoryName")?.value) setVal("signatoryName", d.authorizedSignatory, "AI");
+    if (d.purposeOfRemittance) setVal("txnPurpose", d.purposeOfRemittance, "INV");
     if (d.genericPerson && !cleanName) {
       setVal("contactName", d.genericPerson, "INV");
       setVal("signatoryName", d.genericPerson, "INV");
@@ -1556,6 +1718,114 @@ class OnboardingApp {
     const personCount = directors.length > 0 ? directors.length : 1;
     const sharesPct = personCount === 1 ? "100%" : Math.round(100 / personCount) + "%";
     if (!document.getElementById("sharesPercent")?.value) setVal("sharesPercent", sharesPct, "AUTO");
+
+    this.applySmartDerivations();
+  }
+
+  applySmartDerivations() {
+    const getVal = (id) => document.getElementById(id)?.value?.trim() || "";
+    const setIfEmpty = (id, val, source) => {
+      const el = document.getElementById(id);
+      if (el && !el.value.trim() && val) { el.value = val; el.classList.add("auto-filled"); if (source) this.setBadge(id, source); }
+    };
+
+    const gst = getVal("gstNo");
+    if (gst && gst.length === 15) {
+      const panFromGst = gst.substring(2, 12);
+      if (/^[A-Z]{5}\d{4}[A-Z]$/.test(panFromGst)) setIfEmpty("panNo", panFromGst, "GST");
+      const stateCode = gst.substring(0, 2);
+      const stateMap = { "01": "Jammu & Kashmir", "02": "Himachal Pradesh", "03": "Punjab", "04": "Chandigarh", "05": "Uttarakhand", "06": "Haryana", "07": "Delhi", "08": "Rajasthan", "09": "Uttar Pradesh", "10": "Bihar", "11": "Sikkim", "12": "Arunachal Pradesh", "13": "Nagaland", "14": "Manipur", "15": "Mizoram", "16": "Tripura", "17": "Meghalaya", "18": "Assam", "19": "West Bengal", "20": "Jharkhand", "21": "Odisha", "22": "Chhattisgarh", "23": "Madhya Pradesh", "24": "Gujarat", "25": "Daman & Diu", "26": "Dadra & Nagar Haveli", "27": "Maharashtra", "29": "Karnataka", "30": "Goa", "31": "Lakshadweep", "32": "Kerala", "33": "Tamil Nadu", "34": "Puducherry", "35": "Andaman & Nicobar", "36": "Telangana", "37": "Andhra Pradesh" };
+      const stateName = stateMap[stateCode];
+      if (stateName) {
+        const addrEl = document.getElementById("registeredAddress");
+        if (addrEl && addrEl.value && !addrEl.value.includes(stateName)) {
+          const pin = addrEl.value.match(/\d{6}/);
+          if (!addrEl.value.toLowerCase().includes(stateName.toLowerCase())) {
+            addrEl.value = addrEl.value.replace(/\s*$/, "") + (pin ? "" : ", " + stateName);
+          }
+        }
+      }
+    }
+
+    const ifsc = getVal("ifscCode") || getVal("bankIfsc");
+    if (ifsc && ifsc.length >= 4) {
+      const ifscBankMap = { "SBIN": "State Bank of India", "HDFC": "HDFC Bank", "ICIC": "ICICI Bank", "UTIB": "Axis Bank", "KKBK": "Kotak Mahindra Bank", "PUNB": "Punjab National Bank", "BARB": "Bank of Baroda", "CNRB": "Canara Bank", "IDIB": "Indian Bank", "BKID": "Bank of India", "IOBA": "Indian Overseas Bank", "CBOI": "Central Bank of India", "UCBA": "UCO Bank", "YESB": "YES Bank", "INDB": "IndusInd Bank", "FDRL": "Federal Bank", "IBKL": "IDBI Bank", "BDBL": "Bandhan Bank", "RATN": "RBL Bank", "UBIN": "Union Bank of India", "MAHB": "Bank of Maharashtra" };
+      const bankFromIfsc = ifscBankMap[ifsc.substring(0, 4).toUpperCase()];
+      if (bankFromIfsc) setIfEmpty("bankName", bankFromIfsc, "BANK");
+    }
+
+    const contactName = getVal("contactName");
+    if (contactName) {
+      setIfEmpty("signatoryName", contactName, "AUTO");
+      setIfEmpty("kmpName", contactName, "AUTO");
+      setIfEmpty("ceoName", contactName, "AUTO");
+      setIfEmpty("mdName", contactName, "AUTO");
+    }
+    const contactMob = getVal("contactMobile");
+    if (contactMob) {
+      setIfEmpty("ceoMobile", contactMob, "AUTO");
+      setIfEmpty("mdMobile", contactMob, "AUTO");
+    }
+    const contactEm = getVal("contactEmail");
+    if (contactEm) {
+      setIfEmpty("ceoEmail", contactEm, "AUTO");
+      setIfEmpty("mdEmail", contactEm, "AUTO");
+    }
+    const contactDesig = getVal("contactDesignation");
+    if (contactDesig) setIfEmpty("signatoryDesignation", contactDesig, "AUTO");
+
+    const addr = getVal("registeredAddress");
+    if (addr && addr.length > 10) {
+      const pinM = addr.match(/\b(\d{6})\b/);
+      if (pinM) {
+        const pinEl = document.querySelector("#registeredAddress")?.closest(".form-section")?.querySelector('[id*="pin"], [id*="Pin"]');
+        if (pinEl && !pinEl.value.trim()) { pinEl.value = pinM[1]; pinEl.classList.add("auto-filled"); }
+      }
+      const stateNames = ["Andhra Pradesh","Arunachal Pradesh","Assam","Bihar","Chhattisgarh","Goa","Gujarat","Haryana","Himachal Pradesh","Jharkhand","Karnataka","Kerala","Madhya Pradesh","Maharashtra","Manipur","Meghalaya","Mizoram","Nagaland","Odisha","Punjab","Rajasthan","Sikkim","Tamil Nadu","Telangana","Tripura","Uttar Pradesh","Uttarakhand","West Bengal","Delhi","Chandigarh","Puducherry","Jammu & Kashmir","Ladakh"];
+      for (const st of stateNames) {
+        if (addr.toLowerCase().includes(st.toLowerCase())) {
+          this.extractedData.state = st;
+          break;
+        }
+      }
+      const cityNames = ["Mumbai","Delhi","Bangalore","Bengaluru","Hyderabad","Chennai","Kolkata","Pune","Ahmedabad","Jaipur","Lucknow","Surat","Kanpur","Nagpur","Indore","Bhopal","Patna","Vadodara","Ghaziabad","Ludhiana","Agra","Nashik","Coimbatore","Ranchi","Guwahati","Visakhapatnam","Chandigarh","Thiruvananthapuram","Kochi","Bhubaneswar","Dehradun","Noida","Gurugram","Gurgaon","Thane","Navi Mumbai","Sonitpur","Tezpur"];
+      for (const ct of cityNames) {
+        if (addr.toLowerCase().includes(ct.toLowerCase())) {
+          this.extractedData.city = ct;
+          break;
+        }
+      }
+    }
+
+    const regName = getVal("registeredName");
+    if (regName) setIfEmpty("legalEntityName", regName, "AUTO");
+
+    const pan = getVal("panNo");
+    if (pan && pan.length === 10) {
+      const fourthChar = pan[3];
+      const entityTypes = { "C": "Private Limited Company", "P": "Proprietorship", "F": "Partnership Firm", "A": "Association of Persons", "T": "Trust", "H": "HUF", "L": "Public Limited Company", "J": "Joint Venture", "G": "Government" };
+      const derivedType = entityTypes[fourthChar];
+      if (derivedType) {
+        const lsGroup = document.getElementById("legalStatusGroup");
+        if (lsGroup && !lsGroup.querySelector(".radio-item.selected")) {
+          this.selectRadio("legalStatusGroup", derivedType === "Private Limited Company" ? "Private Limited Company" : derivedType === "Partnership Firm" ? "Partnership" : derivedType === "Proprietorship" ? "Proprietorship" : derivedType);
+          this.setBadge("legalStatus", "PAN");
+        }
+      }
+    }
+
+    const bo1Name = document.querySelector("#boRows .bo-name");
+    if (bo1Name && !bo1Name.value.trim()) {
+      const dirName = document.getElementById("directorName1")?.value?.replace(/\s*\(.*?\)\s*$/, "").trim();
+      if (dirName) {
+        bo1Name.value = dirName;
+        bo1Name.classList.add("auto-filled");
+        const bo1Pan = document.querySelector("#boRows .bo-pan");
+        if (bo1Pan && !bo1Pan.value.trim() && pan) { bo1Pan.value = pan; bo1Pan.classList.add("auto-filled"); }
+        const bo1Share = document.querySelector("#boRows .bo-share");
+        if (bo1Share && !bo1Share.value.trim()) { bo1Share.value = "100%"; bo1Share.classList.add("auto-filled"); }
+      }
+    }
   }
 
   setBadge(fieldId, source) {
@@ -2067,6 +2337,31 @@ class OnboardingApp {
 
     const badge = document.getElementById("companyFieldCount");
     if (badge) badge.textContent = filled;
+
+    const reBtn = document.getElementById("reAnalyzeWrap");
+    if (reBtn) reBtn.style.display = (this.geminiKey && remaining > 0 && this.uploadedFiles.some(f => f.status === "success")) ? "" : "none";
+  }
+
+  async reAnalyzeWithAi() {
+    if (!this.geminiKey) { this.showToast("Set your Gemini API key in Settings first", "error"); return; }
+    const btn = document.querySelector("#reAnalyzeWrap button");
+    if (btn) { btn.disabled = true; btn.innerHTML = '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="animation:spin 1s linear infinite"><path d="M21 12a9 9 0 1 1-6.219-8.56"/></svg> Analyzing...'; }
+    try {
+      const prevAcc = this.getAccuracyPercent();
+      this.cleanExtractedData();
+      this.applySmartDerivations();
+      if (this.allExtractedTexts.length > 0) await this.smartReExtract();
+      this.validateExtractedFields();
+      this.updateAccuracy();
+      const newAcc = this.getAccuracyPercent();
+      const boost = newAcc - prevAcc;
+      if (this.geminiKey) this.analyzeGapsWithGemini();
+      this.showToast(`AI re-analysis complete: ${newAcc}%${boost > 0 ? " (+" + boost + "%)" : ""}`, "success");
+    } catch (e) {
+      this.showToast("Re-analysis failed: " + e.message, "error");
+    } finally {
+      if (btn) { btn.disabled = false; btn.innerHTML = '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 2l-2 2m-7.61 7.61a5.5 5.5 0 1 1-7.778 7.778 5.5 5.5 0 0 1 7.777-7.777zm0 0L15.5 7.5m0 0l3 3L22 7l-3-3m-3.5 3.5L19 4"/></svg> Re-analyze with AI'; }
+    }
   }
 
   renderUploadedFiles() {
@@ -5013,60 +5308,115 @@ class OnboardingApp {
     }
   }
 
-  async extractWithGemini(text, filename) {
-    if (!this.geminiKey) return null;
-    const prompt = `You are a document data extraction expert. Extract ALL possible fields from this document text into a JSON object.
+  buildGeminiPrompt(text, filename, docType) {
+    const cat = this.activeFormCategory || "cifl";
+    const isTxn = cat.includes("Fit") || cat.includes("Mice") || cat.includes("fit") || cat.includes("mice");
+    const catLabel = { cifl: "CIFL Onboarding", indel: "Indel Onboarding", ciflFit: "CIFL FIT Transactions", ciflMice: "CIFL MICE Transactions", indelFit: "Indel FIT Transactions", indelMice: "Indel MICE Transactions" }[cat] || "Corporate Onboarding";
 
-The document is: "${filename}"
+    const companyFields = `
+  "companyName": "registered company/firm/entity name as on official documents",
+  "legalName": "legal name if different from trade/brand name",
+  "tradeName": "trade name / brand name / DBA name",
+  "registeredAddress": "complete registered office address with building, street, area",
+  "principalPlace": "principal place of business if different from registered address",
+  "city": "city name",
+  "state": "state name",
+  "pinCode": "6-digit PIN code",
+  "panNumber": "10-character PAN (e.g. AABCU9603R) — entity PAN, not personal",
+  "gstNumber": "15-character GSTIN (e.g. 27AABCU9603R1ZM)",
+  "cinNumber": "Corporate Identity Number (CIN) for companies",
+  "udyamNumber": "Udyam/MSME registration number (e.g. UDYAM-XX-00-0000000)",
+  "msmeCategory": "Micro/Small/Medium enterprise classification",
+  "dateOfIncorporation": "date of incorporation/registration in DD/MM/YYYY",
+  "constitution": "Private Limited Company/LLP/Partnership Firm/Proprietorship/Trust/Society/Public Limited/HUF",
+  "natureOfBusiness": "detailed description of business activity/industry",
+  "nicCode": "NIC code or industry classification code",
+  "website": "company website URL",
+  "annualTurnover": "annual turnover or revenue figure",
+  "annualFxEstimate": "estimated annual foreign exchange volume/requirement"`;
 
-EXTRACT THESE FIELDS (return empty string "" if not found):
-{
-  "companyName": "company/firm/entity name",
-  "legalName": "legal name if different from trade name",
-  "tradeName": "trade/brand name",
-  "registeredAddress": "full registered/office address",
-  "city": "", "state": "", "pinCode": "",
-  "panNumber": "10-char PAN (e.g. AABCU9603R)",
-  "gstNumber": "15-char GSTIN",
-  "udyamNumber": "UDYAM registration number",
-  "dateOfIncorporation": "DD/MM/YYYY",
-  "constitution": "Private Limited/LLP/Partnership/Proprietorship/etc",
-  "natureOfBusiness": "business activity description",
-  "contactPerson": "name of director/partner/proprietor/contact",
-  "contactDesignation": "Director/Partner/Proprietor/etc",
-  "contactMobile": "10-digit mobile",
+    const personFields = `
+  "contactPerson": "primary contact person's full name",
+  "contactDesignation": "designation (Director/Partner/Proprietor/CEO/CFO/Manager/Authorized Signatory)",
+  "contactMobile": "10-digit Indian mobile number",
   "contactEmail": "email address",
-  "directors": ["list of director/partner names"],
-  "bankName": "bank name",
-  "bankAccountNumber": "account number",
-  "bankIfsc": "IFSC code",
-  "bankBranch": "branch name",
-  "invoiceNumber": "invoice/bill number",
-  "invoiceAmount": "total/grand total amount (number only)",
-  "invoiceCurrency": "3-letter currency code (USD/EUR/INR/etc)",
-  "destination": "travel destination country",
-  "travelDateFrom": "start date",
-  "travelDateTo": "end date",
-  "numberOfTravelers": "passenger/traveler count",
-  "beneficiaryName": "beneficiary/payee name",
-  "beneficiaryBank": "beneficiary bank name",
-  "beneficiaryAccount": "beneficiary account number",
-  "beneficiaryBankAddress": "beneficiary bank address",
-  "swiftCode": "SWIFT/BIC code",
+  "directors": [{"name": "full name", "designation": "Director/Partner/Trustee/etc", "din": "DIN number if available", "pan": "PAN if shown", "dob": "DD/MM/YYYY", "mobile": "phone", "email": "email"}],
+  "authorizedSignatory": "name of authorized signatory for banking/forex",
+  "signatoryDesignation": "designation of authorized signatory"`;
+
+    const bankFields = `
+  "bankName": "bank name (e.g. State Bank of India, HDFC Bank)",
+  "bankBranch": "branch name and/or address",
+  "bankAccountNumber": "bank account number",
+  "bankAccountType": "Savings/Current/CC/OD",
+  "bankIfsc": "11-character IFSC code (e.g. SBIN0001234)",
+  "bankMicr": "MICR code if available"`;
+
+    const txnFields = isTxn ? `
+  "invoiceNumber": "invoice/proforma/quotation number",
+  "invoiceDate": "invoice date in DD/MM/YYYY",
+  "invoiceAmount": "total amount as number only (e.g. 50000.00 not USD 50,000.00)",
+  "invoiceCurrency": "3-letter currency code (USD/EUR/GBP/AED/THB/SGD/etc)",
+  "destination": "destination country for travel/service",
+  "travelDateFrom": "travel start date DD/MM/YYYY",
+  "travelDateTo": "travel end date DD/MM/YYYY",
+  "numberOfTravelers": "number of passengers/travelers",
+  "purposeOfRemittance": "purpose (leisure travel/business travel/medical/education/conference/exhibition)",
+  "beneficiaryName": "overseas beneficiary/payee/hotel/DMC name",
+  "beneficiaryBank": "beneficiary's bank name",
+  "beneficiaryAccount": "beneficiary account/IBAN number",
+  "beneficiaryBankAddress": "beneficiary bank full address with country",
+  "swiftCode": "SWIFT/BIC code (8 or 11 characters)",
   "iban": "IBAN number",
-  "website": "company website"
+  "correspondentBank": "correspondent/intermediary bank if mentioned",
+  "correspondentSwift": "correspondent bank SWIFT code"` : "";
+
+    const docHints = {
+      "GST Certificate": "Focus on: GSTIN, legal name, trade name, address, constitution type, date of registration, PAN (embedded in GSTIN positions 3-12).",
+      "PAN Card": "Focus on: PAN number (10-char alphanumeric), name on PAN, date of birth/incorporation, father's name if individual PAN.",
+      "Udyam Certificate": "Focus on: Udyam number, enterprise name, type (Micro/Small/Medium), NIC code, address, date of incorporation, owner name, mobile, email, Aadhaar-linked PAN, plant/office addresses.",
+      "Certificate of Incorporation": "Focus on: CIN, company name, date of incorporation, registered office address, authorized capital, paid-up capital, directors listed.",
+      "Bank Statement": "Focus on: account holder name, account number, bank name, branch, IFSC, MICR, account type, address, opening date.",
+      "Invoice": "Focus on: invoice number, date, seller/buyer names, amounts, currency, GSTIN of parties, HSN/SAC codes, destination, beneficiary bank details, SWIFT, IBAN, travel dates, passenger count.",
+      "Board Resolution": "Focus on: authorized signatories, their designations, date of resolution, purpose.",
+      "MOA/AOA": "Focus on: company objects/nature of business, authorized capital, subscriber details (name, address, shares), registered office.",
+    };
+    const hint = docHints[docType] || "Extract every data point you can find — names, numbers, dates, addresses, amounts, codes.";
+
+    return `You are an expert at extracting structured data from Indian corporate/business documents for a ${catLabel} form.
+
+DOCUMENT: "${filename}" (detected type: ${docType})
+EXTRACTION FOCUS: ${hint}
+
+Extract ALL possible data into this JSON structure. Return "" for fields not found in the document. Be thorough — look for data in headers, footers, tables, stamps, watermarks, fine print.
+
+{
+${companyFields},
+${personFields},
+${bankFields}${txnFields ? "," + txnFields : ""}
 }
 
-RULES:
-- Return ONLY valid JSON, no markdown, no explanation
-- PAN must match pattern: 5 letters + 4 digits + 1 letter
-- GSTIN must match: 2 digits + PAN + 1 digit + 1 alphanumeric + 1 check
-- For amounts, return only the number (e.g. "50000.00" not "USD 50,000.00")
-- For dates, use DD/MM/YYYY format
-- Extract ALL person names found as directors/partners
+CRITICAL RULES:
+- Return ONLY valid JSON object, no markdown backticks, no explanation text
+- PAN format: exactly 5 uppercase letters + 4 digits + 1 uppercase letter (e.g. AABCU9603R)
+- GSTIN format: 2 digits + 5 letters + 4 digits + 1 letter + 1 digit + 1 alphanumeric + 1 check (15 chars total)
+- IFSC format: 4 letters + 0 + 6 digits/letters (e.g. SBIN0001234)
+- Dates MUST be DD/MM/YYYY format — convert any other format
+- Amounts: return pure number (e.g. "50000.00" not "Rs. 50,000/-" or "USD 50,000.00")
+- Mobile: 10 digits only, no country code prefix
+- Extract PAN from GSTIN: characters 3-12 of a 15-char GSTIN
+- For directors/partners: extract ALL names found, include their DIN, PAN, DOB if shown
+- Look for addresses in both English and regional languages
+- Indian enterprise types: map to "Private Limited Company"/"LLP"/"Partnership Firm"/"Proprietorship"/"Trust"/"Society"/"Public Limited Company"/"HUF"
+- If the document has tables, extract data from each row
 
 DOCUMENT TEXT:
-${text.substring(0, 15000)}`;
+${text.substring(0, 20000)}`;
+  }
+
+  async extractWithGemini(text, filename, docType) {
+    if (!this.geminiKey) return null;
+    const prompt = this.buildGeminiPrompt(text, filename, docType || "Unknown");
 
     try {
       const resp = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${this.geminiKey}`, {
@@ -5074,7 +5424,7 @@ ${text.substring(0, 15000)}`;
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           contents: [{ parts: [{ text: prompt }] }],
-          generationConfig: { temperature: 0.1, maxOutputTokens: 2048 }
+          generationConfig: { temperature: 0.05, maxOutputTokens: 4096 }
         })
       });
       if (!resp.ok) return null;
@@ -5090,56 +5440,294 @@ ${text.substring(0, 15000)}`;
 
   mergeAiExtraction(fields, ai) {
     if (!ai) return fields;
-    const set = (field, value) => { if (value && typeof value === "string" && value.trim()) fields[field] = value.trim(); };
+    const set = (field, value) => { if (value && typeof value === "string" && value.trim() && value.trim() !== "N/A" && value.trim() !== "NA") fields[field] = value.trim(); };
+    const str = (v) => v && typeof v === "string" ? v.trim() : (v != null ? String(v).trim() : "");
 
     set("genericName", ai.companyName || ai.tradeName);
-    set("gstLegalName", ai.legalName);
-    set("gstTradeName", ai.tradeName);
+    set("gstLegalName", ai.legalName || ai.companyName);
+    set("gstTradeName", ai.tradeName || ai.companyName);
     if (ai.registeredAddress && !fields.genericAddress) set("genericAddress", ai.registeredAddress);
+    if (ai.principalPlace) set("principalPlace", ai.principalPlace);
     set("city", ai.city);
     set("state", ai.state);
-    if (ai.pinCode) fields.pin = ai.pinCode;
-    if (ai.panNumber && /^[A-Z]{5}\d{4}[A-Z]$/.test(ai.panNumber)) fields.panNumber = ai.panNumber;
-    if (ai.gstNumber && /^\d{2}[A-Z]{5}\d{4}[A-Z]\d[A-Z\d]{2}$/.test(ai.gstNumber)) fields.gstNumber = ai.gstNumber;
+    if (ai.pinCode && /^\d{6}$/.test(str(ai.pinCode))) fields.pin = str(ai.pinCode);
+
+    const pan = str(ai.panNumber);
+    if (pan && /^[A-Z]{5}\d{4}[A-Z]$/.test(pan)) fields.panNumber = pan;
+    const gst = str(ai.gstNumber);
+    if (gst && /^\d{2}[A-Z]{5}\d{4}[A-Z]\d[A-Z\d]{2}$/.test(gst)) {
+      fields.gstNumber = gst;
+      if (!fields.panNumber) { const gstPan = gst.substring(2, 12); if (/^[A-Z]{5}\d{4}[A-Z]$/.test(gstPan)) fields.panNumber = gstPan; }
+    }
+    if (ai.cinNumber) set("cinNumber", ai.cinNumber);
     set("udyamNumber", ai.udyamNumber);
+    if (ai.msmeCategory) set("msmeCategory", ai.msmeCategory);
     set("dateOfIncorporation", ai.dateOfIncorporation);
     set("gstConstitution", ai.constitution);
-    set("nicDescription", ai.natureOfBusiness);
-    if (ai.contactPerson && !fields.ownerName) fields.ownerName = ai.contactPerson;
-    if (ai.contactMobile && /^\d{10}$/.test(ai.contactMobile)) fields.extractedMobile = ai.contactMobile;
-    if (ai.contactEmail) fields.extractedEmail = ai.contactEmail;
-    if (ai.contactDesignation) fields.aiDesignation = ai.contactDesignation;
+    set("nicDescription", ai.natureOfBusiness || ai.nicCode);
+    set("companyWebsite", ai.website);
+    if (ai.annualFxEstimate) set("annualFxEstimate", ai.annualFxEstimate);
+    if (ai.annualTurnover) set("annualTurnover", ai.annualTurnover);
 
-    if (Array.isArray(ai.directors) && ai.directors.length > 0) {
-      const names = ai.directors.filter(n => n && n.trim().length > 2);
+    if (ai.contactPerson && !fields.ownerName) fields.ownerName = str(ai.contactPerson);
+    if (ai.contactMobile) { const mob = str(ai.contactMobile).replace(/[^0-9]/g, "").slice(-10); if (/^\d{10}$/.test(mob)) fields.extractedMobile = mob; }
+    if (ai.contactEmail && ai.contactEmail.includes("@")) fields.extractedEmail = str(ai.contactEmail);
+    if (ai.contactDesignation) fields.aiDesignation = str(ai.contactDesignation);
+    if (ai.authorizedSignatory) set("authorizedSignatory", ai.authorizedSignatory);
+    if (ai.signatoryDesignation) set("signatoryDesignation", ai.signatoryDesignation);
+
+    const aiDirs = Array.isArray(ai.directors) ? ai.directors : [];
+    if (aiDirs.length > 0) {
+      const names = [];
+      const desigs = [];
+      const pans = [];
+      const dobs = [];
+      const mobiles = [];
+      const emails = [];
+      aiDirs.forEach(d => {
+        const n = typeof d === "string" ? d : str(d?.name);
+        if (n && n.length > 2) {
+          names.push(n);
+          desigs.push(typeof d === "object" ? str(d.designation) : "");
+          pans.push(typeof d === "object" ? str(d.pan) : "");
+          dobs.push(typeof d === "object" ? str(d.dob) : "");
+          mobiles.push(typeof d === "object" ? str(d.mobile) : "");
+          emails.push(typeof d === "object" ? str(d.email) : "");
+        }
+      });
       if (names.length > 0 && !fields.gstDirectors && !fields.gstPartners) {
-        const isDir = /director|company|private|limited/i.test(ai.constitution || "");
+        const isDir = /director|company|private|limited|llp/i.test(ai.constitution || "");
         if (isDir) fields.gstDirectors = names;
         else fields.gstPartners = names;
+        if (desigs.some(Boolean)) fields.gstPersonDesignations = desigs;
+        if (pans.some(Boolean)) fields.gstPersonPans = pans.map(p => /^[A-Z]{5}\d{4}[A-Z]$/.test(p) ? p : "");
+        if (dobs.some(Boolean)) fields.personDobs = dobs;
       }
+      if (!fields.ownerName && names[0]) fields.ownerName = names[0];
+      if (!fields.extractedMobile && mobiles[0]) { const m = mobiles[0].replace(/[^0-9]/g, "").slice(-10); if (/^\d{10}$/.test(m)) fields.extractedMobile = m; }
+      if (!fields.extractedEmail && emails[0] && emails[0].includes("@")) fields.extractedEmail = emails[0];
     }
 
     set("bankName", ai.bankName);
-    if (ai.bankAccountNumber) fields.bankAccountNumber = ai.bankAccountNumber;
-    set("bankIfsc", ai.bankIfsc);
+    if (ai.bankAccountNumber) fields.bankAccountNumber = str(ai.bankAccountNumber);
+    if (ai.bankIfsc) { const ifsc = str(ai.bankIfsc); if (/^[A-Z]{4}0[A-Z0-9]{6}$/.test(ifsc)) fields.bankIfsc = ifsc; else set("bankIfsc", ai.bankIfsc); }
     set("bankBranch", ai.bankBranch);
+    if (ai.bankAccountType) set("bankAccountType", ai.bankAccountType);
 
     set("invoiceNumber", ai.invoiceNumber);
-    set("invoiceAmount", ai.invoiceAmount);
+    if (ai.invoiceAmount) { const amt = str(ai.invoiceAmount).replace(/[^0-9.]/g, ""); if (amt) fields.invoiceAmount = amt; }
     set("invoiceCurrency", ai.invoiceCurrency);
     set("invoiceDestination", ai.destination);
     set("invoiceDateFrom", ai.travelDateFrom);
     set("invoiceDateTo", ai.travelDateTo);
-    if (ai.numberOfTravelers) fields.invoicePax = String(ai.numberOfTravelers);
+    if (ai.numberOfTravelers) fields.invoicePax = String(ai.numberOfTravelers).replace(/[^0-9]/g, "");
     set("invoiceBeneficiary", ai.beneficiaryName);
     set("invoiceBankName", ai.beneficiaryBank);
-    if (ai.beneficiaryAccount) fields.invoiceAccountNo = ai.beneficiaryAccount;
+    if (ai.beneficiaryAccount) fields.invoiceAccountNo = str(ai.beneficiaryAccount);
     set("invoiceBenefBankAddr", ai.beneficiaryBankAddress);
-    if (ai.swiftCode && /^[A-Z]{6}[A-Z0-9]{2,5}$/i.test(ai.swiftCode)) fields.invoiceSwift = ai.swiftCode.toUpperCase();
+    if (ai.swiftCode) { const sw = str(ai.swiftCode).toUpperCase(); if (/^[A-Z]{6}[A-Z0-9]{2,5}$/.test(sw)) fields.invoiceSwift = sw; }
     set("invoiceIban", ai.iban);
-    set("companyWebsite", ai.website);
+    if (ai.correspondentBank) set("correspondentBank", ai.correspondentBank);
+    if (ai.correspondentSwift) set("correspondentSwift", ai.correspondentSwift);
+    if (ai.purposeOfRemittance) set("purposeOfRemittance", ai.purposeOfRemittance);
 
     return fields;
+  }
+
+  async smartReExtract() {
+    if (!this.geminiKey || this.allExtractedTexts.length < 2) return;
+    const emptyFieldIds = [];
+    const isHidden = (el) => { let n = el; while (n && n !== document.body) { if (n.style && n.style.display === "none" && !n.classList.contains("form-section")) return true; n = n.parentElement; } return false; };
+    const naValues = new Set(["na", "n/a", "nil", "none", "-", "—", "null", "not available", "not applicable"]);
+    document.querySelectorAll(".form-input, .form-textarea").forEach(el => {
+      if (!el.id || isHidden(el)) return;
+      const v = el.value.trim();
+      if (!v || naValues.has(v.toLowerCase())) {
+        const label = el.closest(".form-group")?.querySelector(".form-label")?.textContent?.trim() || el.id;
+        emptyFieldIds.push({ id: el.id, label });
+      }
+    });
+    if (emptyFieldIds.length === 0) return;
+
+    const combinedText = this.allExtractedTexts.map(t => `--- ${t.filename} (${t.docType}) ---\n${t.text}`).join("\n\n");
+    const fieldList = emptyFieldIds.slice(0, 40).map(f => `"${f.id}": "${f.label}"`).join(",\n  ");
+
+    const prompt = `You have ALL the documents uploaded by a user for corporate onboarding. Cross-reference ALL documents together to find data for these EMPTY form fields.
+
+UPLOADED DOCUMENTS TEXT:
+${combinedText.substring(0, 25000)}
+
+EMPTY FIELDS TO FILL (field ID → label):
+{
+  ${fieldList}
+}
+
+For EACH empty field, search across ALL documents. Data might be in a different document than expected:
+- Company name might be in an invoice, not just GST certificate
+- PAN can be derived from GSTIN (characters 3-12)
+- Address pieces might be split across documents
+- Contact details might appear in invoice headers or bank statements
+- Bank details might be in invoice payment terms
+
+Return a JSON object with field IDs as keys and extracted values as values. ONLY include fields where you found actual data. Return {} if nothing found.
+
+RULES:
+- Return ONLY valid JSON, no markdown
+- Only include fields where you found real data (not guesses)
+- PAN: 5 letters + 4 digits + 1 letter
+- Dates: DD/MM/YYYY
+- Mobile: 10 digits only`;
+
+    try {
+      const resp = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${this.geminiKey}`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          contents: [{ parts: [{ text: prompt }] }],
+          generationConfig: { temperature: 0.05, maxOutputTokens: 2048 }
+        })
+      });
+      if (!resp.ok) return;
+      const data = await resp.json();
+      const content = data.candidates?.[0]?.content?.parts?.[0]?.text || "";
+      const jsonStr = content.replace(/```json\s*/g, "").replace(/```\s*/g, "").trim();
+      const result = JSON.parse(jsonStr);
+      let filled = 0;
+      for (const [id, value] of Object.entries(result)) {
+        if (!value || typeof value !== "string" || !value.trim()) continue;
+        const el = document.getElementById(id);
+        if (el && !el.value.trim()) {
+          el.value = value.trim();
+          el.classList.add("auto-filled");
+          filled++;
+        }
+      }
+      if (filled > 0) {
+        this.updateAccuracy();
+        this.showToast(`AI cross-reference filled ${filled} more fields`, "success");
+      }
+    } catch (e) {
+      console.warn("Smart re-extract failed:", e);
+    }
+  }
+
+  cleanExtractedData() {
+    const naValues = new Set(["na", "n/a", "nil", "none", "-", "—", "null", "not available", "not applicable", "undefined"]);
+    document.querySelectorAll(".form-input, .form-textarea").forEach(el => {
+      if (!el.id || !el.value.trim()) return;
+      let v = el.value.trim();
+      if (naValues.has(v.toLowerCase())) { el.value = ""; el.classList.remove("auto-filled"); return; }
+      v = v.replace(/\s{2,}/g, " ").trim();
+      if (el.id.toLowerCase().includes("mobile") || el.id.toLowerCase().includes("phone")) {
+        v = v.replace(/[^\d]/g, "");
+        if (v.length > 10 && v.startsWith("91")) v = v.substring(v.length - 10);
+        if (v.length > 10) v = v.substring(v.length - 10);
+      }
+      if (el.id.toLowerCase().includes("pan") && el.id !== "companyPanNo") {
+        v = v.toUpperCase().replace(/[^A-Z0-9]/g, "");
+      }
+      if (el.id.toLowerCase().includes("gst")) {
+        v = v.toUpperCase().replace(/[^A-Z0-9]/g, "");
+      }
+      if (el.id.toLowerCase().includes("ifsc")) {
+        v = v.toUpperCase().replace(/[^A-Z0-9]/g, "");
+      }
+      if (el.id.toLowerCase().includes("email")) {
+        v = v.toLowerCase().trim();
+      }
+      if (el.id.toLowerCase().includes("pin") && /^\d{6}$/.test(v.replace(/\s/g, ""))) {
+        v = v.replace(/\s/g, "");
+      }
+      if (el.id.toLowerCase().includes("name") && !el.id.toLowerCase().includes("bank")) {
+        v = v.replace(/\b(mr|mrs|ms|shri|smt|m\/s)\.?\s+/gi, "").trim();
+        if (v === v.toUpperCase() && v.length > 3) {
+          v = v.split(/\s+/).map(w => w.charAt(0) + w.slice(1).toLowerCase()).join(" ");
+        }
+      }
+      if (v !== el.value) el.value = v;
+    });
+  }
+
+  suggestFormCategory(docType, extracted) {
+    const hasInvoice = docType === "Invoice" || extracted.invoiceNumber || extracted.invoiceAmount;
+    const hasTravel = extracted.invoiceDestination || extracted.invoiceDateFrom || extracted.invoicePax;
+    const hasMice = /\b(conference|exhibition|expo|summit|seminar|congress|convention|trade\s*fair|mice)\b/i.test(JSON.stringify(extracted));
+    const isIndel = /\b(indel|money\s*transfer|remittance)\b/i.test(JSON.stringify(extracted));
+    let suggested = null;
+    if (hasInvoice && hasTravel) {
+      if (hasMice) suggested = isIndel ? "indelMice" : "ciflMice";
+      else suggested = isIndel ? "indelFit" : "ciflFit";
+    } else if (hasInvoice) {
+      suggested = isIndel ? "indelFit" : "ciflFit";
+    }
+    if (suggested && suggested !== this.activeFormCategory) {
+      const catNames = { cifl: "CIFL Onboarding", indel: "Indel Onboarding", ciflFit: "CIFL FIT", ciflMice: "CIFL MICE", indelFit: "Indel FIT", indelMice: "Indel MICE" };
+      this.showToast(`AI suggests: Switch to "${catNames[suggested]}" for this document type`, "info", 6000);
+    }
+  }
+
+  getAccuracyPercent() {
+    const naValues = new Set(["na", "n/a", "nil", "none", "-", "—", "null", "not available", "not applicable"]);
+    const isReal = (v) => { const t = v.trim().toLowerCase(); return t.length > 0 && !naValues.has(t); };
+    const isHidden = (el) => { let n = el; while (n && n !== document.body) { if (n.style && n.style.display === "none" && !n.classList.contains("form-section")) return true; n = n.parentElement; } return false; };
+    let filled = 0, total = 0;
+    document.querySelectorAll(".form-input, .form-textarea").forEach(el => {
+      if (el.id && el.id !== "stockExchangeName" && el.id !== "caseDetails" && !isHidden(el)) { total++; if (isReal(el.value)) filled++; }
+    });
+    document.querySelectorAll(".radio-group").forEach(g => { if (!isHidden(g)) { total++; if (g.querySelector(".radio-item.selected")) filled++; } });
+    document.querySelectorAll(".checkbox-group").forEach(g => { if (!isHidden(g)) { total++; if (g.querySelector(".checkbox-item.checked")) filled++; } });
+    return total > 0 ? Math.round((filled / total) * 100) : 0;
+  }
+
+  validateExtractedFields() {
+    const warnings = [];
+    const getVal = (id) => document.getElementById(id)?.value?.trim() || "";
+    const addWarn = (id, msg) => {
+      warnings.push({ id, msg });
+      const el = document.getElementById(id);
+      if (el) { el.style.borderColor = "#f59e0b"; el.title = msg; }
+    };
+
+    const pan = getVal("panNo");
+    if (pan && !/^[A-Z]{5}\d{4}[A-Z]$/.test(pan)) addWarn("panNo", "Invalid PAN format (expected: ABCDE1234F)");
+
+    const gst = getVal("gstNo");
+    if (gst && !/^\d{2}[A-Z]{5}\d{4}[A-Z]\d[A-Z\d]{2}$/.test(gst)) addWarn("gstNo", "Invalid GSTIN format (expected: 22AAAAA0000A1Z5)");
+    if (gst && pan && gst.length === 15 && gst.substring(2, 12) !== pan) addWarn("gstNo", "PAN in GSTIN doesn't match PAN field");
+
+    const ifsc = getVal("ifscCode");
+    if (ifsc && !/^[A-Z]{4}0[A-Z0-9]{6}$/.test(ifsc)) addWarn("ifscCode", "Invalid IFSC format (expected: SBIN0001234)");
+
+    const mobile = getVal("contactMobile");
+    if (mobile && !/^[6-9]\d{9}$/.test(mobile)) addWarn("contactMobile", "Invalid Indian mobile (should start with 6-9, 10 digits)");
+
+    const email = getVal("contactEmail");
+    if (email && !/^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/.test(email)) addWarn("contactEmail", "Invalid email format");
+
+    const udyam = getVal("udyamNumber");
+    if (udyam && !/^UDYAM-[A-Z]{2}-\d{2}-\d{7}$/i.test(udyam)) addWarn("udyamNumber", "Invalid Udyam format (expected: UDYAM-XX-00-0000000)");
+
+    const doi = getVal("dateOfIncorporation");
+    if (doi) {
+      const parts = doi.split("/");
+      if (parts.length === 3) {
+        const year = parseInt(parts[2]);
+        if (year > new Date().getFullYear()) addWarn("dateOfIncorporation", "Date of incorporation is in the future");
+        if (year < 1900) addWarn("dateOfIncorporation", "Date of incorporation seems too old");
+      }
+    }
+
+    const accNo = getVal("accountNumber") || getVal("bankAccountNo");
+    if (accNo && (accNo.length < 8 || accNo.length > 20)) {
+      const id = document.getElementById("accountNumber") ? "accountNumber" : "bankAccountNo";
+      addWarn(id, "Account number length unusual (expected 8-20 digits)");
+    }
+
+    if (warnings.length > 0) {
+      const warnCount = warnings.length;
+      this.showToast(`${warnCount} field${warnCount > 1 ? "s" : ""} may need review (highlighted in orange)`, "warning");
+    }
+    return warnings;
   }
 
   async analyzeGapsWithGemini() {
@@ -5168,24 +5756,28 @@ ${text.substring(0, 15000)}`;
     }
 
     const uploadedDocs = this.uploadedFiles.filter(f => f.status === "success").map(f => f.docType.replace(" + AI", "")).join(", ");
+    const cat = this.activeFormCategory || "cifl";
+    const catLabel = { cifl: "CIFL Onboarding", indel: "Indel Onboarding", ciflFit: "CIFL FIT Transactions", ciflMice: "CIFL MICE Transactions", indelFit: "Indel FIT Transactions", indelMice: "Indel MICE Transactions" }[cat] || "Corporate Onboarding";
+    const isTxn = cat.includes("Fit") || cat.includes("Mice") || cat.includes("fit") || cat.includes("mice");
 
-    const prompt = `You are a corporate onboarding document advisor. A user is filling an onboarding form and has uploaded: ${uploadedDocs || "no documents yet"}.
+    const prompt = `You are an expert corporate onboarding document advisor for Indian forex/payment companies. A user is filling a "${catLabel}" form and has uploaded: ${uploadedDocs || "no documents yet"}.
+${isTxn ? "\nThis is a TRANSACTION form — bank details and invoice/travel information are CRITICAL." : "\nThis is an ONBOARDING form — company registration, KYC, and compliance documents are CRITICAL."}
 
-EMPTY FIELDS (not yet filled):
+EMPTY FIELDS (${emptyFields.length} fields not yet filled):
 ${emptyFields.join("\n")}
 
-FILLED FIELDS (already extracted):
-${filledFields.slice(0, 30).join(", ")}
+FILLED FIELDS (${filledFields.length} already extracted):
+${filledFields.slice(0, 40).join(", ")}
 
 Analyze and return a JSON object with this EXACT structure:
 {
-  "summary": "1-2 sentence overview of what's missing and why",
+  "summary": "1-2 sentence overview of what's missing and why, specific to ${catLabel}",
   "missingGroups": [
     {
-      "category": "group name like Company Details / Bank Info / Transaction Info / KYC Documents",
+      "category": "group name like Company Details / Bank Info / Transaction Info / KYC Documents / Director Details",
       "fields": ["field1", "field2"],
-      "reason": "why these are empty — be specific about what info is missing from uploaded docs",
-      "suggestedDocument": "exact document name to upload (e.g. Bank Statement, Invoice, GST Certificate, PAN Card, Udyam Certificate, Certificate of Incorporation, Board Resolution, MOA/AOA)",
+      "reason": "why these are empty — be specific about what document data is missing",
+      "suggestedDocument": "exact document name to upload (e.g. Bank Statement, Invoice/Proforma, GST Certificate, PAN Card, Udyam/MSME Certificate, Certificate of Incorporation, Board Resolution, MOA/AOA, Company Letterhead, Cancelled Cheque, RBI AD License)",
       "priority": "high/medium/low"
     }
   ],
@@ -5197,12 +5789,12 @@ Analyze and return a JSON object with this EXACT structure:
 
 RULES:
 - Return ONLY valid JSON, no markdown
-- Group related empty fields together
-- Be specific about which document provides which data
-- Mark priority "high" for mandatory fields (PAN, GSTIN, company name, address)
-- Mark "medium" for bank/transaction fields, "low" for optional fields
-- Keep reasons concise but helpful
-- Maximum 5 groups and 4 action items`;
+- Group related empty fields together logically
+- Be specific about which Indian document provides which data
+- Priority: "high" = mandatory for ${catLabel} (PAN, GSTIN, company name, address${isTxn ? ", invoice details, beneficiary bank" : ""}); "medium" = important (bank, KMP, directors); "low" = optional
+- Suggest Indian document names (GST Certificate, Udyam Registration, Certificate of Incorporation, etc.)
+- Maximum 6 groups and 5 action items
+- If bank details are missing, suggest "Cancelled Cheque" or "Bank Statement" specifically`;
 
     try {
       const resp = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${this.geminiKey}`, {
@@ -5311,7 +5903,7 @@ RULES:
     document.getElementById("loadingOverlay").classList.remove("active");
   }
 
-  showToast(message, type = "info") {
+  showToast(message, type = "info", duration = 4000) {
     const container = document.getElementById("toastContainer");
     const toast = document.createElement("div");
     toast.className = `toast ${type}`;
@@ -5323,7 +5915,7 @@ RULES:
     };
     toast.innerHTML = `${icons[type] || icons.info} ${message}`;
     container.appendChild(toast);
-    setTimeout(() => { if (toast.parentNode) toast.remove(); }, 4000);
+    setTimeout(() => { if (toast.parentNode) toast.remove(); }, duration);
   }
 }
 
