@@ -1836,13 +1836,11 @@ class OnboardingApp {
     const remaining = total - filled;
 
     const getFieldLabel = (el) => {
+      const subCard = el.closest(".sub-card");
+      const sectionTitle = subCard?.querySelector(".sub-card-title, .sub-card-header")?.textContent?.replace(/\*/g, "").trim() || "";
       let lbl = el.closest(".form-group")?.querySelector(".form-label")?.textContent?.replace(/\*/g, "").replace(/\d+\.\s*/g, "").trim() || "";
-      if (lbl.length < 4) {
-        const section = el.closest(".sub-card, .form-section");
-        const sectionTitle = section?.querySelector("h3, .sub-card-header, .form-label")?.textContent?.replace(/\*/g, "").replace(/\d+\.\s*/g, "").trim() || "";
-        if (sectionTitle && sectionTitle !== lbl) lbl = sectionTitle + (lbl ? " — " + lbl : "");
-      }
       if (!lbl || lbl.length < 3) lbl = el.placeholder || el.id.replace(/([A-Z])/g, " $1").trim();
+      if (sectionTitle && sectionTitle !== lbl) lbl = sectionTitle + " → " + lbl;
       return lbl;
     };
 
@@ -1854,64 +1852,75 @@ class OnboardingApp {
     });
     radioGroups.forEach(g => {
       if (isHiddenByToggle(g) || g.querySelector(".radio-item.selected")) return;
-      const lbl = g.closest(".form-group")?.querySelector(".form-label")?.textContent?.replace(/\*/g, "").replace(/\d+\.\s*/g, "").trim() || "Selection";
+      const subCard = g.closest(".sub-card");
+      const sectionTitle = subCard?.querySelector(".sub-card-title, .sub-card-header")?.textContent?.replace(/\*/g, "").trim() || "";
+      let lbl = g.closest(".form-group")?.querySelector(".form-label")?.textContent?.replace(/\*/g, "").replace(/\d+\.\s*/g, "").trim() || "Selection";
+      if (sectionTitle && sectionTitle !== lbl) lbl = sectionTitle + " → " + lbl;
       emptyFieldNames.push({ label: lbl, id: "" });
     });
 
-    const docMap = {
-      "GST Certificate / Udyam Certificate": ["gstin", "gst", "udyam", "legal", "trade", "constitution", "nature", "nic", "business"],
-      "PAN Card": ["pan"],
-      "Bank Statement / Cancelled Cheque": ["bank", "ifsc", "branch", "account"],
-      "Invoice / Proforma Invoice": ["invoice", "currency", "amount", "beneficiary", "swift", "iban", "destination", "travel", "pax", "txn"],
-      "Certificate of Incorporation / MOA": ["incorporation", "cin", "registered", "director", "authorized"],
-      "Company Letterhead / Website": ["website", "email", "mobile", "phone", "contact"],
-      "Board Resolution": ["official", "signatory", "authorized"]
-    };
-
-    const neededDocs = {};
-    emptyFieldNames.forEach(f => {
-      const key = (f.label + " " + f.id).toLowerCase();
-      for (const [doc, keywords] of Object.entries(docMap)) {
-        if (keywords.some(kw => key.includes(kw))) {
-          if (!neededDocs[doc]) neededDocs[doc] = [];
-          neededDocs[doc].push(f.label);
-          return;
-        }
-      }
-      if (!neededDocs["Other / Manual Entry"]) neededDocs["Other / Manual Entry"] = [];
-      neededDocs["Other / Manual Entry"].push(f.label);
-    });
+    const fieldDocMap = [
+      { doc: "PAN Card", reason: "PAN number is printed on PAN Card issued by Income Tax Dept", keywords: ["pan"], icon: "&#128179;" },
+      { doc: "GST Certificate", reason: "GSTIN is on GST Registration Certificate from GST portal", keywords: ["gstin", "gst number", "gst"], icon: "&#128196;" },
+      { doc: "Udyam / MSME Certificate", reason: "Udyam number, business details are on Udyam Registration Certificate", keywords: ["udyam", "msme", "nature of business", "nic"], icon: "&#127981;" },
+      { doc: "Certificate of Incorporation / MOA", reason: "CIN, incorporation date, directors are on CoI issued by MCA", keywords: ["incorporation", "cin", "director"], icon: "&#128220;" },
+      { doc: "Bank Statement / Cancelled Cheque", reason: "Bank name, account no, IFSC, branch are on bank statement or cancelled cheque", keywords: ["bank", "ifsc", "branch", "account no"], icon: "&#127974;" },
+      { doc: "Invoice / Proforma Invoice", reason: "Amount, currency, beneficiary details are on the vendor/travel invoice", keywords: ["invoice", "currency", "amount", "beneficiary", "swift", "iban", "destination", "travel", "pax", "txn"], icon: "&#128451;" },
+      { doc: "Company Letterhead / Profile", reason: "Website, email, phone can be found on company letterhead or website", keywords: ["website", "email", "mobile", "phone", "contact"], icon: "&#127760;" },
+      { doc: "Board Resolution", reason: "Authorized signatory details are in the Board Resolution document", keywords: ["official", "signatory", "authorized"], icon: "&#128221;" },
+      { doc: "Shareholder Agreement / MOA", reason: "Beneficial owner name, DOB, PAN, shareholding % are in MOA or Shareholder Agreement", keywords: ["beneficial", "shareholder", "bo", "share %", "share"], icon: "&#128101;" }
+    ];
 
     const uploadedDocTypes = this.uploadedFiles.filter(f => f.status === "success").map(f => (f.docType || "").replace(" + AI", "").toLowerCase());
 
+    const missingList = emptyFieldNames.map(f => {
+      const key = (f.label + " " + f.id).toLowerCase();
+      let matched = null;
+      for (const entry of fieldDocMap) {
+        if (entry.keywords.some(kw => key.includes(kw))) { matched = entry; break; }
+      }
+      const isUploaded = matched ? uploadedDocTypes.some(d => matched.doc.toLowerCase().split("/").some(part => d.includes(part.trim().split(" ")[0].toLowerCase()))) : false;
+      return {
+        label: f.label,
+        id: f.id,
+        doc: matched?.doc || "Manual Entry Required",
+        reason: matched?.reason || "This field needs to be filled manually — not available in standard documents",
+        icon: matched?.icon || "&#9997;",
+        isUploaded,
+        status: !matched ? "manual" : (isUploaded ? "not-found" : "missing-doc")
+      };
+    });
+
     let missingHtml = "";
     if (remaining > 0 && this.uploadedFiles.some(f => f.status === "success")) {
-      const entries = Object.entries(neededDocs).filter(([, fields]) => fields.length > 0);
-      if (entries.length > 0) {
-        missingHtml = `<div style="margin-top:10px;border-top:1px solid var(--border);padding-top:10px">
-          <div style="font-size:0.78rem;font-weight:600;color:var(--gray-700);margin-bottom:6px;display:flex;align-items:center;gap:4px">
-            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="var(--accent)" stroke-width="2"><circle cx="12" cy="12" r="10"/><line x1="12" y1="16" x2="12" y2="12"/><line x1="12" y1="8" x2="12.01" y2="8"/></svg>
-            Missing Fields Analysis
+      missingHtml = `<div style="margin-top:10px;border-top:1px solid var(--border);padding-top:10px">
+        <div style="font-size:0.82rem;font-weight:700;color:var(--gray-800);margin-bottom:8px;display:flex;align-items:center;gap:5px">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="var(--accent)" stroke-width="2.5"><circle cx="12" cy="12" r="10"/><line x1="12" y1="16" x2="12" y2="12"/><line x1="12" y1="8" x2="12.01" y2="8"/></svg>
+          Missing Fields (${remaining})
+        </div>`;
+
+      missingList.forEach(f => {
+        const colors = { "missing-doc": { bg: "#dbeafe", border: "#93c5fd", text: "#1e40af", badge: "#2563eb", badgeText: "Upload needed" },
+          "not-found": { bg: "#fef3c7", border: "#fcd34d", text: "#92400e", badge: "#d97706", badgeText: "Not in uploaded doc" },
+          "manual": { bg: "#f3f4f6", border: "#d1d5db", text: "#4b5563", badge: "#6b7280", badgeText: "Fill manually" } };
+        const c = colors[f.status];
+        missingHtml += `
+          <div style="margin-bottom:6px;padding:8px 10px;background:${c.bg};border-left:3px solid ${c.border};border-radius:0 6px 6px 0">
+            <div style="display:flex;align-items:center;gap:6px;margin-bottom:4px">
+              <span style="font-size:1rem">${f.icon}</span>
+              <strong style="font-size:0.78rem;color:${c.text};flex:1">${f.label}</strong>
+              <span style="font-size:0.62rem;background:${c.badge};color:white;padding:1px 6px;border-radius:8px;white-space:nowrap">${c.badgeText}</span>
+            </div>
+            <div style="font-size:0.72rem;color:var(--gray-600);margin-bottom:3px">${f.reason}</div>
+            ${f.status !== "manual" ? `<div style="font-size:0.72rem;color:${c.text};font-weight:600">&#128206; ${f.doc}</div>` : ""}
           </div>`;
-        for (const [doc, fields] of entries) {
-          const isUploaded = uploadedDocTypes.some(d => doc.toLowerCase().split("/").some(part => d.includes(part.trim().split(" ")[0].toLowerCase())));
-          const bgColor = doc === "Other / Manual Entry" ? "#f3f4f6" : (isUploaded ? "#fef3c7" : "#dbeafe");
-          const textColor = doc === "Other / Manual Entry" ? "var(--gray-600)" : (isUploaded ? "#92400e" : "var(--primary-dark)");
-          const hint = doc === "Other / Manual Entry" ? "Fill these manually" : (isUploaded ? "Uploaded but info not found in doc" : "Upload this document");
-          missingHtml += `
-            <div style="margin-bottom:6px;padding:8px;background:${bgColor};border-radius:6px">
-              <div style="font-size:0.75rem;font-weight:600;color:${textColor};margin-bottom:3px">${doc}</div>
-              <div style="font-size:0.7rem;color:var(--gray-500);margin-bottom:4px;font-style:italic">${hint}</div>
-              <div style="display:flex;flex-wrap:wrap;gap:3px">
-                ${fields.map(f => `<span style="font-size:0.68rem;background:white;border:1px solid var(--border);padding:1px 5px;border-radius:3px">${f}</span>`).join("")}
-              </div>
-            </div>`;
-        }
-        missingHtml += `</div>`;
-      }
+      });
+
+      missingHtml += `</div>`;
     } else if (remaining === 0 && this.uploadedFiles.some(f => f.status === "success")) {
-      missingHtml = `<div style="margin-top:8px;padding:8px;background:#d1fae5;border-radius:6px;font-size:0.78rem;color:#065f46;text-align:center">
-        <strong>&#10003; All fields filled!</strong> Your documents covered everything.
+      missingHtml = `<div style="margin-top:8px;padding:10px;background:#d1fae5;border-radius:6px;font-size:0.82rem;color:#065f46;text-align:center">
+        <div style="font-size:1.5rem;margin-bottom:4px">&#10004;</div>
+        <strong>All fields filled!</strong><br><span style="font-size:0.75rem">Your documents covered everything.</span>
       </div>`;
     }
 
