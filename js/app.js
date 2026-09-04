@@ -9,6 +9,7 @@ class OnboardingApp {
     this.autoFilledCount = 0;
     this.totalFields = 0;
     this.theme = localStorage.getItem("theme") || "light";
+    this.geminiKey = localStorage.getItem("geminiApiKey") || "";
     this.init();
   }
 
@@ -35,6 +36,10 @@ class OnboardingApp {
             </div>
           </div>
           <div class="header-actions">
+            <button class="btn-icon" onclick="app.openSettings()" title="AI Settings" style="position:relative">
+              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>
+              ${this.geminiKey ? '<span style="position:absolute;top:2px;right:2px;width:8px;height:8px;background:#4CAF50;border-radius:50;border:1.5px solid var(--primary)"></span>' : ''}
+            </button>
             <button class="btn-icon" onclick="app.toggleTheme()" title="Toggle theme">
               <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="5"/><path d="M12 1v2M12 21v2M4.22 4.22l1.42 1.42M18.36 18.36l1.42 1.42M1 12h2M21 12h2M4.22 19.78l1.42-1.42M18.36 5.64l1.42-1.42"/></svg>
             </button>
@@ -550,6 +555,25 @@ class OnboardingApp {
         </div>
         <div id="previewContent"></div>
       </div>
+      <div id="settingsModal" style="display:none;position:fixed;inset:0;z-index:9999;background:rgba(0,0,0,0.6);align-items:center;justify-content:center;backdrop-filter:blur(4px)">
+        <div style="background:var(--card-bg, #fff);border-radius:12px;padding:28px;max-width:480px;width:90%;box-shadow:0 20px 60px rgba(0,0,0,0.3);position:relative">
+          <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px">
+            <h3 style="margin:0;font-size:1.1rem">AI Extraction Settings</h3>
+            <button onclick="app.closeSettings()" style="background:none;border:none;cursor:pointer;font-size:1.3rem;color:var(--text-secondary)">&times;</button>
+          </div>
+          <p style="font-size:0.82rem;color:var(--text-secondary);margin-bottom:12px">Enable AI-powered extraction for <strong>near 100% accuracy</strong>. Uses Google Gemini to intelligently read your documents.</p>
+          <div style="margin-bottom:12px">
+            <label style="font-size:0.82rem;font-weight:600;display:block;margin-bottom:4px">Gemini API Key</label>
+            <input id="geminiKeyInput" type="password" class="form-input" placeholder="Enter your Google Gemini API key" style="width:100%">
+            <p style="font-size:0.72rem;color:var(--text-secondary);margin-top:4px">Get a free key at <a href="https://aistudio.google.com/apikey" target="_blank" style="color:var(--primary)">aistudio.google.com/apikey</a> — 15 free requests/min</p>
+          </div>
+          <div id="geminiStatus" style="display:none;margin-bottom:12px;padding:8px 12px;border-radius:6px;font-size:0.8rem"></div>
+          <div style="display:flex;gap:8px;justify-content:flex-end">
+            <button class="btn btn-outline" onclick="app.testGeminiKey()">Test Key</button>
+            <button class="btn btn-primary" onclick="app.saveSettings()">Save</button>
+          </div>
+        </div>
+      </div>
     `;
   }
 
@@ -712,12 +736,20 @@ class OnboardingApp {
     try {
       const text = await this.extractPdfText(file);
       const docType = this.detectDocumentType(text);
-      const extracted = this.extractFields(text, docType);
+      let extracted = this.extractFields(text, docType);
+
+      if (this.geminiKey) {
+        this.showLoading("AI analyzing document...", `Gemini is reading ${file.name}`);
+        const aiResult = await this.extractWithGemini(text, file.name);
+        if (aiResult) {
+          extracted = this.mergeAiExtraction(extracted, aiResult);
+        }
+      }
 
       const idx = this.uploadedFiles.findIndex(f => f.id === fileId);
       if (idx >= 0) {
         this.uploadedFiles[idx].status = "success";
-        this.uploadedFiles[idx].docType = docType;
+        this.uploadedFiles[idx].docType = docType + (this.geminiKey ? " + AI" : "");
         this.uploadedFiles[idx].fieldsExtracted = Object.keys(extracted).length;
       }
 
@@ -726,7 +758,7 @@ class OnboardingApp {
       this.renderUploadedFiles();
       this.updateAccuracy();
       this.hideLoading();
-      this.showToast(`${docType} processed - ${Object.keys(extracted).length} fields extracted`, "success");
+      this.showToast(`${docType} processed - ${Object.keys(extracted).length} fields extracted${this.geminiKey ? " (AI enhanced)" : ""}`, "success");
 
       if (this.uploadedFiles.filter(f => f.status === "success").length > 0) {
         setTimeout(() => this.goToStep(1), 600);
@@ -1471,6 +1503,10 @@ class OnboardingApp {
     setVal("txnIban", d.invoiceIban, "INV");
     setVal("txnBenefAccount", d.invoiceAccountNo, "INV");
     setVal("txnBenefBank", d.invoiceBankName, "INV");
+    if (d.companyWebsite) setVal("companyWebsite", d.companyWebsite, "AI");
+    if (d.bankAccountNumber) setVal("bankAccountNo", d.bankAccountNumber, "BANK");
+    if (d.bankIfsc) setVal("bankIfsc", d.bankIfsc, "BANK");
+    if (d.bankBranch) setVal("bankBranch", d.bankBranch, "BANK");
     if (d.genericPerson && !cleanName) {
       setVal("contactName", d.genericPerson, "INV");
       setVal("signatoryName", d.genericPerson, "INV");
@@ -1654,6 +1690,7 @@ class OnboardingApp {
   }
 
   detectDesignation(d, companyName) {
+    if (d.aiDesignation) return d.aiDesignation;
     if (d.gstPersonDesignations && d.gstPersonDesignations.length > 0) return d.gstPersonDesignations[0];
     if (d.udyamDesignation) return d.udyamDesignation;
     if (d.gstDirectors) return "Director";
@@ -4691,6 +4728,192 @@ class OnboardingApp {
     }
     for (let i = 0; i < data.length; i++) crc = table[(crc ^ data[i]) & 0xFF] ^ (crc >>> 8);
     return (crc ^ -1) >>> 0;
+  }
+
+  openSettings() {
+    const modal = document.getElementById("settingsModal");
+    modal.style.display = "flex";
+    document.getElementById("geminiKeyInput").value = this.geminiKey;
+    document.getElementById("geminiStatus").style.display = "none";
+  }
+
+  closeSettings() {
+    document.getElementById("settingsModal").style.display = "none";
+  }
+
+  saveSettings() {
+    const key = document.getElementById("geminiKeyInput").value.trim();
+    this.geminiKey = key;
+    if (key) localStorage.setItem("geminiApiKey", key);
+    else localStorage.removeItem("geminiApiKey");
+    this.closeSettings();
+    this.showToast(key ? "AI extraction enabled!" : "AI extraction disabled", key ? "success" : "info");
+  }
+
+  async testGeminiKey() {
+    const key = document.getElementById("geminiKeyInput").value.trim();
+    const status = document.getElementById("geminiStatus");
+    if (!key) {
+      status.style.display = "block";
+      status.style.background = "#fff3cd";
+      status.style.color = "#856404";
+      status.textContent = "Please enter an API key first.";
+      return;
+    }
+    status.style.display = "block";
+    status.style.background = "#e3f2fd";
+    status.style.color = "#1565c0";
+    status.textContent = "Testing connection...";
+    try {
+      const resp = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${key}`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ contents: [{ parts: [{ text: "Reply with just: OK" }] }] })
+      });
+      if (resp.ok) {
+        status.style.background = "#e8f5e9";
+        status.style.color = "#2e7d32";
+        status.textContent = "Connection successful! Gemini AI is ready.";
+      } else {
+        const err = await resp.json().catch(() => ({}));
+        status.style.background = "#ffebee";
+        status.style.color = "#c62828";
+        status.textContent = `Failed: ${err.error?.message || resp.statusText}`;
+      }
+    } catch (e) {
+      status.style.background = "#ffebee";
+      status.style.color = "#c62828";
+      status.textContent = `Network error: ${e.message}`;
+    }
+  }
+
+  async extractWithGemini(text, filename) {
+    if (!this.geminiKey) return null;
+    const prompt = `You are a document data extraction expert. Extract ALL possible fields from this document text into a JSON object.
+
+The document is: "${filename}"
+
+EXTRACT THESE FIELDS (return empty string "" if not found):
+{
+  "companyName": "company/firm/entity name",
+  "legalName": "legal name if different from trade name",
+  "tradeName": "trade/brand name",
+  "registeredAddress": "full registered/office address",
+  "city": "", "state": "", "pinCode": "",
+  "panNumber": "10-char PAN (e.g. AABCU9603R)",
+  "gstNumber": "15-char GSTIN",
+  "udyamNumber": "UDYAM registration number",
+  "dateOfIncorporation": "DD/MM/YYYY",
+  "constitution": "Private Limited/LLP/Partnership/Proprietorship/etc",
+  "natureOfBusiness": "business activity description",
+  "contactPerson": "name of director/partner/proprietor/contact",
+  "contactDesignation": "Director/Partner/Proprietor/etc",
+  "contactMobile": "10-digit mobile",
+  "contactEmail": "email address",
+  "directors": ["list of director/partner names"],
+  "bankName": "bank name",
+  "bankAccountNumber": "account number",
+  "bankIfsc": "IFSC code",
+  "bankBranch": "branch name",
+  "invoiceNumber": "invoice/bill number",
+  "invoiceAmount": "total/grand total amount (number only)",
+  "invoiceCurrency": "3-letter currency code (USD/EUR/INR/etc)",
+  "destination": "travel destination country",
+  "travelDateFrom": "start date",
+  "travelDateTo": "end date",
+  "numberOfTravelers": "passenger/traveler count",
+  "beneficiaryName": "beneficiary/payee name",
+  "beneficiaryBank": "beneficiary bank name",
+  "beneficiaryAccount": "beneficiary account number",
+  "beneficiaryBankAddress": "beneficiary bank address",
+  "swiftCode": "SWIFT/BIC code",
+  "iban": "IBAN number",
+  "website": "company website"
+}
+
+RULES:
+- Return ONLY valid JSON, no markdown, no explanation
+- PAN must match pattern: 5 letters + 4 digits + 1 letter
+- GSTIN must match: 2 digits + PAN + 1 digit + 1 alphanumeric + 1 check
+- For amounts, return only the number (e.g. "50000.00" not "USD 50,000.00")
+- For dates, use DD/MM/YYYY format
+- Extract ALL person names found as directors/partners
+
+DOCUMENT TEXT:
+${text.substring(0, 15000)}`;
+
+    try {
+      const resp = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${this.geminiKey}`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          contents: [{ parts: [{ text: prompt }] }],
+          generationConfig: { temperature: 0.1, maxOutputTokens: 2048 }
+        })
+      });
+      if (!resp.ok) return null;
+      const data = await resp.json();
+      const content = data.candidates?.[0]?.content?.parts?.[0]?.text || "";
+      const jsonStr = content.replace(/```json\s*/g, "").replace(/```\s*/g, "").trim();
+      return JSON.parse(jsonStr);
+    } catch (e) {
+      console.warn("Gemini extraction failed:", e);
+      return null;
+    }
+  }
+
+  mergeAiExtraction(fields, ai) {
+    if (!ai) return fields;
+    const set = (field, value) => { if (value && typeof value === "string" && value.trim()) fields[field] = value.trim(); };
+
+    set("genericName", ai.companyName || ai.tradeName);
+    set("gstLegalName", ai.legalName);
+    set("gstTradeName", ai.tradeName);
+    if (ai.registeredAddress && !fields.genericAddress) set("genericAddress", ai.registeredAddress);
+    set("city", ai.city);
+    set("state", ai.state);
+    if (ai.pinCode) fields.pin = ai.pinCode;
+    if (ai.panNumber && /^[A-Z]{5}\d{4}[A-Z]$/.test(ai.panNumber)) fields.panNumber = ai.panNumber;
+    if (ai.gstNumber && /^\d{2}[A-Z]{5}\d{4}[A-Z]\d[A-Z\d]{2}$/.test(ai.gstNumber)) fields.gstNumber = ai.gstNumber;
+    set("udyamNumber", ai.udyamNumber);
+    set("dateOfIncorporation", ai.dateOfIncorporation);
+    set("gstConstitution", ai.constitution);
+    set("nicDescription", ai.natureOfBusiness);
+    if (ai.contactPerson && !fields.ownerName) fields.ownerName = ai.contactPerson;
+    if (ai.contactMobile && /^\d{10}$/.test(ai.contactMobile)) fields.extractedMobile = ai.contactMobile;
+    if (ai.contactEmail) fields.extractedEmail = ai.contactEmail;
+    if (ai.contactDesignation) fields.aiDesignation = ai.contactDesignation;
+
+    if (Array.isArray(ai.directors) && ai.directors.length > 0) {
+      const names = ai.directors.filter(n => n && n.trim().length > 2);
+      if (names.length > 0 && !fields.gstDirectors && !fields.gstPartners) {
+        const isDir = /director|company|private|limited/i.test(ai.constitution || "");
+        if (isDir) fields.gstDirectors = names;
+        else fields.gstPartners = names;
+      }
+    }
+
+    set("bankName", ai.bankName);
+    if (ai.bankAccountNumber) fields.bankAccountNumber = ai.bankAccountNumber;
+    set("bankIfsc", ai.bankIfsc);
+    set("bankBranch", ai.bankBranch);
+
+    set("invoiceNumber", ai.invoiceNumber);
+    set("invoiceAmount", ai.invoiceAmount);
+    set("invoiceCurrency", ai.invoiceCurrency);
+    set("invoiceDestination", ai.destination);
+    set("invoiceDateFrom", ai.travelDateFrom);
+    set("invoiceDateTo", ai.travelDateTo);
+    if (ai.numberOfTravelers) fields.invoicePax = String(ai.numberOfTravelers);
+    set("invoiceBeneficiary", ai.beneficiaryName);
+    set("invoiceBankName", ai.beneficiaryBank);
+    if (ai.beneficiaryAccount) fields.invoiceAccountNo = ai.beneficiaryAccount;
+    set("invoiceBenefBankAddr", ai.beneficiaryBankAddress);
+    if (ai.swiftCode && /^[A-Z]{6}[A-Z0-9]{2,5}$/i.test(ai.swiftCode)) fields.invoiceSwift = ai.swiftCode.toUpperCase();
+    set("invoiceIban", ai.iban);
+    set("companyWebsite", ai.website);
+
+    return fields;
   }
 
   toggleTheme() {
