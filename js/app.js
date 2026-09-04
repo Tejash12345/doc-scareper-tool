@@ -11,6 +11,8 @@ class OnboardingApp {
     this.theme = localStorage.getItem("theme") || "light";
     this.geminiKey = localStorage.getItem("geminiApiKey") || "";
     this.allExtractedTexts = [];
+    this.fieldSourceMap = {};
+    this.docFieldCounts = {};
     this.init();
   }
 
@@ -112,6 +114,13 @@ class OnboardingApp {
               AI Document Advisor
             </div>
             <div class="card-body" id="aiInsightsBody" style="max-height:400px;overflow-y:auto"></div>
+          </div>
+          <div class="card" id="docIntelCard" style="display:none">
+            <div class="card-header" style="color:#0ea5e9">
+              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/></svg>
+              Document Intelligence
+            </div>
+            <div class="card-body" id="docIntelBody" style="max-height:500px;overflow-y:auto"></div>
           </div>
           <div class="card" id="quickNavCard">
             <div class="card-header">
@@ -738,7 +747,30 @@ class OnboardingApp {
         { id: "pre-2", name: "Udyam Registration Certificate", status: "success", docType: "Udyam Certificate", fieldsExtracted: 14 }
       ];
       this.renderUploadedFiles();
+      this.docFieldCounts = {
+        "Bank Statement (Bank Statement)": { filename: "Bank Statement (Union Bank of India)", docType: "Bank Statement", fields: [
+          { id: "bankName", label: "Bank Name", value: "Union Bank of India" },
+          { id: "bankBranch", label: "Branch", value: bs.branchAddress || "" },
+          { id: "accountNumber", label: "Account Number", value: bs.accountNumber || "" },
+          { id: "accountType", label: "Account Type", value: bs.accountType || "" },
+          { id: "ifscCode", label: "IFSC Code", value: bs.ifsc || "" },
+          { id: "kmpName", label: "KMP Name", value: fm.kmpName || "" }
+        ].filter(f => f.value), accuracy: 0 },
+        "Udyam Certificate (Udyam Certificate)": { filename: "Udyam Registration Certificate", docType: "Udyam Certificate", fields: [
+          { id: "registeredName", label: "Company Name", value: fm.registeredName || "" },
+          { id: "registeredAddress", label: "Address", value: (fm.registeredAddress || "").substring(0,40) },
+          { id: "udyamNumber", label: "Udyam Number", value: uc.udyamNumber || "" },
+          { id: "panNo", label: "PAN", value: fm.panNo || "" },
+          { id: "dateOfIncorporation", label: "Date of Incorporation", value: fm.dateOfIncorporation || "" },
+          { id: "natureOfBusiness", label: "Nature of Business", value: (fm.natureOfBusiness || "").substring(0,40) },
+          { id: "contactName", label: "Contact Name", value: fm.contactPerson?.name || "" },
+          { id: "contactMobile", label: "Mobile", value: fm.contactPerson?.mobile || "" },
+          { id: "contactEmail", label: "Email", value: fm.contactPerson?.email || "" },
+          { id: "signatoryName", label: "Signatory", value: fm.authorizedSignatory?.name || "" }
+        ].filter(f => f.value), accuracy: 0 }
+      };
       this.updateAccuracy();
+      this.renderDocIntelligence();
       this.hideLoading();
       this.showToast("Demo data loaded - 30+ fields auto-filled!", "success");
       setTimeout(() => this.goToStep(1), 400);
@@ -797,9 +829,12 @@ class OnboardingApp {
             this.uploadedFiles[idx].fieldsExtracted = Object.keys(extracted).length;
           }
           Object.assign(this.extractedData, extracted);
+          const beforeSnap = this.snapshotFormValues();
           this.autoFillForm();
+          this.trackFieldSources(beforeSnap, file.name, docType);
           this.renderUploadedFiles();
           this.updateAccuracy();
+          this.renderDocIntelligence();
           this.hideLoading();
           this.showToast(`Image processed with AI Vision - ${Object.keys(extracted).length} fields extracted`, "success");
           this.validateExtractedFields();
@@ -924,9 +959,12 @@ RULES: Return ONLY valid JSON. PAN = 5 letters + 4 digits + 1 letter. GSTIN = 15
       }
 
       Object.assign(this.extractedData, extracted);
+      const beforeSnap = this.snapshotFormValues();
       this.autoFillForm();
+      this.trackFieldSources(beforeSnap, file.name, docType);
       this.renderUploadedFiles();
       this.updateAccuracy();
+      this.renderDocIntelligence();
       this.hideLoading();
       const newAccuracy = this.getAccuracyPercent();
       const boost = newAccuracy - prevAccuracy;
@@ -939,6 +977,7 @@ RULES: Return ONLY valid JSON. PAN = 5 letters + 4 digits + 1 letter. GSTIN = 15
         if (successCount === 1) this.suggestFormCategory(docType, extracted);
         if (successCount >= 2 && this.allExtractedTexts.length >= 2) {
           await this.smartReExtract();
+          this.renderDocIntelligence();
         }
         this.analyzeGapsWithGemini();
       }
@@ -5609,6 +5648,123 @@ RULES:
     } catch (e) {
       console.warn("Smart re-extract failed:", e);
     }
+  }
+
+  snapshotFormValues() {
+    const snap = {};
+    document.querySelectorAll(".form-input, .form-textarea").forEach(el => {
+      if (el.id) snap[el.id] = el.value.trim();
+    });
+    return snap;
+  }
+
+  trackFieldSources(beforeSnap, filename, docType) {
+    const naValues = new Set(["na", "n/a", "nil", "none", "-", "—", "null", "not available", "not applicable"]);
+    const isReal = (v) => v && v.trim().length > 0 && !naValues.has(v.trim().toLowerCase());
+    const shortName = filename.length > 25 ? filename.substring(0, 22) + "..." : filename;
+    const docKey = shortName + " (" + docType.replace(" + AI", "").replace(" + AI Vision", "").replace(" (OCR)", "") + ")";
+    if (!this.docFieldCounts[docKey]) this.docFieldCounts[docKey] = { filename, docType, fields: [], accuracy: 0 };
+    document.querySelectorAll(".form-input, .form-textarea").forEach(el => {
+      if (!el.id) return;
+      const before = beforeSnap[el.id] || "";
+      const after = el.value.trim();
+      if ((!isReal(before)) && isReal(after)) {
+        this.fieldSourceMap[el.id] = { filename: shortName, docType, docKey };
+        const label = el.closest(".form-group")?.querySelector(".form-label")?.textContent?.trim() || el.id;
+        if (!this.docFieldCounts[docKey].fields.find(f => f.id === el.id)) {
+          this.docFieldCounts[docKey].fields.push({ id: el.id, label, value: after.substring(0, 40) });
+        }
+      }
+    });
+    this.docFieldCounts[docKey].accuracy = this.getAccuracyPercent();
+  }
+
+  renderDocIntelligence() {
+    const card = document.getElementById("docIntelCard");
+    const body = document.getElementById("docIntelBody");
+    if (!card || !body) return;
+
+    const docs = Object.entries(this.docFieldCounts);
+    if (docs.length === 0) { card.style.display = "none"; return; }
+    card.style.display = "block";
+
+    const cat = this.activeFormCategory || "cifl";
+    const isTxn = cat.includes("Fit") || cat.includes("Mice") || cat.includes("fit") || cat.includes("mice");
+
+    const requiredDocs = isTxn ? [
+      { name: "GST Certificate", icon: "📄", fields: "Company name, GSTIN, PAN, Address, Constitution" },
+      { name: "PAN Card", icon: "🆔", fields: "PAN number, Name, Date of birth" },
+      { name: "Invoice / Proforma", icon: "🧾", fields: "Invoice no, Amount, Currency, Beneficiary, SWIFT, IBAN" },
+      { name: "Bank Statement / Cheque", icon: "🏦", fields: "Bank name, Account no, IFSC, Branch" },
+      { name: "Travel Itinerary", icon: "✈️", fields: "Destination, Travel dates, Travelers count" }
+    ] : [
+      { name: "GST Certificate", icon: "📄", fields: "Company name, GSTIN, PAN, Address, Directors, Constitution" },
+      { name: "PAN Card", icon: "🆔", fields: "PAN number, Entity name, Date of incorporation" },
+      { name: "Udyam / MSME Certificate", icon: "🏢", fields: "Udyam no, Enterprise name, Type, NIC code, Owner, Mobile, Email" },
+      { name: "Bank Statement / Cheque", icon: "🏦", fields: "Bank name, Account no, IFSC, Branch, Account type" },
+      { name: "Certificate of Incorporation", icon: "📜", fields: "CIN, Company name, Date of incorporation, Directors" },
+      { name: "Board Resolution", icon: "📝", fields: "Authorized signatory, Designation" }
+    ];
+
+    const uploadedTypes = this.uploadedFiles.filter(f => f.status === "success").map(f => f.docType.replace(" + AI", "").replace(" + AI Vision", "").replace(" (OCR)", "").trim().toLowerCase());
+
+    let html = "";
+
+    html += `<div style="font-size:0.78rem;font-weight:700;color:var(--text-primary);margin-bottom:8px;display:flex;align-items:center;gap:5px">
+      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#0ea5e9" stroke-width="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/></svg>
+      Uploaded Documents (${docs.length})
+    </div>`;
+
+    docs.forEach(([docKey, info]) => {
+      const fieldCount = info.fields.length;
+      html += `<div style="border:1px solid var(--border);border-radius:8px;padding:8px;margin-bottom:6px;background:var(--bg)">
+        <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:4px">
+          <strong style="font-size:0.75rem;color:var(--text-primary)">📂 ${docKey}</strong>
+          <span style="font-size:0.68rem;background:#dcfce7;color:#166534;padding:1px 6px;border-radius:10px;font-weight:600">${fieldCount} fields</span>
+        </div>
+        <div style="display:flex;flex-wrap:wrap;gap:3px">
+          ${info.fields.slice(0, 8).map(f => `<span style="font-size:0.65rem;background:var(--primary-light);color:var(--primary-dark);padding:1px 5px;border-radius:4px" title="${f.value}">${f.label}</span>`).join("")}
+          ${fieldCount > 8 ? `<span style="font-size:0.65rem;color:var(--text-muted)">+${fieldCount - 8} more</span>` : ""}
+        </div>
+      </div>`;
+    });
+
+    const totalFilled = Object.values(this.docFieldCounts).reduce((s, d) => s + d.fields.length, 0);
+
+    html += `<div style="margin-top:10px;font-size:0.78rem;font-weight:700;color:var(--text-primary);margin-bottom:6px;display:flex;align-items:center;gap:5px">
+      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#f59e0b" stroke-width="2"><path d="M12 2L2 7l10 5 10-5-10-5zM2 17l10 5 10-5M2 12l10 5 10-5"/></svg>
+      Required Documents for ${cat.toUpperCase()}
+    </div>`;
+
+    requiredDocs.forEach(rd => {
+      const isUploaded = uploadedTypes.some(ut => ut.includes(rd.name.split("/")[0].trim().toLowerCase().substring(0, 6)));
+      html += `<div style="display:flex;align-items:center;gap:6px;padding:4px 0;font-size:0.73rem;border-bottom:1px solid var(--border)">
+        <span style="font-size:1rem">${rd.icon}</span>
+        <div style="flex:1">
+          <div style="font-weight:600;color:var(--text-primary)">${rd.name}</div>
+          <div style="font-size:0.65rem;color:var(--text-muted)">${rd.fields}</div>
+        </div>
+        <span style="font-size:0.68rem;padding:1px 6px;border-radius:10px;font-weight:600;${isUploaded ? "background:#dcfce7;color:#166534" : "background:#fef3c7;color:#92400e"}">${isUploaded ? "✓ Done" : "Needed"}</span>
+      </div>`;
+    });
+
+    const missingDocs = requiredDocs.filter(rd => !uploadedTypes.some(ut => ut.includes(rd.name.split("/")[0].trim().toLowerCase().substring(0, 6))));
+    if (missingDocs.length > 0) {
+      html += `<div style="margin-top:8px;padding:8px;background:linear-gradient(135deg,#eff6ff,#ede9fe);border-radius:8px;border:1px solid #c4b5fd">
+        <div style="font-size:0.72rem;font-weight:700;color:#5b21b6;margin-bottom:4px">💡 Upload these to boost accuracy:</div>
+        ${missingDocs.map(d => `<div style="font-size:0.7rem;color:#6d28d9;padding:1px 0">${d.icon} <strong>${d.name}</strong> → ${d.fields.split(",").length} fields</div>`).join("")}
+      </div>`;
+    } else {
+      html += `<div style="margin-top:8px;padding:8px;background:#d1fae5;border-radius:8px;text-align:center;border:1px solid #6ee7b7">
+        <div style="font-size:0.82rem;font-weight:600;color:#065f46">✓ All recommended documents uploaded!</div>
+      </div>`;
+    }
+
+    html += `<div style="margin-top:8px;padding:6px;background:var(--bg);border-radius:6px;text-align:center;font-size:0.7rem;color:var(--text-muted)">
+      ${totalFilled} fields auto-filled from ${docs.length} document${docs.length > 1 ? "s" : ""}
+    </div>`;
+
+    body.innerHTML = html;
   }
 
   cleanExtractedData() {
