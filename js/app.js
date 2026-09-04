@@ -98,6 +98,13 @@ class OnboardingApp {
               <div class="extraction-summary" id="extractionSummary" style="margin-top:16px"></div>
             </div>
           </div>
+          <div class="card" id="aiInsightsCard" style="display:none">
+            <div class="card-header" style="color:var(--accent)">
+              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><line x1="12" y1="16" x2="12" y2="12"/><line x1="12" y1="8" x2="12.01" y2="8"/></svg>
+              AI Document Advisor
+            </div>
+            <div class="card-body" id="aiInsightsBody" style="max-height:400px;overflow-y:auto"></div>
+          </div>
           <div class="card" id="quickNavCard">
             <div class="card-header">
               <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="3" y1="12" x2="21" y2="12"/><line x1="3" y1="6" x2="21" y2="6"/><line x1="3" y1="18" x2="21" y2="18"/></svg>
@@ -759,6 +766,10 @@ class OnboardingApp {
       this.updateAccuracy();
       this.hideLoading();
       this.showToast(`${docType} processed - ${Object.keys(extracted).length} fields extracted${this.geminiKey ? " (AI enhanced)" : ""}`, "success");
+
+      if (this.geminiKey) {
+        this.analyzeGapsWithGemini();
+      }
 
       if (this.uploadedFiles.filter(f => f.status === "success").length > 0) {
         setTimeout(() => this.goToStep(1), 600);
@@ -4914,6 +4925,142 @@ ${text.substring(0, 15000)}`;
     set("companyWebsite", ai.website);
 
     return fields;
+  }
+
+  async analyzeGapsWithGemini() {
+    if (!this.geminiKey) return;
+    const isHiddenByToggle = (el) => {
+      let node = el;
+      while (node && node !== document.body) {
+        if (node.style && node.style.display === "none" && !node.classList.contains("form-section")) return true;
+        node = node.parentElement;
+      }
+      return false;
+    };
+
+    const emptyFields = [];
+    const filledFields = [];
+    document.querySelectorAll(".form-input, .form-textarea").forEach(el => {
+      if (!el.id || el.id === "stockExchangeName" || el.id === "caseDetails" || isHiddenByToggle(el)) return;
+      const label = el.closest(".form-group")?.querySelector(".form-label")?.textContent?.trim() || el.id;
+      if (el.value.trim()) filledFields.push(label);
+      else emptyFields.push(label);
+    });
+
+    if (emptyFields.length === 0) {
+      this.renderAiInsights({ allFilled: true });
+      return;
+    }
+
+    const uploadedDocs = this.uploadedFiles.filter(f => f.status === "success").map(f => f.docType.replace(" + AI", "")).join(", ");
+
+    const prompt = `You are a corporate onboarding document advisor. A user is filling an onboarding form and has uploaded: ${uploadedDocs || "no documents yet"}.
+
+EMPTY FIELDS (not yet filled):
+${emptyFields.join("\n")}
+
+FILLED FIELDS (already extracted):
+${filledFields.slice(0, 30).join(", ")}
+
+Analyze and return a JSON object with this EXACT structure:
+{
+  "summary": "1-2 sentence overview of what's missing and why",
+  "missingGroups": [
+    {
+      "category": "group name like Company Details / Bank Info / Transaction Info / KYC Documents",
+      "fields": ["field1", "field2"],
+      "reason": "why these are empty — be specific about what info is missing from uploaded docs",
+      "suggestedDocument": "exact document name to upload (e.g. Bank Statement, Invoice, GST Certificate, PAN Card, Udyam Certificate, Certificate of Incorporation, Board Resolution, MOA/AOA)",
+      "priority": "high/medium/low"
+    }
+  ],
+  "actionItems": [
+    "Upload X document to fill Y fields",
+    "Upload Z document to fill W fields"
+  ]
+}
+
+RULES:
+- Return ONLY valid JSON, no markdown
+- Group related empty fields together
+- Be specific about which document provides which data
+- Mark priority "high" for mandatory fields (PAN, GSTIN, company name, address)
+- Mark "medium" for bank/transaction fields, "low" for optional fields
+- Keep reasons concise but helpful
+- Maximum 5 groups and 4 action items`;
+
+    try {
+      const resp = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${this.geminiKey}`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          contents: [{ parts: [{ text: prompt }] }],
+          generationConfig: { temperature: 0.2, maxOutputTokens: 2048 }
+        })
+      });
+      if (!resp.ok) return;
+      const data = await resp.json();
+      const content = data.candidates?.[0]?.content?.parts?.[0]?.text || "";
+      const jsonStr = content.replace(/```json\s*/g, "").replace(/```\s*/g, "").trim();
+      const insights = JSON.parse(jsonStr);
+      this.renderAiInsights(insights);
+    } catch (e) {
+      console.warn("Gemini gap analysis failed:", e);
+    }
+  }
+
+  renderAiInsights(insights) {
+    const card = document.getElementById("aiInsightsCard");
+    const body = document.getElementById("aiInsightsBody");
+    if (!card || !body) return;
+
+    if (insights.allFilled) {
+      card.style.display = "block";
+      body.innerHTML = `
+        <div style="text-align:center;padding:12px">
+          <div style="font-size:2rem;margin-bottom:8px">&#10003;</div>
+          <div style="font-weight:600;color:var(--success)">All fields filled!</div>
+          <div style="font-size:0.8rem;color:var(--text-secondary);margin-top:4px">Your documents provided all the required data.</div>
+        </div>`;
+      return;
+    }
+
+    const priorityIcon = { high: "&#9888;", medium: "&#9679;", low: "&#9675;" };
+    const priorityColor = { high: "var(--danger)", medium: "var(--warning)", low: "var(--gray-400)" };
+
+    const groupsHtml = (insights.missingGroups || []).map(g => `
+      <div style="border:1px solid var(--border);border-radius:8px;padding:10px;margin-bottom:8px;background:var(--bg)">
+        <div style="display:flex;align-items:center;gap:6px;margin-bottom:6px">
+          <span style="color:${priorityColor[g.priority] || priorityColor.medium};font-size:0.85rem">${priorityIcon[g.priority] || priorityIcon.medium}</span>
+          <strong style="font-size:0.82rem">${g.category}</strong>
+          <span style="margin-left:auto;font-size:0.7rem;background:${priorityColor[g.priority]}22;color:${priorityColor[g.priority] || priorityColor.medium};padding:1px 6px;border-radius:10px">${g.priority}</span>
+        </div>
+        <div style="font-size:0.75rem;color:var(--text-secondary);margin-bottom:6px">${g.reason}</div>
+        <div style="display:flex;flex-wrap:wrap;gap:4px;margin-bottom:6px">
+          ${g.fields.map(f => `<span style="font-size:0.7rem;background:var(--danger-light);color:var(--danger);padding:2px 6px;border-radius:4px">${f}</span>`).join("")}
+        </div>
+        <div style="font-size:0.75rem;background:var(--primary-light);color:var(--primary-dark);padding:6px 8px;border-radius:6px;display:flex;align-items:center;gap:4px">
+          <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="12" y1="18" x2="12" y2="12"/><polyline points="9 15 12 12 15 15"/></svg>
+          Upload: <strong>${g.suggestedDocument}</strong>
+        </div>
+      </div>
+    `).join("");
+
+    const actionsHtml = (insights.actionItems || []).map(a =>
+      `<div style="font-size:0.78rem;padding:6px 0;border-bottom:1px solid var(--border);display:flex;align-items:start;gap:6px">
+        <span style="color:var(--primary);font-weight:700;flex-shrink:0">&#10148;</span>
+        <span>${a}</span>
+      </div>`
+    ).join("");
+
+    card.style.display = "block";
+    body.innerHTML = `
+      <div style="font-size:0.8rem;color:var(--text-secondary);margin-bottom:10px;padding:8px;background:var(--accent)11;border-radius:6px;border-left:3px solid var(--accent)">
+        ${insights.summary || "Some fields could not be filled from the uploaded documents."}
+      </div>
+      ${groupsHtml}
+      ${actionsHtml ? `<div style="margin-top:8px"><div style="font-size:0.75rem;font-weight:600;color:var(--gray-600);margin-bottom:4px">Recommended Actions</div>${actionsHtml}</div>` : ""}
+    `;
   }
 
   toggleTheme() {
