@@ -563,21 +563,40 @@ class OnboardingApp {
         <div id="previewContent"></div>
       </div>
       <div id="settingsModal" style="display:none;position:fixed;inset:0;z-index:9999;background:rgba(0,0,0,0.6);align-items:center;justify-content:center;backdrop-filter:blur(4px)">
-        <div style="background:var(--card-bg, #fff);border-radius:12px;padding:28px;max-width:480px;width:90%;box-shadow:0 20px 60px rgba(0,0,0,0.3);position:relative">
-          <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px">
-            <h3 style="margin:0;font-size:1.1rem">AI Extraction Settings</h3>
+        <div style="background:var(--card-bg, #fff);border-radius:12px;padding:28px;max-width:520px;width:92%;box-shadow:0 20px 60px rgba(0,0,0,0.3);position:relative;max-height:90vh;overflow-y:auto">
+          <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px">
+            <h3 style="margin:0;font-size:1.1rem">&#129302; AI Extraction Settings</h3>
             <button onclick="app.closeSettings()" style="background:none;border:none;cursor:pointer;font-size:1.3rem;color:var(--text-secondary)">&times;</button>
           </div>
-          <p style="font-size:0.82rem;color:var(--text-secondary);margin-bottom:12px">Enable AI-powered extraction for <strong>near 100% accuracy</strong>. Uses Google Gemini to intelligently read your documents.</p>
+          <p style="font-size:0.82rem;color:var(--text-secondary);margin-bottom:14px">Enable AI-powered extraction for <strong>near 100% accuracy</strong>. Uses Google Gemini 2.0 Flash to intelligently read your documents and analyze missing fields.</p>
+          <div style="background:linear-gradient(135deg,#dbeafe,#ede9fe);border-radius:10px;padding:14px;margin-bottom:14px">
+            <div style="font-size:0.82rem;font-weight:700;color:var(--gray-800);margin-bottom:8px">&#128272; How to get your free API key:</div>
+            <div style="font-size:0.78rem;color:var(--gray-700);line-height:1.6">
+              <div style="display:flex;gap:8px;align-items:start;margin-bottom:6px"><span style="background:var(--primary);color:white;border-radius:50%;min-width:20px;height:20px;display:flex;align-items:center;justify-content:center;font-size:0.65rem;font-weight:700">1</span><span>Click the button below to open <strong>Google AI Studio</strong></span></div>
+              <div style="display:flex;gap:8px;align-items:start;margin-bottom:6px"><span style="background:var(--primary);color:white;border-radius:50%;min-width:20px;height:20px;display:flex;align-items:center;justify-content:center;font-size:0.65rem;font-weight:700">2</span><span>Sign in with your <strong>Google account</strong></span></div>
+              <div style="display:flex;gap:8px;align-items:start;margin-bottom:6px"><span style="background:var(--primary);color:white;border-radius:50%;min-width:20px;height:20px;display:flex;align-items:center;justify-content:center;font-size:0.65rem;font-weight:700">3</span><span>Click <strong>"Create API Key"</strong> and select any project</span></div>
+              <div style="display:flex;gap:8px;align-items:start"><span style="background:var(--primary);color:white;border-radius:50%;min-width:20px;height:20px;display:flex;align-items:center;justify-content:center;font-size:0.65rem;font-weight:700">4</span><span><strong>Copy the key</strong> and paste it below</span></div>
+            </div>
+            <a href="https://aistudio.google.com/apikey" target="_blank" rel="noopener" style="display:block;margin-top:10px;background:var(--primary);color:white;text-align:center;padding:10px;border-radius:8px;text-decoration:none;font-weight:600;font-size:0.85rem">&#128279; Open Google AI Studio &rarr; Get Free API Key</a>
+            <div style="font-size:0.68rem;color:var(--gray-500);text-align:center;margin-top:4px">Free tier: 15 requests/min, 1500 requests/day — no credit card needed</div>
+          </div>
           <div style="margin-bottom:12px">
-            <label style="font-size:0.82rem;font-weight:600;display:block;margin-bottom:4px">Gemini API Key</label>
-            <input id="geminiKeyInput" type="password" class="form-input" placeholder="Enter your Google Gemini API key" style="width:100%">
-            <p style="font-size:0.72rem;color:var(--text-secondary);margin-top:4px">Get a free key at <a href="https://aistudio.google.com/apikey" target="_blank" style="color:var(--primary)">aistudio.google.com/apikey</a> — 15 free requests/min</p>
+            <label style="font-size:0.82rem;font-weight:600;display:block;margin-bottom:4px">Paste your API Key here:</label>
+            <input id="geminiKeyInput" type="password" class="form-input" placeholder="AIzaSy..." style="width:100%;font-family:monospace">
           </div>
           <div id="geminiStatus" style="display:none;margin-bottom:12px;padding:8px 12px;border-radius:6px;font-size:0.8rem"></div>
           <div style="display:flex;gap:8px;justify-content:flex-end">
-            <button class="btn btn-outline" onclick="app.testGeminiKey()">Test Key</button>
-            <button class="btn btn-primary" onclick="app.saveSettings()">Save</button>
+            <button class="btn btn-outline" onclick="app.testGeminiKey()">&#9889; Test Key</button>
+            <button class="btn btn-primary" onclick="app.saveSettings()">&#128190; Save</button>
+          </div>
+          <div style="margin-top:12px;padding:10px;background:#f0fdf4;border-radius:8px;border:1px solid #bbf7d0">
+            <div style="font-size:0.75rem;font-weight:600;color:#166534;margin-bottom:4px">&#10024; What AI enables:</div>
+            <div style="font-size:0.72rem;color:#15803d;line-height:1.5">
+              &#10003; Intelligent document reading with near 100% accuracy<br>
+              &#10003; Extracts fields that regex patterns miss<br>
+              &#10003; Analyzes missing fields and suggests which documents to upload<br>
+              &#10003; Works with any PDF — invoices, certificates, bank statements
+            </div>
           </div>
         </div>
       </div>
@@ -1795,12 +1814,14 @@ class OnboardingApp {
       }
       return false;
     };
+    const naValues = new Set(["na", "n/a", "nil", "none", "-", "—", "null", "not available", "not applicable"]);
+    const isRealValue = (v) => { const t = v.trim().toLowerCase(); return t.length > 0 && !naValues.has(t); };
     const allInputs = document.querySelectorAll(".form-input, .form-textarea");
     let filled = 0, total = 0;
     allInputs.forEach(el => {
       if (el.id && el.id !== "stockExchangeName" && el.id !== "caseDetails" && !isHiddenByToggle(el)) {
         total++;
-        if (el.value.trim()) filled++;
+        if (isRealValue(el.value)) filled++;
       }
     });
 
@@ -1854,10 +1875,10 @@ class OnboardingApp {
       if (el.id && el.id !== "stockExchangeName" && el.id !== "caseDetails" && !isHiddenByToggle(el)) {
         const step = getStepNum(el);
         if (!stepStats[step]) stepStats[step] = { filled: 0, empty: 0, emptyFields: [] };
-        if (el.value.trim()) { stepStats[step].filled++; }
+        if (isRealValue(el.value)) { stepStats[step].filled++; }
         else {
           stepStats[step].empty++;
-          const field = { label: getFieldLabel(el), id: el.id, step };
+          const field = { label: getFieldLabel(el), id: el.id, step, currentValue: el.value.trim() };
           stepStats[step].emptyFields.push(field);
           emptyFieldNames.push(field);
         }
@@ -1896,16 +1917,21 @@ class OnboardingApp {
       { doc: "Invoice / Proforma Invoice", reason: "Amount, currency, beneficiary, SWIFT/IBAN are on the vendor/travel invoice", keywords: ["invoice", "currency", "amount", "beneficiary", "swift", "iban", "destination", "travel", "pax", "txn"], icon: "&#128451;" },
       { doc: "Company Letterhead / Profile", reason: "Website, email, phone are on company letterhead or website", keywords: ["website", "email", "mobile", "phone", "contact"], icon: "&#127760;" },
       { doc: "Board Resolution", reason: "Authorized signatory details are in the Board Resolution document", keywords: ["official", "signatory", "authorized"], icon: "&#128221;" },
-      { doc: "Shareholder Agreement / MOA", reason: "Beneficial owner name, DOB, PAN, shareholding % found in MOA or Shareholder Agreement", keywords: ["beneficial", "shareholder", "bo", "share %", "share"], icon: "&#128101;" }
+      { doc: "Shareholder Agreement / MOA", reason: "Beneficial owner name, DOB, PAN, shareholding % found in MOA or Shareholder Agreement", keywords: ["beneficial", "shareholder", "bo", "share %", "share"], icon: "&#128101;" },
+      { doc: "RBI Compliance / Company Policy", reason: "Annual FX estimate, forex requirements are based on company treasury policy or RBI filings", keywords: ["annual", "foreign exchange", "forex", "fx"], icon: "&#128176;" },
+      { doc: "Company Registration / Letterhead", reason: "Company name, trade name, registered address are on registration documents", keywords: ["registered", "company name", "trade name", "legal name"], icon: "&#127970;" },
+      { doc: "Address Proof / Utility Bill", reason: "City, state, pin code found on address proof, utility bill, or registration certificate", keywords: ["city", "state", "pin", "address"], icon: "&#128205;" },
+      { doc: "MCA Portal / Certificate of Incorporation", reason: "Date of incorporation, CIN, constitution type found on MCA records", keywords: ["date of incorporation", "constitution", "cin"], icon: "&#128197;" },
+      { doc: "Director's PAN / KYC", reason: "Director/partner personal details (name, DOB, PAN) from their individual KYC", keywords: ["dob", "date of birth", "director name"], icon: "&#128100;" }
     ];
 
     const uploadedDocTypes = this.uploadedFiles.filter(f => f.status === "success").map(f => (f.docType || "").replace(" + AI", "").toLowerCase());
 
     const enrichField = (f) => {
-      const key = (f.label + " " + f.id).toLowerCase();
+      const key = " " + (f.label + " " + (f.id || "").replace(/([a-z])([A-Z])/g, "$1 $2")).toLowerCase().replace(/[→/.,_-]/g, " ") + " ";
       let matched = null;
       for (const entry of fieldDocMap) {
-        if (entry.keywords.some(kw => key.includes(kw))) { matched = entry; break; }
+        if (entry.keywords.some(kw => key.includes(" " + kw) || key.includes(kw + " "))) { matched = entry; break; }
       }
       const isUploaded = matched ? uploadedDocTypes.some(d => matched.doc.toLowerCase().split("/").some(part => d.includes(part.trim().split(" ")[0].toLowerCase()))) : false;
       return { ...f,
@@ -1964,6 +1990,7 @@ class OnboardingApp {
                   <strong style="font-size:0.74rem;color:${c.text};flex:1">${ef.label}</strong>
                   <span style="font-size:0.58rem;background:${c.badge};color:white;padding:1px 5px;border-radius:8px;white-space:nowrap">${c.badgeText}</span>
                 </div>
+                ${f.currentValue ? `<div style="font-size:0.65rem;color:var(--danger);margin-bottom:2px">Current value: "${f.currentValue}" — needs real data</div>` : ""}
                 <div style="font-size:0.68rem;color:var(--gray-500)">${ef.reason}</div>
                 ${ef.status !== "manual" ? `<div style="font-size:0.68rem;color:${c.text};font-weight:600;margin-top:2px">&#128206; ${ef.doc}</div>` : ""}
               </div>`;
