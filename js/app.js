@@ -587,11 +587,21 @@ class OnboardingApp {
                 <div class="form-group"><label class="form-label">Remittance Amount</label><input class="form-input" type="text" id="txnAmount" placeholder="e.g., 10,000"></div>
                 <div class="form-group"><label class="form-label">Invoice Number</label><input class="form-input" type="text" id="txnInvoiceNo" placeholder="e.g., INV-2026-001"></div>
                 <div class="form-group"><label class="form-label">Corporate Name (if different)</label><input class="form-input" type="text" id="txnCorporateName" placeholder="For TA/CU docs - appointing company"></div>
+                <div class="form-group full-width"><label class="form-label">Purpose of Remittance <span class="required">*</span> <span class="source-badge" id="badge_txnPurpose"></span></label><input class="form-input" type="text" id="txnPurpose" placeholder="e.g., Leisure travel - land package, Conference registration"></div>
+              </div>
+              <div class="sub-card" id="miceEventCard" style="margin-top:12px;background:var(--bg-tertiary);padding:12px;display:none">
+                <div class="sub-card-title" style="font-size:0.8rem">Event Details (MICE)</div>
+                <div class="form-grid">
+                  <div class="form-group"><label class="form-label">Event Name <span class="source-badge" id="badge_txnEventName"></span></label><input class="form-input" type="text" id="txnEventName" placeholder="e.g., Global Tech Summit 2026"></div>
+                  <div class="form-group"><label class="form-label">Event Type</label><input class="form-input" type="text" id="txnEventType" placeholder="Conference / Exhibition / Incentive Tour"></div>
+                  <div class="form-group full-width"><label class="form-label">Event Venue</label><input class="form-input" type="text" id="txnEventVenue" placeholder="Venue name and city"></div>
+                </div>
               </div>
               <div class="sub-card" style="margin-top:12px;background:var(--bg-tertiary);padding:12px">
                 <div class="sub-card-title" style="font-size:0.8rem">Beneficiary Details</div>
                 <div class="form-grid">
                   <div class="form-group"><label class="form-label">Beneficiary Name</label><input class="form-input" type="text" id="txnBenefName" placeholder="Beneficiary name"></div>
+                  <div class="form-group"><label class="form-label">Beneficiary Address</label><input class="form-input" type="text" id="txnBenefAddr" placeholder="Beneficiary company address"></div>
                   <div class="form-group"><label class="form-label">Beneficiary Bank</label><input class="form-input" type="text" id="txnBenefBank" placeholder="Bank name"></div>
                   <div class="form-group"><label class="form-label">Account Number</label><input class="form-input" type="text" id="txnBenefAccount" placeholder="Account number"></div>
                   <div class="form-group"><label class="form-label">Bank Address</label><input class="form-input" type="text" id="txnBenefBankAddr" placeholder="Bank address"></div>
@@ -2207,6 +2217,9 @@ RULES:
     if (d.cinNumber) setVal("cinNumber", d.cinNumber, "AI");
     if (d.authorizedSignatory && !document.getElementById("signatoryName")?.value) setVal("signatoryName", d.authorizedSignatory, "AI");
     if (d.purposeOfRemittance) setVal("txnPurpose", d.purposeOfRemittance, "INV");
+    if (d.eventName) setVal("txnEventName", d.eventName, "INV");
+    if (d.eventType) setVal("txnEventType", d.eventType, "INV");
+    if (d.eventVenue) setVal("txnEventVenue", d.eventVenue, "INV");
     if (d.genericPerson && !cleanName) {
       setVal("contactName", d.genericPerson, "INV");
       setVal("signatoryName", d.genericPerson, "INV");
@@ -3129,6 +3142,8 @@ RULES:
     this.applyFormLabels(labelCat);
     const isTxn = category.startsWith("ciflFit") || category.startsWith("ciflMice") || category.startsWith("indelFit") || category.startsWith("indelMice");
     this.toggleTransactionFields(isTxn);
+    const miceCard = document.getElementById("miceEventCard");
+    if (miceCard) miceCard.style.display = (category === "ciflMice" || category === "indelMice") ? "" : "none";
     this.updateAccuracy();
     this.renderCategoryDocChecklist();
     this.renderCategoryPicker();
@@ -3642,9 +3657,29 @@ RULES:
       else if (type === "ciflFitA2" || type === "ciflMiceA2") {
         xml = xml.replace(/>\s*Date\s*:\s*<\/w:t>/i, ">Date: " + engine.escXml(today) + "</w:t>");
         xml = xml.replace(/>Date\s*<\/w:t>/i, ">Date: " + engine.escXml(today) + "</w:t>");
-        xml = engine.fillTableCell(xml, 0, 1, companyName);
-        xml = engine.fillTableCell(xml, 1, 1, v("registeredAddress"));
-        xml = engine.fillTableCell(xml, 2, 1, contactName + ", " + (this.getFormValue("contactMobile") || "") + ", " + (this.getFormValue("contactEmail") || ""));
+
+        // Every value cell is written explicitly (blank when we have no value) so that any
+        // sample data left inside a template can never survive into a customer's document.
+        const wireInfo = [v("txnInvoiceNo"), v("txnEventName")].filter(Boolean).join(" / ");
+        const a2Rows = [
+          companyName,
+          v("registeredAddress"),
+          [contactName, this.getFormValue("contactMobile"), this.getFormValue("contactEmail")].filter(Boolean).join(", "),
+          v("txnCurrency"),
+          v("txnAmount"),
+          v("txnBenefName"),
+          v("txnBenefAddr"),
+          v("txnBenefAccount"),
+          v("txnBenefBank"),
+          v("txnBenefBankAddr"),
+          v("txnSwiftCode"),
+          "",
+          v("txnIban"),
+          wireInfo,
+          ""
+        ];
+        a2Rows.forEach((val, i) => { xml = engine.fillTableCell(xml, i, 1, val || ""); });
+
         xml = xml.replace(/>For\s*<\/w:t>/i, ">For " + engine.escXml(companyName) + "</w:t>");
         xml = xml.replace(/>Authorised\s*Signatory\s*<\/w:t>/i, ">Authorised Signatory: " + engine.escXml(sigName) + "</w:t>");
       }
@@ -4360,7 +4395,7 @@ RULES:
             ${this.pRow("1. Remitter Full Name / Address", companyName + ", " + v("registeredAddress"))}
             ${this.pRow("2. Contact Person, Mobile & Email", contactName + ", " + v("contactMobile") + ", " + v("contactEmail"))}
             ${this.pRow("3. PAN Number", v("panNo"))}
-            ${this.pRow("4. Purpose of Remittance", purposeDefault)}
+            ${this.pRow("4. Purpose of Remittance", v("txnPurpose") || purposeDefault)}
             ${this.pRow("5. Currency & Quantity", currQty)}
             ${this.pRow("6. Beneficiary Name", v("txnBenefName"))}
             ${this.pRow("7. Beneficiary Bank Name", v("txnBenefBank"))}
@@ -4369,7 +4404,7 @@ RULES:
             ${this.pRow("10. Swift Code / Routing No", v("txnSwiftCode"))}
             ${this.pRow("11. ABA / BLZ / Sort Code / Bank Code", "")}
             ${this.pRow("12. IBAN International", v("txnIban"))}
-            ${this.pRow("13. Invoice Number / Group Name", v("txnInvoiceNo"))}
+            ${this.pRow("13. Invoice Number / Group Name", [v("txnInvoiceNo"), v("txnEventName")].filter(Boolean).join(" / "))}
             ${this.pRow("14. Correspondent Bank Charges", "")}
           </tbody>
         </table>
@@ -6989,7 +7024,9 @@ RULES:
       ifscCode: "bankIfsc", accountNumber: "bankAccountNumber", bankBranch: "bankBranch", accountType: "bankAccountType",
       txnInvoiceNo: "invoiceNumber", txnAmount: "invoiceAmount", txnCurrency: "invoiceCurrency",
       txnDestination: "invoiceDestination", txnDateFrom: "invoiceDateFrom", txnDateTo: "invoiceDateTo",
-      txnTravelers: "invoicePax", txnBenefName: "invoiceBeneficiary", txnSwiftCode: "invoiceSwift", txnIban: "invoiceIban"
+      txnTravelers: "invoicePax", txnBenefName: "invoiceBeneficiary", txnSwiftCode: "invoiceSwift", txnIban: "invoiceIban",
+      txnBenefBank: "invoiceBankName", txnBenefAccount: "invoiceAccountNo", txnBenefBankAddr: "invoiceBenefBankAddr",
+      txnPurpose: "purposeOfRemittance", txnEventName: "eventName", txnEventType: "eventType", txnEventVenue: "eventVenue"
     };
 
     const naValues = new Set(["na", "n/a", "nil", "none", "-", "—", "null"]);
