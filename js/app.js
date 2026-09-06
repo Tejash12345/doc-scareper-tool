@@ -1,3 +1,166 @@
+const DOC_LIBRARY = [
+  { type: "GST Certificate", icon: "\u{1F4C4}",
+    strong: [/goods\s*and\s*services\s*tax/i, /form\s*gst\s*reg-?\s*06/i, /certificate\s*of\s*registration.{0,60}gst/i],
+    weak: [/\bgstin\b/i, /\bgst\s*(no|number|registration)\b/i, /principal\s*place\s*of\s*business/i, /legal\s*name\s*of\s*business/i],
+    provides: "GSTIN, legal & trade name, address, constitution, partners/directors with personal PAN",
+    authority: { gstNumber: 10, gstLegalName: 9, gstTradeName: 9, genericAddress: 8, gstConstitution: 9, panNumber: 6, gstDirectors: 8, gstPartners: 8, dateOfIncorporation: 5 } },
+  { type: "PAN Card", icon: "\u{1F194}",
+    strong: [/permanent\s*account\s*number/i, /पर्मानेंट/i],
+    weak: [/income\s*tax\s*department/i, /\bgovt\.?\s*of\s*india\b/i, /father'?s\s*name/i],
+    provides: "PAN number, name, date of birth, father's name",
+    authority: { panNumber: 10, panHolderName: 10, panDob: 10, globalDob: 9 } },
+  { type: "Udyam Registration Certificate", icon: "\u{1F3E2}",
+    strong: [/udyam\s*registration/i, /udyog\s*aadhaar/i, /ministry\s*of\s*micro,?\s*small/i],
+    weak: [/\bmsme\b/i, /\bnic\s*code\b/i, /enterprise\s*type/i, /date\s*of\s*commencement/i],
+    provides: "Udyam no, enterprise name, Micro/Small/Medium, NIC code, owner name, mobile, email",
+    authority: { udyamNumber: 10, enterpriseName: 9, enterpriseType: 10, nic5Code: 10, nicDescription: 9, ownerName: 8, udyamMobile: 9, udyamEmail: 9, dateOfIncorporation: 7 } },
+  { type: "Certificate of Incorporation", icon: "\u{1F4DC}",
+    strong: [/certificate\s*of\s*incorporation/i, /registrar\s*of\s*companies/i, /ministry\s*of\s*corporate\s*affairs/i],
+    weak: [/\bcin\b/i, /\bu\d{5}[a-z]{2}\d{4}[a-z]{3}\d{6}\b/i, /incorporated\s*under\s*the\s*companies\s*act/i],
+    provides: "CIN, company name, date of incorporation, registered office, directors with DIN",
+    authority: { cinNumber: 10, companyName: 10, dateOfIncorporation: 10, genericAddress: 8, gstDirectors: 8 } },
+  { type: "Bank Statement", icon: "\u{1F3E6}",
+    strong: [/statement\s*of\s*account/i, /account\s*statement/i, /bank\s*statement/i],
+    weak: [/\bifsc\b/i, /opening\s*balance/i, /closing\s*balance/i, /\bmicr\b/i, /transaction\s*date/i],
+    provides: "Account holder, account number, bank, branch, IFSC, MICR, account type",
+    authority: { bankAccountNumber: 10, bankIfsc: 10, bankName: 9, bankBranch: 9, bankAccountType: 9, bankAccountName: 8, bankAddress: 6 } },
+  { type: "Cancelled Cheque", icon: "\u{1F4B3}",
+    strong: [/cancell?ed\s*cheque/i, /\bpay\s*to\s*the\s*order\b/i],
+    weak: [/\bifsc\b/i, /\bmicr\b/i, /\ba\/c\s*(no|payee)\b/i, /valid\s*for\s*3\s*months/i],
+    provides: "Account number, IFSC, bank name, branch, account holder name",
+    authority: { bankAccountNumber: 10, bankIfsc: 10, bankName: 9, bankBranch: 8, bankAccountName: 8 } },
+  { type: "Invoice", icon: "\u{1F9FE}",
+    strong: [/tax\s*invoice/i, /proforma\s*invoice/i, /commercial\s*invoice/i, /\bquotation\b/i],
+    weak: [/invoice\s*(no|number|date)/i, /grand\s*total/i, /\bhsn\b|\bsac\b/i, /bill\s*to\b/i, /\bsubtotal\b/i],
+    provides: "Invoice no, date, amount, currency, beneficiary, SWIFT, IBAN, travel dates, pax",
+    authority: { invoiceNumber: 10, invoiceAmount: 10, invoiceCurrency: 10, invoiceBeneficiary: 9, invoiceSwift: 9, invoiceIban: 9, invoiceDestination: 8, invoiceDateFrom: 8, invoiceDateTo: 8, invoicePax: 8 } },
+  { type: "Board Resolution", icon: "\u{1F4DD}",
+    strong: [/board\s*resolution/i, /resolved\s*that/i, /certified\s*true\s*copy/i, /extract\s*of\s*the\s*minutes/i],
+    weak: [/meeting\s*of\s*the\s*board\s*of\s*directors/i, /authori[sz]ed\s*signator/i, /\bquorum\b/i],
+    provides: "Authorized signatories with designations, resolution date, purpose",
+    authority: { authorizedSignatory: 10, signatoryDesignation: 10, gstDirectors: 7 } },
+  { type: "MOA / AOA", icon: "\u{1F4D1}",
+    strong: [/memorandum\s*of\s*association/i, /articles\s*of\s*association/i],
+    weak: [/subscriber/i, /authori[sz]ed\s*share\s*capital/i, /objects?\s*(to\s*be\s*pursued|of\s*the\s*company)/i, /equity\s*shares?\s*of\s*(rs|inr)/i],
+    provides: "Objects/nature of business, share capital, subscribers with shares & PAN",
+    authority: { natureOfBusiness: 9, nicDescription: 7, gstDirectors: 8, personShares: 10, companyName: 8 } },
+  { type: "Partnership Deed", icon: "\u{1F91D}",
+    strong: [/partnership\s*deed/i, /deed\s*of\s*partnership/i],
+    weak: [/partners?\s*of\s*the\s*firm/i, /profit\s*(and|&)\s*loss\s*sharing/i, /\bfirm\s*name\b/i, /capital\s*contribution/i],
+    provides: "Firm name, all partners with PAN/address/DOB, profit-sharing ratio, business nature",
+    authority: { companyName: 9, gstPartners: 10, personShares: 10, personAddresses: 9, natureOfBusiness: 8, gstConstitution: 9, dateOfIncorporation: 8 } },
+  { type: "LLP Agreement", icon: "\u{1F91D}",
+    strong: [/limited\s*liability\s*partnership\s*agreement/i, /\bllp\s*agreement\b/i],
+    weak: [/designated\s*partner/i, /\bllpin\b/i, /contribution\s*of\s*the\s*partners/i],
+    provides: "LLP name, LLPIN, designated partners with DPIN/PAN, contribution ratio",
+    authority: { companyName: 9, gstPartners: 10, personShares: 10, gstConstitution: 10, cinNumber: 8 } },
+  { type: "Trust Deed", icon: "\u{1F3DB}",
+    strong: [/trust\s*deed/i, /deed\s*of\s*trust/i, /indenture\s*of\s*trust/i],
+    weak: [/\btrustees?\b/i, /\bsettlor\b/i, /beneficiar(y|ies)\s*of\s*the\s*trust/i],
+    provides: "Trust name, trustees, settlor, objects, registered address",
+    authority: { companyName: 9, gstPartners: 9, gstConstitution: 10, genericAddress: 7 } },
+  { type: "Society Registration", icon: "\u{1F3DB}",
+    strong: [/societies\s*registration\s*act/i, /society\s*registration\s*certificate/i],
+    weak: [/governing\s*body/i, /\bmemorandum\s*of\s*the\s*society\b/i, /registrar\s*of\s*societies/i],
+    provides: "Society name, registration no, governing body members, address",
+    authority: { companyName: 9, gstConstitution: 10, gstDirectors: 8 } },
+  { type: "Aadhaar Card", icon: "\u{1F5C2}",
+    strong: [/unique\s*identification\s*authority/i, /\buidai\b/i, /आधार/i],
+    weak: [/\baadhaar\b/i, /enrol?ment\s*(no|id)/i, /\bvid\b\s*:/i],
+    provides: "Name, DOB, address (Aadhaar number is masked/not stored)",
+    authority: { panHolderName: 7, globalDob: 9, genericAddress: 7 } },
+  { type: "Passport", icon: "\u{1F6C2}",
+    strong: [/republic\s*of\s*india.{0,30}passport/i, /passport\s*no\.?\s*[A-Z]\d{7}/i],
+    weak: [/date\s*of\s*issue/i, /place\s*of\s*issue/i, /\bnationality\b/i, /\bsurname\b/i],
+    provides: "Name, DOB, passport number, nationality, address, issue/expiry",
+    authority: { panHolderName: 8, globalDob: 10, genericAddress: 6 } },
+  { type: "Driving License", icon: "\u{1F697}",
+    strong: [/driving\s*licen[cs]e/i, /transport\s*department.{0,40}licen[cs]e/i],
+    weak: [/\bdl\s*no\b/i, /\bmcwg\b|\blmv\b/i, /valid\s*till/i],
+    provides: "Name, DOB, address",
+    authority: { panHolderName: 7, globalDob: 9, genericAddress: 7 } },
+  { type: "Voter ID", icon: "\u{1F5F3}",
+    strong: [/election\s*commission\s*of\s*india/i, /elector'?s?\s*photo\s*identity/i],
+    weak: [/\bepic\s*no\b/i, /assembly\s*constituency/i],
+    provides: "Name, father's name, address",
+    authority: { panHolderName: 7, genericAddress: 7 } },
+  { type: "IEC Certificate", icon: "\u{1F310}",
+    strong: [/importer[\s-]*exporter\s*code/i, /\biec\b.{0,20}certificate/i, /directorate\s*general\s*of\s*foreign\s*trade/i],
+    weak: [/\bdgft\b/i, /\biec\s*(no|number)\b/i, /branch\s*code/i],
+    provides: "IEC number, entity name, address, directors, nature of business",
+    authority: { companyName: 9, genericAddress: 8, gstDirectors: 7, panNumber: 8 } },
+  { type: "Trade License", icon: "\u{1F3EA}",
+    strong: [/trade\s*licen[cs]e/i, /shops?\s*(and|&)\s*establishment/i],
+    weak: [/municipal\s*corporation/i, /licen[cs]e\s*(no|number)/i, /nature\s*of\s*(trade|business)/i],
+    provides: "Entity name, license number, address, nature of business, owner",
+    authority: { companyName: 8, genericAddress: 8, natureOfBusiness: 8, ownerName: 7 } },
+  { type: "FSSAI License", icon: "\u{1F374}",
+    strong: [/food\s*safety\s*and\s*standards\s*authority/i, /\bfssai\b/i],
+    weak: [/licen[cs]e\s*no.{0,10}\d{14}/i, /kind\s*of\s*business/i],
+    provides: "Entity name, FSSAI number, address, nature of business",
+    authority: { companyName: 8, genericAddress: 7, natureOfBusiness: 7 } },
+  { type: "ITR Acknowledgment", icon: "\u{1F4CA}",
+    strong: [/indian\s*income\s*tax\s*return\s*acknowledgement/i, /\bitr-?\d\b/i],
+    weak: [/assessment\s*year/i, /total\s*income/i, /\backnowledgement\s*number\b/i, /gross\s*total\s*income/i],
+    provides: "PAN, name, address, assessment year, total income/turnover",
+    authority: { panNumber: 9, companyName: 8, genericAddress: 7, annualTurnover: 10 } },
+  { type: "Financial Statement", icon: "\u{1F4C8}",
+    strong: [/balance\s*sheet/i, /profit\s*(and|&)\s*loss\s*(account|statement)/i, /statement\s*of\s*financial\s*position/i],
+    weak: [/\bturnover\b/i, /revenue\s*from\s*operations/i, /auditor'?s?\s*report/i, /\bcin\b/i, /as\s*at\s*31st\s*march/i],
+    provides: "Turnover, revenue, net worth, CIN, auditor, directors",
+    authority: { annualTurnover: 10, companyName: 8, cinNumber: 8, gstDirectors: 7 } },
+  { type: "Rent Agreement", icon: "\u{1F3E0}",
+    strong: [/rent\s*agreement/i, /lease\s*deed/i, /leave\s*(and|&)\s*licen[cs]e\s*agreement/i],
+    weak: [/\blessor\b/i, /\blessee\b/i, /monthly\s*rent/i, /security\s*deposit/i],
+    provides: "Premises address (proof of business address), tenant name, period",
+    authority: { genericAddress: 9, principalPlace: 9, companyName: 6 } },
+  { type: "Utility Bill", icon: "\u{1F4A1}",
+    strong: [/electricity\s*bill/i, /energy\s*bill/i, /telephone\s*bill/i, /\bbroadband\s*bill\b/i],
+    weak: [/consumer\s*(no|number)/i, /billing\s*period/i, /units\s*consumed/i, /due\s*date/i],
+    provides: "Address proof, consumer name",
+    authority: { genericAddress: 8, principalPlace: 7 } },
+  { type: "TAN Allotment Letter", icon: "\u{1F5DE}",
+    strong: [/tax\s*deduction\s*account\s*number/i, /\btan\b.{0,20}allot/i],
+    weak: [/\b[A-Z]{4}\d{5}[A-Z]\b/, /\bnsdl\b/i],
+    provides: "TAN number, entity name, address",
+    authority: { companyName: 7, genericAddress: 6 } },
+  { type: "IATA Certificate", icon: "✈",
+    strong: [/international\s*air\s*transport\s*association/i, /\biata\b.{0,30}(accredit|certificate|agent)/i],
+    weak: [/\biata\s*(code|number)\b/i, /\bnumeric\s*code\b/i, /accredited\s*agent/i],
+    provides: "Agency name, IATA code, address, validity — key for travel agents",
+    authority: { companyName: 9, genericAddress: 8, natureOfBusiness: 9 } },
+  { type: "Tourism Recognition", icon: "\u{1F5FA}",
+    strong: [/ministry\s*of\s*tourism/i, /recogni[sz]ed\s*tour\s*operator/i, /inbound\s*tour\s*operator/i, /\btafi\b|\btaai\b|\biato\b/i],
+    weak: [/travel\s*agent/i, /recognition\s*(no|certificate)/i],
+    provides: "Agency name, recognition number, validity, nature of business",
+    authority: { companyName: 8, natureOfBusiness: 9, genericAddress: 7 } },
+  { type: "Travel Itinerary", icon: "✈",
+    strong: [/\bitinerary\b/i, /travel\s*plan/i, /flight\s*details/i],
+    weak: [/\bcheck-?in\b/i, /\bcheck-?out\b/i, /\bpax\b/i, /\bdeparture\b/i, /\barrival\b/i, /\bhotel\b/i],
+    provides: "Destination, travel dates, traveler count, hotel/DMC name",
+    authority: { invoiceDestination: 10, invoiceDateFrom: 10, invoiceDateTo: 10, invoicePax: 10, invoiceBeneficiary: 7 } },
+  { type: "Authorization Letter", icon: "\u{1F4E8}",
+    strong: [/authori[sz]ation\s*letter/i, /letter\s*of\s*authori[sz]ation/i, /power\s*of\s*attorney/i],
+    weak: [/hereby\s*authori[sz]e/i, /on\s*behalf\s*of\s*the\s*company/i],
+    provides: "Authorized person name, designation, scope",
+    authority: { authorizedSignatory: 9, signatoryDesignation: 9 } },
+  { type: "Share Certificate", icon: "\u{1F4CB}",
+    strong: [/share\s*certificate/i, /shareholding\s*pattern/i, /list\s*of\s*shareholders/i],
+    weak: [/equity\s*shares/i, /folio\s*(no|number)/i, /distinctive\s*nos?/i, /\b%\s*of\s*(holding|shares)\b/i],
+    provides: "Shareholder names, share counts, percentages, PANs",
+    authority: { personShares: 10, gstDirectors: 8, personAddresses: 8 } },
+  { type: "AD Code Letter", icon: "\u{1F3E6}",
+    strong: [/\bad\s*code\b/i, /authori[sz]ed\s*dealer\s*code/i],
+    weak: [/\b\d{7}\b.{0,20}ad\s*code/i, /customs?\s*registration/i],
+    provides: "AD code, bank name, branch, account details",
+    authority: { bankName: 9, bankBranch: 9, bankAccountNumber: 8 } },
+  { type: "Company Letterhead", icon: "\u{1F4C3}",
+    strong: [],
+    weak: [/\bregd\.?\s*office\b/i, /\bcin\s*:/i, /\bgstin\s*:/i, /\bwww\./i, /\btel\b|\bphone\b/i],
+    provides: "Company name, address, contact details, CIN, GSTIN from header/footer",
+    authority: { companyName: 6, genericAddress: 6, extractedEmail: 6, extractedMobile: 6, companyWebsite: 8 } }
+];
+
 class OnboardingApp {
   constructor() {
     this.currentStep = 0;
@@ -13,6 +176,10 @@ class OnboardingApp {
     this.allExtractedTexts = [];
     this.fieldSourceMap = {};
     this.docFieldCounts = {};
+    this.fieldAuthority = {};
+    this.fieldConfidence = {};
+    this.conflictLog = [];
+    this.docProfiles = [];
     this.init();
   }
 
@@ -819,7 +986,10 @@ class OnboardingApp {
           delete visionResult._rawText;
           const docType = this.detectDocumentType(text);
           let extracted = this.extractFields(text, docType);
+          const visionConfidence = visionResult._confidence || {};
+          delete visionResult._confidence;
           extracted = this.mergeAiExtraction(extracted, visionResult);
+          extracted = { ...extracted, ...this.resolveWithAuthority(extracted, docType, visionConfidence) };
           this.allExtractedTexts.push({ filename: file.name, docType, text: text.substring(0, 12000) });
 
           const idx = this.uploadedFiles.findIndex(f => f.id === fileId);
@@ -939,15 +1109,42 @@ RULES: Return ONLY valid JSON. PAN = 5 letters + 4 digits + 1 letter. GSTIN = 15
     try {
       const prevAccuracy = this.getAccuracyPercent();
       const text = await this.extractPdfText(file);
-      const docType = this.detectDocumentType(text);
+      const guess = this.scoreDocumentType(text);
+      let docType = guess.type;
+      let aiProfile = null;
+      let verifyNote = "";
+
+      if (this.geminiKey) {
+        this.showLoading("Identifying document...", `AI is classifying ${file.name}`);
+        aiProfile = await this.classifyDocumentWithAi(text, file.name, guess);
+        if (aiProfile?.documentType) {
+          const aiConfident = aiProfile.confidence === "high" || aiProfile.confidence === "medium";
+          if (guess.confidence === "low" || (aiConfident && aiProfile.documentType !== docType && aiProfile.isKnownType)) {
+            docType = aiProfile.documentType;
+          }
+        }
+        this.docProfiles.push({ filename: file.name, docType, guess, aiProfile });
+      }
+
       let extracted = this.extractFields(text, docType);
 
       if (this.geminiKey) {
-        this.showLoading("AI analyzing document...", `Gemini is reading ${file.name}`);
+        this.showLoading("AI extracting data...", `Reading ${docType} — ${file.name}`);
         this.allExtractedTexts.push({ filename: file.name, docType, text: text.substring(0, 12000) });
-        const aiResult = await this.extractWithGemini(text, file.name, docType);
+        const aiResult = await this.extractWithGemini(text, file.name, docType, aiProfile);
         if (aiResult) {
+          const aiConfidence = aiResult._confidence || {};
+          delete aiResult._confidence;
           extracted = this.mergeAiExtraction(extracted, aiResult);
+
+          this.showLoading("Verifying accuracy...", `Cross-checking values against ${file.name}`);
+          const verification = await this.verifyExtraction(aiResult, text, file.name);
+          const vr = this.applyVerification(verification, extracted);
+          if (vr.removed || vr.corrected) {
+            verifyNote = ` • AI verify: ${vr.corrected} fixed, ${vr.removed} rejected`;
+          }
+
+          extracted = { ...extracted, ...this.resolveWithAuthority(extracted, docType, aiConfidence) };
         }
       }
 
@@ -969,7 +1166,7 @@ RULES: Return ONLY valid JSON. PAN = 5 letters + 4 digits + 1 letter. GSTIN = 15
       const newAccuracy = this.getAccuracyPercent();
       const boost = newAccuracy - prevAccuracy;
       const boostText = boost > 0 ? ` (+${boost}% accuracy)` : "";
-      this.showToast(`${docType} processed - ${Object.keys(extracted).length} fields extracted${this.geminiKey ? " (AI enhanced)" : ""}${boostText}`, "success");
+      this.showToast(`${docType} processed - ${Object.keys(extracted).length} fields extracted${this.geminiKey ? " (AI enhanced)" : ""}${boostText}${verifyNote}`, "success");
       this.validateExtractedFields();
 
       if (this.geminiKey) {
@@ -1065,35 +1262,77 @@ RULES: Return ONLY valid JSON. PAN = 5 letters + 4 digits + 1 letter. GSTIN = 15
   }
 
   detectDocumentType(text) {
-    const lower = text.toLowerCase();
-    if (lower.includes("udyam") || lower.includes("msme") || lower.includes("ministry of micro") || lower.includes("udyog aadhaar")) {
-      return "Udyam Registration Certificate";
+    return this.scoreDocumentType(text).type;
+  }
+
+  scoreDocumentType(text) {
+    const sample = text.length > 60000 ? text.substring(0, 30000) + " " + text.substring(text.length - 20000) : text;
+    const scored = DOC_LIBRARY.map(entry => {
+      let score = 0;
+      const hits = [];
+      (entry.strong || []).forEach(rx => { if (rx.test(sample)) { score += 12; hits.push("strong"); } });
+      (entry.weak || []).forEach(rx => { if (rx.test(sample)) { score += 3; hits.push("weak"); } });
+      return { type: entry.type, icon: entry.icon, provides: entry.provides, authority: entry.authority || {}, score, hits: hits.length };
+    }).sort((a, b) => b.score - a.score);
+
+    const best = scored[0];
+    const runnerUp = scored[1];
+    if (!best || best.score < 6) {
+      return { type: "Document", icon: "\u{1F4C4}", provides: "", authority: {}, score: 0, confidence: "low", alternatives: scored.slice(0, 3).filter(s => s.score > 0).map(s => s.type) };
     }
-    if (/\b(statement\s*of\s*account|account\s*statement|bank\s*statement|transaction\s*detail)\b/.test(lower) ||
-        (lower.includes("ifsc") && lower.includes("account")) ||
-        (/\b(opening\s*balance|closing\s*balance|debit|credit)\b/.test(lower) && lower.includes("account"))) {
-      return "Bank Statement";
+    const margin = best.score - (runnerUp ? runnerUp.score : 0);
+    const confidence = best.score >= 15 && margin >= 6 ? "high" : best.score >= 9 ? "medium" : "low";
+    return { ...best, confidence, alternatives: scored.slice(1, 4).filter(s => s.score > 3).map(s => s.type) };
+  }
+
+  getDocProfile(docType) {
+    return DOC_LIBRARY.find(d => d.type === docType) || null;
+  }
+
+  async classifyDocumentWithAi(text, filename, regexGuess) {
+    if (!this.geminiKey) return null;
+    const knownTypes = DOC_LIBRARY.map(d => d.type).join(", ");
+    const prompt = `You are classifying an Indian business/KYC document for a corporate forex onboarding system.
+
+FILENAME: "${filename}"
+REGEX GUESS: ${regexGuess.type} (confidence: ${regexGuess.confidence})
+
+KNOWN DOCUMENT TYPES:
+${knownTypes}
+
+DOCUMENT TEXT (first 4000 chars):
+${text.substring(0, 4000)}
+
+Return ONLY this JSON:
+{
+  "documentType": "exact match from the known list, OR a precise new name if none fit (e.g. 'Gumasta License', 'RCMC Certificate', 'DSC Certificate')",
+  "isKnownType": true/false,
+  "confidence": "high/medium/low",
+  "language": "English/Hindi/Marathi/mixed/etc",
+  "containsData": ["list of data categories actually present, e.g. company-identity, entity-pan, personal-pan, gstin, address, bank-details, director-list, shareholding, financials, travel-details, invoice-amounts, dates-of-birth, contact-details"],
+  "personCount": number of distinct individuals named in the document (0 if none),
+  "extractionHint": "one sentence telling an extractor exactly where the valuable fields sit in THIS document"
+}
+
+RULES:
+- Return ONLY valid JSON, no markdown
+- If the document is a scan with poor OCR text, still classify by whatever keywords survive
+- "containsData" must reflect what is ACTUALLY in the text, not what the doc type usually has`;
+
+    try {
+      const resp = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${this.geminiKey}`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ contents: [{ parts: [{ text: prompt }] }], generationConfig: { temperature: 0, maxOutputTokens: 800 } })
+      });
+      if (!resp.ok) return null;
+      const data = await resp.json();
+      const content = data.candidates?.[0]?.content?.parts?.[0]?.text || "";
+      return JSON.parse(content.replace(/```json\s*/g, "").replace(/```\s*/g, "").trim());
+    } catch (e) {
+      console.warn("AI classification failed:", e);
+      return null;
     }
-    if (/\b(invoice|proforma|quotation|payment\s*receipt|tax\s*invoice|bill\s*of\s*supply)\b/.test(lower) ||
-        (lower.includes("total") && /\b(amount|qty|quantity|rate|subtotal|grand\s*total)\b/.test(lower))) {
-      return "Invoice";
-    }
-    if (/\bpermanent\s*account\s*number\b/.test(lower) || (/\bpan\b/.test(lower) && lower.includes("income tax"))) {
-      return "PAN Card";
-    }
-    if (lower.includes("goods and services tax") || /\bgst(in|no|number)?\b/.test(lower)) {
-      return "GST Certificate";
-    }
-    if (lower.includes("certificate of incorporation") || lower.includes("registrar of companies")) {
-      return "Certificate of Incorporation";
-    }
-    if (lower.includes("aadhaar") || lower.includes("unique identification")) {
-      return "Aadhaar Card";
-    }
-    if (lower.includes("trade license") || lower.includes("shop establishment")) {
-      return "Trade License";
-    }
-    return "Document";
   }
 
   extractFields(text, docType) {
@@ -5370,7 +5609,7 @@ RULES: Return ONLY valid JSON. PAN = 5 letters + 4 digits + 1 letter. GSTIN = 15
     }
   }
 
-  buildGeminiPrompt(text, filename, docType) {
+  buildGeminiPrompt(text, filename, docType, aiProfile) {
     const cat = this.activeFormCategory || "cifl";
     const isTxn = cat.includes("Fit") || cat.includes("Mice") || cat.includes("fit") || cat.includes("mice");
     const catLabel = { cifl: "CIFL Onboarding", indel: "Indel Onboarding", ciflFit: "CIFL FIT Transactions", ciflMice: "CIFL MICE Transactions", indelFit: "Indel FIT Transactions", indelMice: "Indel MICE Transactions" }[cat] || "Corporate Onboarding";
@@ -5447,12 +5686,31 @@ RULES: Return ONLY valid JSON. PAN = 5 letters + 4 digits + 1 letter. GSTIN = 15
       "Aadhaar Card": "Focus on: name, DOB, address. DO NOT extract the Aadhaar number itself. Only extract name, DOB, and address for KYC purposes.",
       "Shareholder Agreement": "Focus on: ALL shareholder names, their PAN numbers, shareholding percentages, DOBs, addresses. These are the beneficial owners.",
     };
-    const hint = docHints[docType] || "Extract every data point you can find — names, numbers, dates, addresses, amounts, codes.";
+    const profile = this.getDocProfile(docType);
+    let hint = docHints[docType] || (profile ? `Focus on: ${profile.provides}. Extract every supporting data point too.` : "");
+
+    if (!hint) {
+      hint = `UNKNOWN/GENERIC DOCUMENT — use universal extraction. Scan the ENTIRE document systematically:
+  1. HEADER/FOOTER: company name, logo text, address, phone, email, website, CIN, GSTIN, registration numbers
+  2. TITLE BLOCK: what kind of document is this? who issued it? to whom?
+  3. ANY 10-char pattern [A-Z]{5}[0-9]{4}[A-Z] is a PAN. Any 15-char starting with 2 digits is a GSTIN. Any 4-letter+0+6-char is an IFSC. Any 21-char starting U/L + digits is a CIN.
+  4. PERSON NAMES: anyone described as Director, Partner, Proprietor, Trustee, Signatory, Karta, Member, Shareholder, Applicant, Authorized Person — capture with their designation
+  5. TABLES: extract every row; tables usually hold director lists, shareholding, amounts, or transactions
+  6. DATES: registration, incorporation, birth, validity, issue, travel — label each correctly
+  7. AMOUNTS + CURRENCY: turnover, capital, invoice value, balances
+  8. SIGNATURE BLOCK: name + designation of whoever signed`;
+    }
+
+    const aiHint = aiProfile ? `
+AI CLASSIFICATION: ${aiProfile.documentType} (confidence: ${aiProfile.confidence}${aiProfile.language && aiProfile.language !== "English" ? ", language: " + aiProfile.language : ""})
+DATA PRESENT IN THIS DOC: ${(aiProfile.containsData || []).join(", ") || "unknown"}
+${aiProfile.personCount ? `PERSONS NAMED IN THIS DOC: ${aiProfile.personCount} — extract EVERY one into the directors array` : ""}
+WHERE TO LOOK: ${aiProfile.extractionHint || "throughout the document"}` : "";
 
     return `You are an expert at extracting structured data from Indian corporate/business documents for a ${catLabel} form.
 
 DOCUMENT: "${filename}" (detected type: ${docType})
-EXTRACTION FOCUS: ${hint}
+EXTRACTION FOCUS: ${hint}${aiHint}
 
 Extract ALL possible data into this JSON structure. Return "" for fields not found in the document. Be thorough — look for data in headers, footers, tables, stamps, watermarks, fine print.
 
@@ -5475,36 +5733,214 @@ CRITICAL RULES:
 - The entity PAN (panNumber field) is for the company. Each director's "pan" field is their PERSONAL PAN.
 - If a GST certificate shows "AAYPH1599P" as a partner's PAN but "AABCU9603R" as entity PAN, put "AABCU9603R" in panNumber and "AAYPH1599P" in the director's pan field.
 - shareholders array: if shareholding info is found (from MOA, shareholder agreement, or any doc), populate with name, personal PAN, DOB, share %.
-- Look for addresses in both English and regional languages
+- Look for addresses in both English and regional languages (Hindi/Marathi/Gujarati/Tamil — transliterate names to English)
 - Indian enterprise types: map to "Private Limited Company"/"LLP"/"Partnership Firm"/"Proprietorship"/"Trust"/"Society"/"Public Limited Company"/"HUF"
 - If the document has tables, extract data from each row — especially director/partner tables
+- NEVER invent data. If a field is not in the document, return "". A wrong value is far worse than an empty one.
+- If OCR text is garbled, only extract values you can read with certainty
+
+ALSO return a "_confidence" object scoring how sure you are of each non-empty field, 0-100:
+"_confidence": {"panNumber": 95, "companyName": 80, ...}
+Score 90+ only when the value is printed explicitly and unambiguously. Score below 60 when you inferred, guessed, or read poor OCR.
 
 DOCUMENT TEXT:
 ${text.substring(0, 20000)}`;
   }
 
-  async extractWithGemini(text, filename, docType) {
+  async callGemini(prompt, maxTokens = 4096, temperature = 0.05) {
+    const resp = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${this.geminiKey}`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        contents: [{ parts: [{ text: prompt }] }],
+        generationConfig: { temperature, maxOutputTokens: maxTokens }
+      })
+    });
+    if (!resp.ok) {
+      const err = await resp.json().catch(() => ({}));
+      throw new Error(err.error?.message || resp.statusText);
+    }
+    const data = await resp.json();
+    const content = data.candidates?.[0]?.content?.parts?.[0]?.text || "";
+    return JSON.parse(content.replace(/```json\s*/g, "").replace(/```\s*/g, "").trim());
+  }
+
+  async extractWithGemini(text, filename, docType, aiProfile) {
     if (!this.geminiKey) return null;
-    const prompt = this.buildGeminiPrompt(text, filename, docType || "Unknown");
+    const CHUNK_LIMIT = 20000;
 
     try {
-      const resp = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${this.geminiKey}`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          contents: [{ parts: [{ text: prompt }] }],
-          generationConfig: { temperature: 0.05, maxOutputTokens: 4096 }
-        })
-      });
-      if (!resp.ok) return null;
-      const data = await resp.json();
-      const content = data.candidates?.[0]?.content?.parts?.[0]?.text || "";
-      const jsonStr = content.replace(/```json\s*/g, "").replace(/```\s*/g, "").trim();
-      return JSON.parse(jsonStr);
+      if (text.length <= CHUNK_LIMIT) {
+        return await this.callGemini(this.buildGeminiPrompt(text, filename, docType || "Unknown", aiProfile));
+      }
+
+      const chunks = [];
+      const step = CHUNK_LIMIT - 2000;
+      for (let i = 0; i < text.length && chunks.length < 5; i += step) {
+        chunks.push(text.substring(i, i + CHUNK_LIMIT));
+      }
+
+      const results = [];
+      for (let i = 0; i < chunks.length; i++) {
+        this.showLoading("AI reading long document...", `Part ${i + 1} of ${chunks.length} — ${filename}`);
+        try {
+          const r = await this.callGemini(this.buildGeminiPrompt(chunks[i], `${filename} (part ${i + 1}/${chunks.length})`, docType || "Unknown", aiProfile));
+          if (r) results.push(r);
+        } catch (e) { console.warn(`Chunk ${i + 1} failed:`, e.message); }
+      }
+      if (results.length === 0) return null;
+      return this.mergeChunkResults(results);
     } catch (e) {
       console.warn("Gemini extraction failed:", e);
       return null;
     }
+  }
+
+  mergeChunkResults(results) {
+    const merged = {};
+    const conf = {};
+    results.forEach(r => {
+      const rc = r._confidence || {};
+      Object.entries(r).forEach(([k, v]) => {
+        if (k === "_confidence") return;
+        if (Array.isArray(v)) {
+          if (!Array.isArray(merged[k])) merged[k] = [];
+          v.forEach(item => {
+            const key = typeof item === "string" ? item : (item?.name || JSON.stringify(item));
+            const exists = merged[k].some(e => {
+              const ek = typeof e === "string" ? e : (e?.name || JSON.stringify(e));
+              return String(ek).toLowerCase() === String(key).toLowerCase();
+            });
+            if (!exists && key) merged[k].push(item);
+          });
+          return;
+        }
+        if (typeof v !== "string" || !v.trim()) return;
+        const newConf = rc[k] != null ? rc[k] : 50;
+        if (!merged[k] || newConf > (conf[k] || 0)) { merged[k] = v; conf[k] = newConf; }
+      });
+    });
+    merged._confidence = conf;
+    return merged;
+  }
+
+  async verifyExtraction(extracted, text, filename) {
+    if (!this.geminiKey) return null;
+    const critical = ["panNumber", "gstNumber", "cinNumber", "udyamNumber", "bankAccountNumber", "bankIfsc", "companyName", "legalName", "dateOfIncorporation", "invoiceAmount", "swiftCode"];
+    const toCheck = {};
+    critical.forEach(k => { if (extracted[k]) toCheck[k] = extracted[k]; });
+    const dirs = Array.isArray(extracted.directors) ? extracted.directors.filter(d => d?.pan || d?.dob) : [];
+    if (Object.keys(toCheck).length === 0 && dirs.length === 0) return null;
+
+    const prompt = `Verify these extracted values against the source document. Find HALLUCINATIONS and MISREADS.
+
+EXTRACTED VALUES:
+${JSON.stringify(toCheck, null, 2)}
+${dirs.length > 0 ? `\nEXTRACTED PERSONS:\n${JSON.stringify(dirs.map(d => ({ name: d.name, pan: d.pan, dob: d.dob })), null, 2)}` : ""}
+
+SOURCE DOCUMENT ("${filename}"):
+${text.substring(0, 18000)}
+
+For EACH value, check character-by-character that it literally appears in the source (or is a valid derivation, e.g. entity PAN = GSTIN chars 3-12).
+
+Return ONLY this JSON:
+{
+  "invalid": {"fieldName": "reason it is wrong or absent from the source"},
+  "corrected": {"fieldName": "the correct value as printed in the source"},
+  "personIssues": [{"name": "person name", "field": "pan/dob", "issue": "what is wrong", "corrected": "correct value or empty string"}]
+}
+
+Return empty objects if everything checks out. Be strict — flag anything you cannot literally locate in the source text.`;
+
+    try {
+      return await this.callGemini(prompt, 1500, 0);
+    } catch (e) {
+      console.warn("Verification failed:", e);
+      return null;
+    }
+  }
+
+  resolveWithAuthority(newFields, docType, aiConfidence) {
+    const profile = this.getDocProfile(docType);
+    const authority = profile?.authority || {};
+    const conf = aiConfidence || {};
+    const resolved = {};
+
+    Object.entries(newFields).forEach(([field, value]) => {
+      if (value == null || (typeof value === "string" && !value.trim())) return;
+
+      const docScore = authority[field] != null ? authority[field] : 4;
+      const fieldConf = conf[field] != null ? conf[field] : 70;
+      const effective = docScore * 10 + fieldConf / 10;
+      const prior = this.fieldAuthority[field];
+
+      if (!prior) {
+        this.fieldAuthority[field] = { value, docType, effective, confidence: fieldConf };
+        this.fieldConfidence[field] = { score: fieldConf, docType, authority: docScore };
+        resolved[field] = value;
+        return;
+      }
+
+      const sameValue = Array.isArray(value) || Array.isArray(prior.value)
+        ? JSON.stringify(value) === JSON.stringify(prior.value)
+        : String(value).trim().toLowerCase() === String(prior.value).trim().toLowerCase();
+
+      if (sameValue) {
+        const boosted = Math.min(99, Math.max(fieldConf, prior.confidence) + 10);
+        this.fieldConfidence[field] = { score: boosted, docType: prior.docType + " + " + docType, authority: docScore, corroborated: true };
+        this.fieldAuthority[field].confidence = boosted;
+        resolved[field] = prior.value;
+        return;
+      }
+
+      if (effective > prior.effective) {
+        this.conflictLog.push({ field, kept: value, kepFrom: docType, discarded: prior.value, discardedFrom: prior.docType });
+        this.fieldAuthority[field] = { value, docType, effective, confidence: fieldConf };
+        this.fieldConfidence[field] = { score: fieldConf, docType, authority: docScore, conflicted: true };
+        resolved[field] = value;
+      } else {
+        this.conflictLog.push({ field, kept: prior.value, kepFrom: prior.docType, discarded: value, discardedFrom: docType });
+        this.fieldConfidence[field] = { ...(this.fieldConfidence[field] || {}), conflicted: true };
+      }
+    });
+
+    return resolved;
+  }
+
+  applyVerification(verification, fields) {
+    if (!verification) return { removed: 0, corrected: 0 };
+    let removed = 0, corrected = 0;
+
+    Object.entries(verification.corrected || {}).forEach(([field, val]) => {
+      if (val && typeof val === "string" && val.trim()) {
+        fields[field] = val.trim();
+        if (this.fieldAuthority[field]) this.fieldAuthority[field].value = val.trim();
+        corrected++;
+      }
+    });
+
+    Object.keys(verification.invalid || {}).forEach(field => {
+      if ((verification.corrected || {})[field]) return;
+      if (fields[field] != null) {
+        delete fields[field];
+        delete this.fieldAuthority[field];
+        this.fieldConfidence[field] = { score: 0, rejected: true, reason: verification.invalid[field] };
+        removed++;
+      }
+    });
+
+    (verification.personIssues || []).forEach(pi => {
+      if (!pi.name) return;
+      const names = fields.gstDirectors || fields.gstPartners || [];
+      const idx = names.findIndex(n => String(n).toLowerCase() === String(pi.name).toLowerCase());
+      if (idx < 0) return;
+      const arrKey = pi.field === "dob" ? "personDobs" : "gstPersonPans";
+      if (!Array.isArray(fields[arrKey])) return;
+      fields[arrKey][idx] = pi.corrected && pi.corrected.trim() ? pi.corrected.trim() : "";
+      if (pi.corrected && pi.corrected.trim()) corrected++; else removed++;
+    });
+
+    return { removed, corrected };
   }
 
   mergeAiExtraction(fields, ai) {
@@ -5821,6 +6257,36 @@ RULES:
 
     const totalFilled = Object.values(this.docFieldCounts).reduce((s, d) => s + d.fields.length, 0);
 
+    const lowConf = Object.entries(this.fieldConfidence)
+      .filter(([, c]) => c.score > 0 && c.score < 65 && !c.rejected)
+      .sort((a, b) => a[1].score - b[1].score).slice(0, 6);
+    const rejected = Object.entries(this.fieldConfidence).filter(([, c]) => c.rejected);
+    const corroborated = Object.values(this.fieldConfidence).filter(c => c.corroborated).length;
+
+    if (lowConf.length > 0 || rejected.length > 0 || this.conflictLog.length > 0 || corroborated > 0) {
+      html += `<div style="margin-top:10px;padding:8px;background:linear-gradient(135deg,#f0f9ff,#e0f2fe);border-radius:8px;border:1px solid #7dd3fc">
+        <div style="font-size:0.75rem;font-weight:700;color:#075985;margin-bottom:5px;display:flex;align-items:center;gap:4px">
+          <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="#075985" stroke-width="2"><path d="M9 12l2 2 4-4"/><circle cx="12" cy="12" r="10"/></svg>
+          AI Accuracy Report
+        </div>`;
+      if (corroborated > 0) {
+        html += `<div style="font-size:0.68rem;color:#047857;padding:1px 0">✓ <strong>${corroborated}</strong> field${corroborated > 1 ? "s" : ""} confirmed by 2+ documents (high confidence)</div>`;
+      }
+      if (rejected.length > 0) {
+        html += `<div style="font-size:0.68rem;color:#b91c1c;padding:1px 0">⨯ <strong>${rejected.length}</strong> value${rejected.length > 1 ? "s" : ""} rejected by AI verification (not found in source)</div>`;
+      }
+      if (this.conflictLog.length > 0) {
+        const c = this.conflictLog[this.conflictLog.length - 1];
+        html += `<div style="font-size:0.68rem;color:#b45309;padding:1px 0">⚠ <strong>${this.conflictLog.length}</strong> conflict${this.conflictLog.length > 1 ? "s" : ""} resolved by document priority
+          <span style="font-size:0.63rem;color:#92400e">(latest: ${c.field} — kept ${c.kepFrom} over ${c.discardedFrom})</span></div>`;
+      }
+      if (lowConf.length > 0) {
+        html += `<div style="font-size:0.68rem;color:#92400e;padding:3px 0 1px">Please double-check these low-confidence values:</div>
+          ${lowConf.map(([f, c]) => `<div style="font-size:0.65rem;color:#78350f;padding:0 0 0 8px">• ${f} <span style="color:#a16207">(${c.score}% — from ${c.docType})</span></div>`).join("")}`;
+      }
+      html += `</div>`;
+    }
+
     const boGaps = this.getBoFieldGaps();
     if (boGaps.length > 0) {
       html += `<div style="margin-top:10px;padding:8px;background:linear-gradient(135deg,#fef3c7,#fde68a);border-radius:8px;border:1px solid #f59e0b">
@@ -5869,8 +6335,19 @@ RULES:
       </div>`;
     });
 
+    const smartSuggestions = this.suggestDocsForMissingFields();
     const missingDocs = requiredDocs.filter(rd => !uploadedTypes.some(ut => ut.includes(rd.name.split("/")[0].trim().toLowerCase().substring(0, 6))));
-    if (missingDocs.length > 0) {
+
+    if (smartSuggestions.length > 0) {
+      html += `<div style="margin-top:8px;padding:8px;background:linear-gradient(135deg,#eff6ff,#ede9fe);border-radius:8px;border:1px solid #c4b5fd">
+        <div style="font-size:0.72rem;font-weight:700;color:#5b21b6;margin-bottom:4px">AI picks — best documents for YOUR gaps:</div>
+        ${smartSuggestions.map((d, i) => `<div style="font-size:0.7rem;color:#6d28d9;padding:2px 0;${i === 0 ? "font-weight:700" : ""}">
+          ${d.icon} <strong>${d.type}</strong> → fills ${d.score} missing field${d.score > 1 ? "s" : ""}
+          <div style="font-size:0.62rem;color:#7c3aed;padding-left:16px">${d.fills.slice(0, 5).join(", ")}</div>
+        </div>`).join("")}
+        <div style="font-size:0.62rem;color:#7c3aed;margin-top:3px;font-style:italic">Ranked by how many of your empty fields each document can fill</div>
+      </div>`;
+    } else if (missingDocs.length > 0) {
       html += `<div style="margin-top:8px;padding:8px;background:linear-gradient(135deg,#eff6ff,#ede9fe);border-radius:8px;border:1px solid #c4b5fd">
         <div style="font-size:0.72rem;font-weight:700;color:#5b21b6;margin-bottom:4px">Upload these to boost accuracy:</div>
         ${missingDocs.map(d => `<div style="font-size:0.7rem;color:#6d28d9;padding:1px 0">${d.icon} <strong>${d.name}</strong> → ${d.fields.split(",").length} fields</div>`).join("")}
@@ -5886,6 +6363,61 @@ RULES:
     </div>`;
 
     body.innerHTML = html;
+  }
+
+  suggestDocsForMissingFields() {
+    const FIELD_MAP = {
+      registeredName: "companyName", legalEntityName: "companyName", registeredAddress: "genericAddress",
+      principalPlace: "principalPlace", panNo: "panNumber", gstNo: "gstNumber", cinNumber: "cinNumber",
+      udyamNumber: "udyamNumber", dateOfIncorporation: "dateOfIncorporation", natureOfBusiness: "natureOfBusiness",
+      companyWebsite: "companyWebsite", annualFx: "annualTurnover",
+      contactName: "ownerName", contactMobile: "udyamMobile", contactEmail: "udyamEmail",
+      kmpName: "ownerName", ceoName: "ownerName", mdName: "ownerName",
+      signatoryName: "authorizedSignatory", signatoryDesignation: "signatoryDesignation",
+      directorName1: "gstDirectors", officialName1: "authorizedSignatory",
+      bankName: "bankName", bankAccountNo: "bankAccountNumber", bankIfsc: "bankIfsc",
+      ifscCode: "bankIfsc", accountNumber: "bankAccountNumber", bankBranch: "bankBranch", accountType: "bankAccountType",
+      txnInvoiceNo: "invoiceNumber", txnAmount: "invoiceAmount", txnCurrency: "invoiceCurrency",
+      txnDestination: "invoiceDestination", txnDateFrom: "invoiceDateFrom", txnDateTo: "invoiceDateTo",
+      txnTravelers: "invoicePax", txnBenefName: "invoiceBeneficiary", txnSwiftCode: "invoiceSwift", txnIban: "invoiceIban"
+    };
+
+    const naValues = new Set(["na", "n/a", "nil", "none", "-", "—", "null"]);
+    const isHidden = (el) => { let n = el; while (n && n !== document.body) { if (n.style && n.style.display === "none" && !n.classList.contains("form-section")) return true; n = n.parentElement; } return false; };
+
+    const missingExtractionFields = new Set();
+    document.querySelectorAll(".form-input, .form-textarea").forEach(el => {
+      if (!el.id || isHidden(el)) return;
+      const v = el.value.trim();
+      if (v && !naValues.has(v.toLowerCase())) return;
+      const mapped = FIELD_MAP[el.id];
+      if (mapped) missingExtractionFields.add(mapped);
+    });
+
+    document.querySelectorAll("#boRows .bo-row").forEach(row => {
+      if (row.querySelector(".bo-name")?.value?.trim()) {
+        if (!row.querySelector(".bo-pan")?.value?.trim()) missingExtractionFields.add("gstPersonPans");
+        if (!row.querySelector(".bo-dob")?.value?.trim()) { missingExtractionFields.add("personDobs"); missingExtractionFields.add("globalDob"); }
+        if (!row.querySelector(".bo-share")?.value?.trim()) missingExtractionFields.add("personShares");
+      }
+    });
+
+    if (missingExtractionFields.size === 0) return [];
+
+    const uploadedTypes = new Set(this.uploadedFiles.filter(f => f.status === "success")
+      .map(f => f.docType.replace(" + AI Vision", "").replace(" + AI", "").replace(" (OCR)", "").trim()));
+
+    const scored = DOC_LIBRARY.map(doc => {
+      const fills = [];
+      Object.entries(doc.authority || {}).forEach(([field, rank]) => {
+        if (missingExtractionFields.has(field) && rank >= 7) fills.push(field);
+      });
+      return { type: doc.type, icon: doc.icon, provides: doc.provides, fills, score: fills.length };
+    }).filter(d => d.score > 0 && !uploadedTypes.has(d.type))
+      .sort((a, b) => b.score - a.score)
+      .slice(0, 4);
+
+    return scored;
   }
 
   getBoFieldGaps() {
