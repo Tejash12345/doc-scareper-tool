@@ -161,11 +161,70 @@ const DOC_LIBRARY = [
     authority: { companyName: 6, genericAddress: 6, extractedEmail: 6, extractedMobile: 6, companyWebsite: 8 } }
 ];
 
+const CATEGORY_PROFILES = {
+  cifl: {
+    label: "CIFL - Onboarding", short: "CIFL Onboarding", icon: "\u{1F3E2}", entity: "CIFL", kind: "onboarding",
+    desc: "First-time corporate KYC registration with CIFL",
+    purpose: "Register a company as a CIFL client for forex services. Needs full entity KYC, constitution proof, beneficial ownership and banking details.",
+    requiredDocs: ["GST Certificate", "PAN Card", "Certificate of Incorporation", "Bank Statement", "Board Resolution"],
+    optionalDocs: ["Udyam Registration Certificate", "MOA / AOA", "Partnership Deed", "Cancelled Cheque", "IATA Certificate", "Tourism Recognition"],
+    priorityFields: ["companyName", "gstNumber", "panNumber", "cinNumber", "genericAddress", "gstConstitution", "dateOfIncorporation", "gstDirectors", "gstPersonPans", "personDobs", "personShares", "bankAccountNumber", "bankIfsc", "authorizedSignatory", "natureOfBusiness"],
+    aiFocus: "This is a CORPORATE ONBOARDING form. Entity identity and beneficial ownership are the highest priority: registered name, constitution, entity PAN, GSTIN, CIN, incorporation date, full registered address, and EVERY director/partner with their PERSONAL PAN, DOB and shareholding %. Banking details and authorised signatory are mandatory. Transaction/invoice data is NOT relevant here."
+  },
+  indel: {
+    label: "Indel - Onboarding", short: "Indel Onboarding", icon: "\u{1F3E6}", entity: "Indel", kind: "onboarding",
+    desc: "First-time corporate KYC registration with Indel",
+    purpose: "Register a company as an Indel client. Same entity KYC as CIFL but Indel's form wording asks for natural persons controlling the entity.",
+    requiredDocs: ["GST Certificate", "PAN Card", "Certificate of Incorporation", "Bank Statement", "Board Resolution"],
+    optionalDocs: ["Udyam Registration Certificate", "MOA / AOA", "Partnership Deed", "Share Certificate", "Cancelled Cheque"],
+    priorityFields: ["companyName", "gstNumber", "panNumber", "cinNumber", "genericAddress", "gstConstitution", "dateOfIncorporation", "gstDirectors", "gstPersonPans", "personDobs", "personShares", "personAddresses", "bankAccountNumber", "bankIfsc", "authorizedSignatory"],
+    aiFocus: "This is an INDEL CORPORATE ONBOARDING form. Prioritise entity identity plus the NATURAL PERSONS CONTROLLING THE ENTITY — Indel requires each controlling person's name, DOB, nationality, residential address, PAN and shareholding %. Extract the chairman/MD/CEO separately if named. Transaction/invoice data is NOT relevant here."
+  },
+  ciflFit: {
+    label: "CIFL - FIT Transactions", short: "CIFL FIT", icon: "✈", entity: "CIFL", kind: "fit",
+    desc: "Individual / small-group leisure travel remittance",
+    purpose: "Remit funds abroad for FIT (Free Individual Traveller) bookings — hotels, DMCs, land packages for individual travellers.",
+    requiredDocs: ["Invoice", "Travel Itinerary", "GST Certificate", "PAN Card", "Bank Statement"],
+    optionalDocs: ["Cancelled Cheque", "Passport", "AD Code Letter", "IATA Certificate"],
+    priorityFields: ["invoiceNumber", "invoiceAmount", "invoiceCurrency", "invoiceBeneficiary", "invoiceBankName", "invoiceAccountNo", "invoiceSwift", "invoiceIban", "invoiceBenefBankAddr", "invoiceDestination", "invoiceDateFrom", "invoiceDateTo", "invoicePax", "purposeOfRemittance", "companyName", "gstNumber", "panNumber"],
+    aiFocus: "This is a FIT TRANSACTION (outward remittance) form. The INVOICE and BENEFICIARY BANKING data are the highest priority: invoice number/date, exact amount, 3-letter currency code, overseas beneficiary name, beneficiary bank name and full address, account/IBAN, SWIFT/BIC, correspondent bank. Also critical: destination country, travel start/end dates, number of travellers/pax, and purpose of remittance. Company identity is secondary but still needed for the A2 declaration."
+  },
+  ciflMice: {
+    label: "CIFL - MICE Transactions", short: "CIFL MICE", icon: "\u{1F3AA}", entity: "CIFL", kind: "mice",
+    desc: "Meetings, Incentives, Conferences & Exhibitions",
+    purpose: "Remit funds abroad for MICE events — conferences, exhibitions, incentive group tours, corporate events.",
+    requiredDocs: ["Invoice", "Travel Itinerary", "GST Certificate", "PAN Card", "Bank Statement"],
+    optionalDocs: ["Cancelled Cheque", "Authorization Letter", "AD Code Letter", "Tourism Recognition"],
+    priorityFields: ["invoiceNumber", "invoiceAmount", "invoiceCurrency", "invoiceBeneficiary", "invoiceBankName", "invoiceAccountNo", "invoiceSwift", "invoiceIban", "invoiceBenefBankAddr", "invoiceDestination", "invoiceDateFrom", "invoiceDateTo", "invoicePax", "purposeOfRemittance", "companyName", "gstNumber", "panNumber"],
+    aiFocus: "This is a MICE TRANSACTION (outward remittance) form for group events. Highest priority: invoice details, exact amount + currency, overseas beneficiary (event organiser / hotel / DMC / exhibition authority) with full bank coordinates — bank name, address, account/IBAN, SWIFT/BIC. Also critical: EVENT NAME and TYPE (conference/exhibition/summit/incentive tour), venue and destination country, event start/end dates, and DELEGATE/GROUP HEADCOUNT. Purpose of remittance should reflect the event type."
+  },
+  indelFit: {
+    label: "Indel - FIT Transactions", short: "Indel FIT", icon: "✈", entity: "Indel", kind: "fit",
+    desc: "Individual / small-group leisure travel remittance",
+    purpose: "Indel outward remittance for FIT bookings. Uses Indel's A2 form and beneficiary declaration wording.",
+    requiredDocs: ["Invoice", "Travel Itinerary", "GST Certificate", "PAN Card", "Bank Statement"],
+    optionalDocs: ["Cancelled Cheque", "Passport", "AD Code Letter", "Udyam Registration Certificate"],
+    priorityFields: ["invoiceNumber", "invoiceAmount", "invoiceCurrency", "invoiceBeneficiary", "invoiceBankName", "invoiceAccountNo", "invoiceSwift", "invoiceIban", "invoiceBenefBankAddr", "invoiceDestination", "invoiceDateFrom", "invoiceDateTo", "invoicePax", "purposeOfRemittance", "companyName", "gstNumber", "panNumber"],
+    aiFocus: "This is an INDEL FIT TRANSACTION (outward remittance) form. Prioritise the INVOICE and full BENEFICIARY BANK coordinates: beneficiary name, bank name, bank address with country, account number/IBAN, SWIFT/BIC, correspondent bank and its SWIFT. Then travel data: destination, travel dates, pax count, purpose of remittance. Also capture the appointing/corporate name if the invoice is raised on a travel agent's behalf."
+  },
+  indelMice: {
+    label: "Indel - MICE Transactions", short: "Indel MICE", icon: "\u{1F3AA}", entity: "Indel", kind: "mice",
+    desc: "Meetings, Incentives, Conferences & Exhibitions",
+    purpose: "Indel outward remittance for MICE events and group movements.",
+    requiredDocs: ["Invoice", "Travel Itinerary", "GST Certificate", "PAN Card", "Bank Statement"],
+    optionalDocs: ["Cancelled Cheque", "Authorization Letter", "AD Code Letter", "Tourism Recognition"],
+    priorityFields: ["invoiceNumber", "invoiceAmount", "invoiceCurrency", "invoiceBeneficiary", "invoiceBankName", "invoiceAccountNo", "invoiceSwift", "invoiceIban", "invoiceBenefBankAddr", "invoiceDestination", "invoiceDateFrom", "invoiceDateTo", "invoicePax", "purposeOfRemittance", "companyName", "gstNumber", "panNumber"],
+    aiFocus: "This is an INDEL MICE TRANSACTION (outward remittance) form for group events. Highest priority: invoice, amount + currency, overseas beneficiary with COMPLETE bank coordinates (name, address, account/IBAN, SWIFT/BIC, correspondent bank). Then: event name and type (conference/exhibition/incentive/summit), venue, destination country, event dates and delegate headcount."
+  }
+};
+
 class OnboardingApp {
   constructor() {
     this.currentStep = 0;
     this.totalSteps = 5;
-    this.stepNames = ["Upload Documents", "Company Details", "Contact & KMP", "Banking & Compliance", "Preview & Download"];
+    this.stepNames = ["Category & Upload", "Company Details", "Contact & KMP", "Banking & Compliance", "Preview & Download"];
+    this.activeFormCategory = "cifl";
+    this.categoryChosen = false;
     this.uploadedFiles = [];
     this.extractedData = {};
     this.formData = {};
@@ -187,6 +246,7 @@ class OnboardingApp {
     document.documentElement.setAttribute("data-theme", this.theme);
     this.renderApp();
     this.bindEvents();
+    this.renderCategoryPicker();
     this.showStep(0);
   }
 
@@ -343,26 +403,52 @@ class OnboardingApp {
   renderFormSections() {
     const content = document.getElementById("contentArea");
     content.innerHTML = `
-      <!-- Step 0: Upload -->
+      <!-- Step 0: Category then Upload -->
       <div class="form-section active" data-section="0">
-        <div class="card">
-          <div class="card-body" style="padding:40px">
-            <div class="empty-state">
-              <svg width="64" height="64" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/><polyline points="10 9 9 9 8 9"/></svg>
-              <h3>Upload Your Documents to Begin</h3>
-              <p>Upload PDF documents or images (PNG/JPG) — Bank Statements, Udyam Certificates, PAN Cards, GST Certificates, CoI, Invoices, Cancelled Cheques — and AI will automatically extract data and fill all forms.</p>
-              <div style="display:flex;gap:12px;flex-wrap:wrap;justify-content:center;margin-top:20px">
-                <button class="btn btn-primary btn-lg" onclick="document.getElementById('fileInput').click()">
-                  <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>
-                  Select Files
-                </button>
-                <button class="btn btn-success btn-lg" onclick="app.loadPreAnalyzedData()">
-                  <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/><polyline points="22 4 12 14.01 9 11.01"/></svg>
-                  Load Demo Data
-                </button>
-              </div>
-              <p style="margin-top:12px;font-size:0.8rem;color:var(--text-secondary)">Supported: PDF, PNG, JPG &bull; Bank Statements, Udyam/MSME, PAN, GST, CoI, Invoices, Cancelled Cheques, Aadhaar</p>
-              <p style="font-size:0.75rem;color:var(--text-secondary);margin-top:4px">Or click "Load Demo Data" to see a sample auto-fill</p>
+        <div class="card" id="categoryPickerWrap">
+          <div class="card-header">
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 11l3 3L22 4"/><path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11"/></svg>
+            Step 1 &mdash; Which form are you filling?
+          </div>
+          <div class="card-body" style="padding:24px">
+            <div class="section-title">Select Form Category</div>
+            <div class="section-desc" style="margin-bottom:18px">Pick the category first. The AI then knows exactly which fields matter, which documents to ask for, and how to read them &mdash; giving far higher extraction accuracy.</div>
+            <div id="categoryCards" style="display:grid;grid-template-columns:repeat(auto-fit,minmax(280px,1fr));gap:12px"></div>
+            <div style="margin-top:20px;padding-top:16px;border-top:1px solid var(--border);text-align:center">
+              <button class="btn btn-outline btn-sm" onclick="app.loadPreAnalyzedData()">
+                <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/><polyline points="22 4 12 14.01 9 11.01"/></svg>
+                Skip &amp; Load Demo Data
+              </button>
+            </div>
+          </div>
+        </div>
+
+        <div class="card" id="uploadPhaseWrap" style="display:none">
+          <div class="card-header">
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>
+            Step 2 &mdash; Upload documents for <span id="uploadPhaseCatName" style="color:var(--primary)"></span>
+          </div>
+          <div class="card-body" style="padding:24px">
+            <div id="chosenCategoryBanner"></div>
+            <div id="categoryDocChecklist" style="margin:16px 0"></div>
+            <div class="upload-zone" id="uploadZoneMain" style="margin-top:8px">
+              <svg width="46" height="46" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.4"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="12" y1="18" x2="12" y2="12"/><polyline points="9 15 12 12 15 15"/></svg>
+              <h3>Drop your documents here</h3>
+              <p>PDF, PNG or JPG &mdash; upload all of them at once, in any order</p>
+              <button class="btn btn-primary btn-lg" style="margin-top:14px" onclick="document.getElementById('fileInput').click()">
+                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>
+                Select Files
+              </button>
+            </div>
+            <div style="margin-top:16px;display:flex;gap:10px;flex-wrap:wrap;justify-content:space-between;align-items:center">
+              <button class="btn btn-secondary btn-sm" onclick="app.backToCategoryPicker()">
+                <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="19" y1="12" x2="5" y2="12"/><polyline points="12 19 5 12 12 5"/></svg>
+                Change Category
+              </button>
+              <button class="btn btn-primary btn-sm" onclick="app.goToStep(1)">
+                Continue to Form
+                <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="5" y1="12" x2="19" y2="12"/><polyline points="12 5 19 12 12 19"/></svg>
+              </button>
             </div>
           </div>
         </div>
@@ -793,13 +879,16 @@ class OnboardingApp {
 
     fileInput.addEventListener("change", (e) => this.handleFiles(e.target.files));
 
-    uploadZone.addEventListener("click", () => fileInput.click());
-    uploadZone.addEventListener("dragover", (e) => { e.preventDefault(); uploadZone.classList.add("dragover"); });
-    uploadZone.addEventListener("dragleave", () => uploadZone.classList.remove("dragover"));
-    uploadZone.addEventListener("drop", (e) => {
-      e.preventDefault();
-      uploadZone.classList.remove("dragover");
-      this.handleFiles(e.dataTransfer.files);
+    [uploadZone, document.getElementById("uploadZoneMain")].forEach(zone => {
+      if (!zone) return;
+      zone.addEventListener("click", (e) => { if (e.target.closest("button")) return; fileInput.click(); });
+      zone.addEventListener("dragover", (e) => { e.preventDefault(); zone.classList.add("dragover"); });
+      zone.addEventListener("dragleave", () => zone.classList.remove("dragover"));
+      zone.addEventListener("drop", (e) => {
+        e.preventDefault();
+        zone.classList.remove("dragover");
+        this.handleFiles(e.dataTransfer.files);
+      });
     });
 
     document.querySelectorAll(".radio-group .radio-item").forEach(item => {
@@ -831,6 +920,7 @@ class OnboardingApp {
       this.showToast("Pre-analyzed data not available", "error");
       return;
     }
+    if (!this.categoryChosen) this.chooseCategory(this.activeFormCategory || "cifl");
     this.showLoading("Loading data...", "Applying pre-analyzed document data");
     setTimeout(() => {
       const fm = EXTRACTED_DATA.formMapping;
@@ -945,6 +1035,16 @@ class OnboardingApp {
   }
 
   async handleFiles(files) {
+    if (!this.categoryChosen) {
+      this.showToast("Select a form category first — the AI needs it to extract accurately", "warning", 6000);
+      this.showStep(0);
+      this.backToCategoryPicker();
+      const picker = document.getElementById("categoryPickerWrap");
+      if (picker) picker.scrollIntoView({ behavior: "smooth", block: "center" });
+      const fi = document.getElementById("fileInput");
+      if (fi) fi.value = "";
+      return;
+    }
     const supported = ["application/pdf", "image/png", "image/jpeg", "image/webp"];
     for (const file of files) {
       if (!supported.includes(file.type)) {
@@ -1005,6 +1105,7 @@ class OnboardingApp {
           this.renderUploadedFiles();
           this.updateAccuracy();
           this.renderDocIntelligence();
+          this.renderCategoryDocChecklist();
           this.hideLoading();
           this.showToast(`Image processed with AI Vision - ${Object.keys(extracted).length} fields extracted`, "success");
           this.validateExtractedFields();
@@ -1162,6 +1263,7 @@ RULES: Return ONLY valid JSON. PAN = 5 letters + 4 digits + 1 letter. GSTIN = 15
       this.renderUploadedFiles();
       this.updateAccuracy();
       this.renderDocIntelligence();
+      this.renderCategoryDocChecklist();
       this.hideLoading();
       const newAccuracy = this.getAccuracyPercent();
       const boost = newAccuracy - prevAccuracy;
@@ -2712,7 +2814,7 @@ RULES:
     });
 
     const catBar = document.getElementById("formCategoryBar");
-    if (catBar) catBar.style.display = step > 0 ? "flex" : "none";
+    if (catBar) catBar.style.display = (step > 0 || this.categoryChosen) ? "flex" : "none";
     if (step === 4) this.renderPreview();
     window.scrollTo({ top: 0, behavior: "smooth" });
   }
@@ -2764,6 +2866,114 @@ RULES:
     this.switchDocPreview(firstDoc);
   }
 
+  renderCategoryPicker() {
+    const wrap = document.getElementById("categoryCards");
+    if (!wrap) return;
+    const active = this.activeFormCategory;
+    wrap.innerHTML = Object.entries(CATEGORY_PROFILES).map(([key, p]) => {
+      const isActive = key === active;
+      return `<div onclick="app.chooseCategory('${key}')" style="cursor:pointer;border:2px solid ${isActive ? "var(--primary)" : "var(--border)"};border-radius:10px;padding:14px;background:${isActive ? "var(--primary-light)" : "var(--card-bg)"};transition:all 0.15s"
+        onmouseover="this.style.borderColor='var(--primary)';this.style.transform='translateY(-2px)'"
+        onmouseout="this.style.borderColor='${isActive ? "var(--primary)" : "var(--border)"}';this.style.transform='none'">
+        <div style="display:flex;align-items:center;gap:8px;margin-bottom:6px">
+          <span style="font-size:1.3rem">${p.icon}</span>
+          <div style="flex:1">
+            <div style="font-weight:700;font-size:0.9rem;color:var(--text-primary)">${p.label}</div>
+            <div style="font-size:0.7rem;color:var(--text-muted)">${p.desc}</div>
+          </div>
+          ${isActive ? '<span style="font-size:0.65rem;background:var(--primary);color:#fff;padding:2px 7px;border-radius:10px;font-weight:600">SELECTED</span>' : ""}
+        </div>
+        <div style="font-size:0.68rem;color:var(--text-secondary);line-height:1.4;margin-bottom:8px">${p.purpose}</div>
+        <div style="display:flex;flex-wrap:wrap;gap:3px">
+          ${p.requiredDocs.slice(0, 5).map(d => {
+            const lib = DOC_LIBRARY.find(l => l.type === d);
+            return `<span style="font-size:0.63rem;background:var(--bg);border:1px solid var(--border);color:var(--text-secondary);padding:1px 5px;border-radius:4px">${lib ? lib.icon + " " : ""}${d}</span>`;
+          }).join("")}
+        </div>
+      </div>`;
+    }).join("");
+  }
+
+  chooseCategory(category) {
+    const profile = CATEGORY_PROFILES[category];
+    if (!profile) return;
+    this.categoryChosen = true;
+    this.switchFormCategory(category);
+
+    const picker = document.getElementById("categoryPickerWrap");
+    const uploadPhase = document.getElementById("uploadPhaseWrap");
+    if (picker) picker.style.display = "none";
+    if (uploadPhase) uploadPhase.style.display = "";
+
+    const catName = document.getElementById("uploadPhaseCatName");
+    if (catName) catName.textContent = profile.label;
+
+    const banner = document.getElementById("chosenCategoryBanner");
+    if (banner) {
+      banner.innerHTML = `<div style="padding:12px;background:linear-gradient(135deg,#eff6ff,#ede9fe);border-radius:8px;border:1px solid #c4b5fd">
+        <div style="display:flex;align-items:center;gap:8px">
+          <span style="font-size:1.4rem">${profile.icon}</span>
+          <div>
+            <div style="font-weight:700;font-size:0.88rem;color:#5b21b6">${profile.label}</div>
+            <div style="font-size:0.72rem;color:#6d28d9">${profile.purpose}</div>
+          </div>
+        </div>
+        <div style="font-size:0.7rem;color:#7c3aed;margin-top:8px;padding-top:8px;border-top:1px solid #ddd6fe">
+          <strong>AI is now tuned for this form.</strong> It will prioritise ${profile.priorityFields.length} fields specific to ${profile.short} and read each document with those in mind.
+        </div>
+      </div>`;
+    }
+
+    this.renderCategoryDocChecklist();
+    const catBar = document.getElementById("formCategoryBar");
+    if (catBar) catBar.style.display = "flex";
+    this.showToast(`${profile.label} selected — now upload your documents`, "success");
+  }
+
+  backToCategoryPicker() {
+    const picker = document.getElementById("categoryPickerWrap");
+    const uploadPhase = document.getElementById("uploadPhaseWrap");
+    if (picker) picker.style.display = "";
+    if (uploadPhase) uploadPhase.style.display = "none";
+    this.renderCategoryPicker();
+  }
+
+  renderCategoryDocChecklist() {
+    const el = document.getElementById("categoryDocChecklist");
+    if (!el) return;
+    const profile = CATEGORY_PROFILES[this.activeFormCategory];
+    if (!profile) { el.innerHTML = ""; return; }
+
+    const uploaded = new Set(this.uploadedFiles.filter(f => f.status === "success")
+      .map(f => f.docType.replace(" + AI Vision", "").replace(" + AI", "").replace(" (OCR)", "").trim()));
+
+    const row = (d, required) => {
+      const lib = DOC_LIBRARY.find(l => l.type === d);
+      const done = uploaded.has(d);
+      return `<div style="display:flex;align-items:flex-start;gap:7px;padding:5px 0;border-bottom:1px solid var(--border)">
+        <span style="font-size:1rem;line-height:1.2">${lib ? lib.icon : "\u{1F4C4}"}</span>
+        <div style="flex:1;min-width:0">
+          <div style="font-size:0.76rem;font-weight:600;color:var(--text-primary)">${d}
+            ${required ? '<span style="font-size:0.6rem;color:#dc2626;font-weight:700"> REQUIRED</span>' : '<span style="font-size:0.6rem;color:var(--text-muted);font-weight:600"> optional</span>'}
+          </div>
+          <div style="font-size:0.65rem;color:var(--text-muted)">${lib ? lib.provides : ""}</div>
+        </div>
+        <span style="font-size:0.65rem;padding:1px 6px;border-radius:10px;font-weight:600;white-space:nowrap;${done ? "background:#dcfce7;color:#166534" : required ? "background:#fee2e2;color:#991b1b" : "background:#f1f5f9;color:#64748b"}">${done ? "✓ Uploaded" : required ? "Needed" : "—"}</span>
+      </div>`;
+    };
+
+    const doneCount = profile.requiredDocs.filter(d => uploaded.has(d)).length;
+    el.innerHTML = `<div style="font-size:0.8rem;font-weight:700;color:var(--text-primary);margin-bottom:6px;display:flex;align-items:center;justify-content:space-between">
+        <span>Documents for ${profile.short}</span>
+        <span style="font-size:0.7rem;font-weight:600;color:${doneCount === profile.requiredDocs.length ? "#059669" : "#d97706"}">${doneCount}/${profile.requiredDocs.length} required uploaded</span>
+      </div>
+      ${profile.requiredDocs.map(d => row(d, true)).join("")}
+      <details style="margin-top:6px">
+        <summary style="font-size:0.72rem;color:var(--primary);cursor:pointer;font-weight:600">Show ${profile.optionalDocs.length} optional documents (boost accuracy further)</summary>
+        <div style="margin-top:4px">${profile.optionalDocs.map(d => row(d, false)).join("")}</div>
+      </details>`;
+  }
+
   switchFormCategory(category) {
     this.activeFormCategory = category;
     const mainSel = document.getElementById("formCategoryMain");
@@ -2786,6 +2996,9 @@ RULES:
     const isTxn = category.startsWith("ciflFit") || category.startsWith("ciflMice") || category.startsWith("indelFit") || category.startsWith("indelMice");
     this.toggleTransactionFields(isTxn);
     this.updateAccuracy();
+    this.renderCategoryDocChecklist();
+    this.renderCategoryPicker();
+    if (Object.keys(this.docFieldCounts).length > 0) this.renderDocIntelligence();
   }
 
   toggleTransactionFields(isTxn) {
@@ -5671,7 +5884,12 @@ RULES:
   "swiftCode": "SWIFT/BIC code (8 or 11 characters)",
   "iban": "IBAN number",
   "correspondentBank": "correspondent/intermediary bank if mentioned",
-  "correspondentSwift": "correspondent bank SWIFT code"` : "";
+  "correspondentSwift": "correspondent bank SWIFT code"${cat.includes("Mice") || cat.includes("mice") ? `,
+  "eventName": "name of the conference/exhibition/summit/event",
+  "eventType": "Conference/Exhibition/Trade Fair/Summit/Seminar/Incentive Tour/Corporate Event",
+  "eventVenue": "venue name and city where the event is held",
+  "delegateCount": "number of delegates/participants/attendees",
+  "organiserName": "event organiser or exhibition authority name"` : ""}` : "";
 
     const docHints = {
       "GST Certificate": "CRITICAL — Focus on: GSTIN, legal name, trade name, address, constitution type, date of registration, PAN (embedded in GSTIN positions 3-12). ALSO extract ALL directors/partners/promoters listed — GST certificates list authorized representatives and partners with their PERSONAL PANs, DOBs, designations. Look for sections like 'Details of Partners/Directors', 'Authorized Signatory', 'Promoters/Partners'. Each person may have their own PAN (different from entity PAN), DOB, DIN, designation, and mobile.",
@@ -5707,7 +5925,21 @@ DATA PRESENT IN THIS DOC: ${(aiProfile.containsData || []).join(", ") || "unknow
 ${aiProfile.personCount ? `PERSONS NAMED IN THIS DOC: ${aiProfile.personCount} — extract EVERY one into the directors array` : ""}
 WHERE TO LOOK: ${aiProfile.extractionHint || "throughout the document"}` : "";
 
+    const catProfile = CATEGORY_PROFILES[cat];
+    const catBlock = catProfile ? `
+
+═══ TARGET FORM: ${catProfile.label} ═══
+PURPOSE OF THIS FORM: ${catProfile.purpose}
+CATEGORY-SPECIFIC STRATEGY: ${catProfile.aiFocus}
+
+HIGHEST-PRIORITY FIELDS for this form (hunt for these first and hardest — an empty priority field is a failure):
+${catProfile.priorityFields.join(", ")}
+
+The user selected this category BEFORE uploading, so you know the intent. If this document does not carry a priority field, leave it "" — but do not stop until you have swept the whole document for every one of them.
+═══════════════════════════════════════` : "";
+
     return `You are an expert at extracting structured data from Indian corporate/business documents for a ${catLabel} form.
+${catBlock}
 
 DOCUMENT: "${filename}" (detected type: ${docType})
 EXTRACTION FOCUS: ${hint}${aiHint}
@@ -6057,6 +6289,13 @@ Return empty objects if everything checks out. Be strict — flag anything you c
     if (ai.correspondentBank) set("correspondentBank", ai.correspondentBank);
     if (ai.correspondentSwift) set("correspondentSwift", ai.correspondentSwift);
     if (ai.purposeOfRemittance) set("purposeOfRemittance", ai.purposeOfRemittance);
+
+    if (ai.eventName) set("eventName", ai.eventName);
+    if (ai.eventType) set("eventType", ai.eventType);
+    if (ai.eventVenue) set("eventVenue", ai.eventVenue);
+    if (ai.delegateCount) fields.invoicePax = fields.invoicePax || String(ai.delegateCount).replace(/[^0-9]/g, "");
+    if (ai.organiserName && !fields.invoiceBeneficiary) set("invoiceBeneficiary", ai.organiserName);
+    if (!fields.purposeOfRemittance && ai.eventType) fields.purposeOfRemittance = String(ai.eventType).trim();
 
     return fields;
   }
@@ -6759,6 +6998,14 @@ RULES:
     this.uploadedFiles = [];
     this.extractedData = {};
     this.autoFilledCount = 0;
+    this.allExtractedTexts = [];
+    this.fieldSourceMap = {};
+    this.docFieldCounts = {};
+    this.fieldAuthority = {};
+    this.fieldConfidence = {};
+    this.conflictLog = [];
+    this.docProfiles = [];
+    this.categoryChosen = false;
     document.querySelectorAll(".form-input, .form-textarea").forEach(el => {
       el.value = "";
       el.classList.remove("auto-filled");
@@ -6767,6 +7014,9 @@ RULES:
     document.querySelectorAll(".checkbox-item").forEach(c => { c.classList.remove("checked"); c.querySelector("input").checked = false; });
     this.renderUploadedFiles();
     document.getElementById("accuracyCard").style.display = "none";
+    const dic = document.getElementById("docIntelCard");
+    if (dic) dic.style.display = "none";
+    this.backToCategoryPicker();
     this.showStep(0);
     this.showToast("Form has been reset", "info");
   }
