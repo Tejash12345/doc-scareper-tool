@@ -585,7 +585,7 @@ class OnboardingApp {
             <h3 style="margin:0;font-size:1.1rem">&#129302; AI Extraction Settings</h3>
             <button onclick="app.closeSettings()" style="background:none;border:none;cursor:pointer;font-size:1.3rem;color:var(--text-secondary)">&times;</button>
           </div>
-          <p style="font-size:0.82rem;color:var(--text-secondary);margin-bottom:14px">Enable AI-powered extraction for <strong>near 100% accuracy</strong>. Uses Google Gemini 2.0 Flash to intelligently read your documents and analyze missing fields.</p>
+          <p style="font-size:0.82rem;color:var(--text-secondary);margin-bottom:14px">Enable AI-powered extraction for <strong>near 100% accuracy</strong>. Uses Google Gemini 2.5 Flash to intelligently read your documents and analyze missing fields.</p>
           <div style="background:linear-gradient(135deg,#dbeafe,#ede9fe);border-radius:10px;padding:14px;margin-bottom:14px">
             <div style="font-size:0.82rem;font-weight:700;color:var(--gray-800);margin-bottom:8px">&#128272; How to get your free API key:</div>
             <div style="font-size:0.78rem;color:var(--gray-700);line-height:1.6">
@@ -908,7 +908,7 @@ Return this structure (use "" for not found):
 RULES: Return ONLY valid JSON. PAN = 5 letters + 4 digits + 1 letter. GSTIN = 15 chars. Dates = DD/MM/YYYY. Amounts = numbers only.`;
 
     try {
-      const resp = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${this.geminiKey}`, {
+      const resp = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${this.geminiKey}`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
@@ -1853,18 +1853,31 @@ RULES: Return ONLY valid JSON. PAN = 5 letters + 4 digits + 1 letter. GSTIN = 15
       }
     }
 
-    const bo1Name = document.querySelector("#boRows .bo-name");
-    if (bo1Name && !bo1Name.value.trim()) {
-      const dirName = document.getElementById("directorName1")?.value?.replace(/\s*\(.*?\)\s*$/, "").trim();
-      if (dirName) {
-        bo1Name.value = dirName;
-        bo1Name.classList.add("auto-filled");
-        const bo1Pan = document.querySelector("#boRows .bo-pan");
-        if (bo1Pan && !bo1Pan.value.trim() && pan) { bo1Pan.value = pan; bo1Pan.classList.add("auto-filled"); }
-        const bo1Share = document.querySelector("#boRows .bo-share");
-        if (bo1Share && !bo1Share.value.trim()) { bo1Share.value = "100%"; bo1Share.classList.add("auto-filled"); }
+    const boRows = document.querySelectorAll("#boRows .bo-row");
+    const personPans = this.extractedData.gstPersonPans || [];
+    const personDobs = this.extractedData.personDobs || [];
+    const personSharePcts = this.extractedData.personShares || [];
+    boRows.forEach((row, idx) => {
+      const nameInput = row.querySelector(".bo-name");
+      const dobInput = row.querySelector(".bo-dob");
+      const panInput = row.querySelector(".bo-pan");
+      const shareInput = row.querySelector(".bo-share");
+      if (nameInput && !nameInput.value.trim()) {
+        const dirName = idx === 0 ? (document.getElementById("directorName1")?.value?.replace(/\s*\(.*?\)\s*$/, "").trim() || "") : "";
+        if (dirName) { nameInput.value = dirName; nameInput.classList.add("auto-filled"); }
       }
-    }
+      if (panInput && !panInput.value.trim()) {
+        const pPan = personPans[idx] || "";
+        if (pPan && /^[A-Z]{5}\d{4}[A-Z]$/.test(pPan)) { panInput.value = pPan; panInput.classList.add("auto-filled"); }
+        else if (idx === 0 && pan) { panInput.value = pan; panInput.classList.add("auto-filled"); }
+      }
+      if (dobInput && !dobInput.value.trim() && personDobs[idx]) { dobInput.value = personDobs[idx]; dobInput.classList.add("auto-filled"); }
+      if (shareInput && !shareInput.value.trim()) {
+        const sp = personSharePcts[idx] || "";
+        if (sp) { shareInput.value = sp; shareInput.classList.add("auto-filled"); }
+        else if (boRows.length === 1) { shareInput.value = "100%"; shareInput.classList.add("auto-filled"); }
+      }
+    });
   }
 
   setBadge(fieldId, source) {
@@ -1981,18 +1994,28 @@ RULES: Return ONLY valid JSON. PAN = 5 letters + 4 digits + 1 letter. GSTIN = 15
     if (names.length === 0) return;
     const personPans = d.gstPersonPans || [];
     const personDobs = d.personDobs || (d.panDob ? [d.panDob] : (d.globalDob ? [d.globalDob] : []));
+    const personSharePcts = d.personShares || [];
     const entityPan = d.panNumber || "";
-    const shareEach = names.length === 1 ? "100%" : Math.round(100 / names.length) + "%";
+    const defaultShare = names.length === 1 ? "100%" : Math.round(100 / names.length) + "%";
     const fillRow = (row, idx) => {
       if (!row) return;
       const nameInput = row.querySelector(".bo-name");
       const dobInput = row.querySelector(".bo-dob");
       const panInput = row.querySelector(".bo-pan");
       const shareInput = row.querySelector(".bo-share");
-      if (nameInput) { nameInput.value = names[idx]; nameInput.classList.add("auto-filled"); }
-      if (dobInput && personDobs[idx]) { dobInput.value = personDobs[idx]; dobInput.classList.add("auto-filled"); }
-      if (panInput) { panInput.value = personPans[idx] || entityPan; panInput.classList.add("auto-filled"); }
-      if (shareInput) { shareInput.value = shareEach; shareInput.classList.add("auto-filled"); }
+      if (nameInput && !nameInput.value.trim()) { nameInput.value = names[idx]; nameInput.classList.add("auto-filled"); }
+      if (dobInput && !dobInput.value.trim() && personDobs[idx]) { dobInput.value = personDobs[idx]; dobInput.classList.add("auto-filled"); }
+      const personPan = personPans[idx] || "";
+      if (panInput && !panInput.value.trim()) {
+        if (personPan && personPan !== entityPan) { panInput.value = personPan; panInput.classList.add("auto-filled"); }
+        else if (personPan) { panInput.value = personPan; panInput.classList.add("auto-filled"); }
+        else if (names.length === 1 && entityPan) { panInput.value = entityPan; panInput.classList.add("auto-filled"); }
+      }
+      const sharePct = personSharePcts[idx] || "";
+      if (shareInput && !shareInput.value.trim()) {
+        shareInput.value = sharePct || defaultShare;
+        shareInput.classList.add("auto-filled");
+      }
     };
     fillRow(boContainer.querySelector(".bo-row"), 0);
     for (let i = 1; i < names.length; i++) {
@@ -5325,7 +5348,7 @@ RULES: Return ONLY valid JSON. PAN = 5 letters + 4 digits + 1 letter. GSTIN = 15
     status.style.color = "#1565c0";
     status.textContent = "Testing connection...";
     try {
-      const resp = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${key}`, {
+      const resp = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${key}`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ contents: [{ parts: [{ text: "Reply with just: OK" }] }] })
@@ -5379,7 +5402,8 @@ RULES: Return ONLY valid JSON. PAN = 5 letters + 4 digits + 1 letter. GSTIN = 15
   "contactDesignation": "designation (Director/Partner/Proprietor/CEO/CFO/Manager/Authorized Signatory)",
   "contactMobile": "10-digit Indian mobile number",
   "contactEmail": "email address",
-  "directors": [{"name": "full name", "designation": "Director/Partner/Trustee/etc", "din": "DIN number if available", "pan": "PAN if shown", "dob": "DD/MM/YYYY", "mobile": "phone", "email": "email"}],
+  "directors": [{"name": "full name", "designation": "Director/Partner/Trustee/Subscriber/Promoter", "din": "DIN number (8 digits)", "pan": "PERSONAL PAN of this person (not entity PAN)", "dob": "DD/MM/YYYY", "mobile": "phone", "email": "email", "fatherName": "father's name if shown", "address": "residential address", "sharePercent": "shareholding percentage if shown", "nationality": "Indian/other"}],
+  "shareholders": [{"name": "full name", "pan": "personal PAN", "dob": "DD/MM/YYYY", "sharePercent": "percentage holding", "address": "address"}],
   "authorizedSignatory": "name of authorized signatory for banking/forex",
   "signatoryDesignation": "designation of authorized signatory"`;
 
@@ -5411,14 +5435,17 @@ RULES: Return ONLY valid JSON. PAN = 5 letters + 4 digits + 1 letter. GSTIN = 15
   "correspondentSwift": "correspondent bank SWIFT code"` : "";
 
     const docHints = {
-      "GST Certificate": "Focus on: GSTIN, legal name, trade name, address, constitution type, date of registration, PAN (embedded in GSTIN positions 3-12).",
-      "PAN Card": "Focus on: PAN number (10-char alphanumeric), name on PAN, date of birth/incorporation, father's name if individual PAN.",
-      "Udyam Certificate": "Focus on: Udyam number, enterprise name, type (Micro/Small/Medium), NIC code, address, date of incorporation, owner name, mobile, email, Aadhaar-linked PAN, plant/office addresses.",
-      "Certificate of Incorporation": "Focus on: CIN, company name, date of incorporation, registered office address, authorized capital, paid-up capital, directors listed.",
-      "Bank Statement": "Focus on: account holder name, account number, bank name, branch, IFSC, MICR, account type, address, opening date.",
-      "Invoice": "Focus on: invoice number, date, seller/buyer names, amounts, currency, GSTIN of parties, HSN/SAC codes, destination, beneficiary bank details, SWIFT, IBAN, travel dates, passenger count.",
-      "Board Resolution": "Focus on: authorized signatories, their designations, date of resolution, purpose.",
-      "MOA/AOA": "Focus on: company objects/nature of business, authorized capital, subscriber details (name, address, shares), registered office.",
+      "GST Certificate": "CRITICAL — Focus on: GSTIN, legal name, trade name, address, constitution type, date of registration, PAN (embedded in GSTIN positions 3-12). ALSO extract ALL directors/partners/promoters listed — GST certificates list authorized representatives and partners with their PERSONAL PANs, DOBs, designations. Look for sections like 'Details of Partners/Directors', 'Authorized Signatory', 'Promoters/Partners'. Each person may have their own PAN (different from entity PAN), DOB, DIN, designation, and mobile.",
+      "PAN Card": "Focus on: PAN number (10-char alphanumeric), FULL name exactly as printed, date of birth/incorporation (DD/MM/YYYY), father's name. IMPORTANT: This is a PERSONAL PAN — extract DOB and father's name which are critical for Beneficial Owner KYC.",
+      "Udyam Certificate": "Focus on: Udyam number, enterprise name, type (Micro/Small/Medium), NIC code, address, date of incorporation, owner name, mobile, email, Aadhaar-linked PAN. Extract owner's PERSONAL details — name, PAN, mobile, email — these are the beneficial owner details.",
+      "Certificate of Incorporation": "Focus on: CIN, company name, date of incorporation, registered office address, authorized capital, paid-up capital. CRITICAL: Extract ALL directors listed with their DIN numbers, names, and designations — these are the initial subscribers/directors of the company.",
+      "Bank Statement": "Focus on: account holder name, account number, bank name, branch, IFSC, MICR, account type, address, opening date. Also look for joint holders, mandate holders.",
+      "Invoice": "Focus on: invoice number, date, seller/buyer names, amounts, currency, GSTIN of parties, HSN/SAC codes, destination, beneficiary bank details, SWIFT, IBAN, travel dates, passenger count, hotel/DMC name.",
+      "Board Resolution": "Focus on: ALL authorized signatories with their names and designations, date of resolution, purpose. These persons become authorized officials for FX transactions.",
+      "MOA/AOA": "Focus on: company objects/nature of business, authorized capital, subscriber details (name, address, shares, PAN). CRITICAL: Extract ALL subscribers as shareholders — their names, addresses, number of shares, and share percentages.",
+      "Cancelled Cheque": "Focus on: account number, IFSC code, bank name, branch name, account holder name. MICR code if visible.",
+      "Aadhaar Card": "Focus on: name, DOB, address. DO NOT extract the Aadhaar number itself. Only extract name, DOB, and address for KYC purposes.",
+      "Shareholder Agreement": "Focus on: ALL shareholder names, their PAN numbers, shareholding percentages, DOBs, addresses. These are the beneficial owners.",
     };
     const hint = docHints[docType] || "Extract every data point you can find — names, numbers, dates, addresses, amounts, codes.";
 
@@ -5444,10 +5471,13 @@ CRITICAL RULES:
 - Amounts: return pure number (e.g. "50000.00" not "Rs. 50,000/-" or "USD 50,000.00")
 - Mobile: 10 digits only, no country code prefix
 - Extract PAN from GSTIN: characters 3-12 of a 15-char GSTIN
-- For directors/partners: extract ALL names found, include their DIN, PAN, DOB if shown
+- PERSON EXTRACTION IS CRITICAL: For EVERY director/partner/promoter/subscriber found, extract their PERSONAL PAN (different from entity PAN), DOB, DIN, designation, share %, mobile, email. GST certificates list partners with personal PANs — these are NOT the entity PAN.
+- The entity PAN (panNumber field) is for the company. Each director's "pan" field is their PERSONAL PAN.
+- If a GST certificate shows "AAYPH1599P" as a partner's PAN but "AABCU9603R" as entity PAN, put "AABCU9603R" in panNumber and "AAYPH1599P" in the director's pan field.
+- shareholders array: if shareholding info is found (from MOA, shareholder agreement, or any doc), populate with name, personal PAN, DOB, share %.
 - Look for addresses in both English and regional languages
 - Indian enterprise types: map to "Private Limited Company"/"LLP"/"Partnership Firm"/"Proprietorship"/"Trust"/"Society"/"Public Limited Company"/"HUF"
-- If the document has tables, extract data from each row
+- If the document has tables, extract data from each row — especially director/partner tables
 
 DOCUMENT TEXT:
 ${text.substring(0, 20000)}`;
@@ -5458,7 +5488,7 @@ ${text.substring(0, 20000)}`;
     const prompt = this.buildGeminiPrompt(text, filename, docType || "Unknown");
 
     try {
-      const resp = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${this.geminiKey}`, {
+      const resp = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${this.geminiKey}`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
@@ -5516,32 +5546,54 @@ ${text.substring(0, 20000)}`;
     if (ai.signatoryDesignation) set("signatoryDesignation", ai.signatoryDesignation);
 
     const aiDirs = Array.isArray(ai.directors) ? ai.directors : [];
-    if (aiDirs.length > 0) {
+    const aiShareholders = Array.isArray(ai.shareholders) ? ai.shareholders : [];
+    const allPersons = [...aiDirs];
+    aiShareholders.forEach(sh => {
+      const shName = typeof sh === "string" ? sh : str(sh?.name);
+      if (shName && shName.length > 2 && !allPersons.find(p => str(p?.name).toLowerCase() === shName.toLowerCase())) {
+        allPersons.push({ name: shName, pan: sh?.pan || "", dob: sh?.dob || "", sharePercent: sh?.sharePercent || "", designation: "Shareholder", address: sh?.address || "" });
+      }
+    });
+    if (allPersons.length > 0) {
       const names = [];
       const desigs = [];
       const pans = [];
       const dobs = [];
       const mobiles = [];
       const emails = [];
-      aiDirs.forEach(d => {
+      const dins = [];
+      const shares = [];
+      const addresses = [];
+      allPersons.forEach(d => {
         const n = typeof d === "string" ? d : str(d?.name);
         if (n && n.length > 2) {
           names.push(n);
           desigs.push(typeof d === "object" ? str(d.designation) : "");
-          pans.push(typeof d === "object" ? str(d.pan) : "");
+          const pPan = typeof d === "object" ? str(d.pan).toUpperCase().replace(/[^A-Z0-9]/g, "") : "";
+          pans.push(/^[A-Z]{5}\d{4}[A-Z]$/.test(pPan) ? pPan : "");
           dobs.push(typeof d === "object" ? str(d.dob) : "");
           mobiles.push(typeof d === "object" ? str(d.mobile) : "");
           emails.push(typeof d === "object" ? str(d.email) : "");
+          dins.push(typeof d === "object" ? str(d.din) : "");
+          const sp = typeof d === "object" ? str(d.sharePercent) : "";
+          shares.push(sp.replace(/[^0-9.%]/g, ""));
+          addresses.push(typeof d === "object" ? str(d.address) : "");
         }
       });
-      if (names.length > 0 && !fields.gstDirectors && !fields.gstPartners) {
+      const existingNames = fields.gstDirectors || fields.gstPartners || [];
+      if (names.length > 0 && existingNames.length === 0) {
         const isDir = /director|company|private|limited|llp/i.test(ai.constitution || "");
         if (isDir) fields.gstDirectors = names;
         else fields.gstPartners = names;
-        if (desigs.some(Boolean)) fields.gstPersonDesignations = desigs;
-        if (pans.some(Boolean)) fields.gstPersonPans = pans.map(p => /^[A-Z]{5}\d{4}[A-Z]$/.test(p) ? p : "");
-        if (dobs.some(Boolean)) fields.personDobs = dobs;
+      } else if (names.length > existingNames.length) {
+        names.forEach(n => { if (!existingNames.find(e => e.toLowerCase() === n.toLowerCase())) existingNames.push(n); });
       }
+      if (desigs.some(Boolean)) fields.gstPersonDesignations = desigs;
+      if (pans.some(Boolean)) fields.gstPersonPans = pans;
+      if (dobs.some(Boolean)) fields.personDobs = dobs;
+      if (dins.some(Boolean)) fields.personDins = dins;
+      if (shares.some(Boolean)) fields.personShares = shares;
+      if (addresses.some(Boolean)) fields.personAddresses = addresses;
       if (!fields.ownerName && names[0]) fields.ownerName = names[0];
       if (!fields.extractedMobile && mobiles[0]) { const m = mobiles[0].replace(/[^0-9]/g, "").slice(-10); if (/^\d{10}$/.test(m)) fields.extractedMobile = m; }
       if (!fields.extractedEmail && emails[0] && emails[0].includes("@")) fields.extractedEmail = emails[0];
@@ -5574,7 +5626,7 @@ ${text.substring(0, 20000)}`;
   }
 
   async smartReExtract() {
-    if (!this.geminiKey || this.allExtractedTexts.length < 2) return;
+    if (!this.geminiKey || this.allExtractedTexts.length < 1) return;
     const emptyFieldIds = [];
     const isHidden = (el) => { let n = el; while (n && n !== document.body) { if (n.style && n.style.display === "none" && !n.classList.contains("form-section")) return true; n = n.parentElement; } return false; };
     const naValues = new Set(["na", "n/a", "nil", "none", "-", "—", "null", "not available", "not applicable"]);
@@ -5586,10 +5638,22 @@ ${text.substring(0, 20000)}`;
         emptyFieldIds.push({ id: el.id, label });
       }
     });
-    if (emptyFieldIds.length === 0) return;
+
+    const boGapInfo = [];
+    document.querySelectorAll("#boRows .bo-row").forEach((row, idx) => {
+      const name = row.querySelector(".bo-name")?.value?.trim();
+      if (!name) return;
+      const dob = row.querySelector(".bo-dob")?.value?.trim();
+      const pan = row.querySelector(".bo-pan")?.value?.trim();
+      if (!dob) boGapInfo.push({ person: name, field: "DOB", idx });
+      if (!pan) boGapInfo.push({ person: name, field: "Personal PAN", idx });
+    });
+
+    if (emptyFieldIds.length === 0 && boGapInfo.length === 0) return;
 
     const combinedText = this.allExtractedTexts.map(t => `--- ${t.filename} (${t.docType}) ---\n${t.text}`).join("\n\n");
     const fieldList = emptyFieldIds.slice(0, 40).map(f => `"${f.id}": "${f.label}"`).join(",\n  ");
+    const boGapText = boGapInfo.length > 0 ? `\n\nBENEFICIAL OWNER GAPS (CRITICAL — search ALL documents for these):\n${boGapInfo.map(g => `- Person "${g.person}" is missing: ${g.field}`).join("\n")}\nReturn these in a "boPersonData" array: [{"name": "person name", "dob": "DD/MM/YYYY", "pan": "PERSONAL PAN"}]` : "";
 
     const prompt = `You have ALL the documents uploaded by a user for corporate onboarding. Cross-reference ALL documents together to find data for these EMPTY form fields.
 
@@ -5600,25 +5664,32 @@ EMPTY FIELDS TO FILL (field ID → label):
 {
   ${fieldList}
 }
+${boGapText}
 
 For EACH empty field, search across ALL documents. Data might be in a different document than expected:
 - Company name might be in an invoice, not just GST certificate
-- PAN can be derived from GSTIN (characters 3-12)
+- PAN can be derived from GSTIN (characters 3-12) — but that is the ENTITY PAN
+- Each director/partner has their OWN PERSONAL PAN (different from entity PAN) — look for it in GST partner tables, MOA subscriber lists, or individual PAN cards
+- DOB of directors/partners may appear in GST certificate partner section, PAN card, or Aadhaar
 - Address pieces might be split across documents
 - Contact details might appear in invoice headers or bank statements
 - Bank details might be in invoice payment terms
 
-Return a JSON object with field IDs as keys and extracted values as values. ONLY include fields where you found actual data. Return {} if nothing found.
+Return a JSON object with:
+1. Field IDs as keys and extracted values as values for regular form fields
+2. A "boPersonData" array (if person gaps exist) with name/dob/pan for each person found
+
+ONLY include fields where you found actual data. Return {} if nothing found.
 
 RULES:
 - Return ONLY valid JSON, no markdown
 - Only include fields where you found real data (not guesses)
-- PAN: 5 letters + 4 digits + 1 letter
+- PERSONAL PAN is different from entity PAN. Entity PAN is derived from GSTIN chars 3-12. Personal PAN belongs to the individual.
 - Dates: DD/MM/YYYY
 - Mobile: 10 digits only`;
 
     try {
-      const resp = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${this.geminiKey}`, {
+      const resp = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${this.geminiKey}`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
@@ -5632,6 +5703,24 @@ RULES:
       const jsonStr = content.replace(/```json\s*/g, "").replace(/```\s*/g, "").trim();
       const result = JSON.parse(jsonStr);
       let filled = 0;
+
+      if (Array.isArray(result.boPersonData)) {
+        result.boPersonData.forEach(pd => {
+          if (!pd.name) return;
+          document.querySelectorAll("#boRows .bo-row").forEach(row => {
+            const nameEl = row.querySelector(".bo-name");
+            if (!nameEl || nameEl.value.trim().toLowerCase() !== pd.name.trim().toLowerCase()) return;
+            const dobEl = row.querySelector(".bo-dob");
+            if (dobEl && !dobEl.value.trim() && pd.dob) { dobEl.value = pd.dob; dobEl.classList.add("auto-filled"); filled++; }
+            const panEl = row.querySelector(".bo-pan");
+            if (panEl && !panEl.value.trim() && pd.pan && /^[A-Z]{5}\d{4}[A-Z]$/.test(pd.pan.toUpperCase())) {
+              panEl.value = pd.pan.toUpperCase(); panEl.classList.add("auto-filled"); filled++;
+            }
+          });
+        });
+        delete result.boPersonData;
+      }
+
       for (const [id, value] of Object.entries(result)) {
         if (!value || typeof value !== "string" || !value.trim()) continue;
         const el = document.getElementById(id);
@@ -5643,6 +5732,7 @@ RULES:
       }
       if (filled > 0) {
         this.updateAccuracy();
+        this.renderDocIntelligence();
         this.showToast(`AI cross-reference filled ${filled} more fields`, "success");
       }
     } catch (e) {
@@ -5692,17 +5782,17 @@ RULES:
     const isTxn = cat.includes("Fit") || cat.includes("Mice") || cat.includes("fit") || cat.includes("mice");
 
     const requiredDocs = isTxn ? [
-      { name: "GST Certificate", icon: "📄", fields: "Company name, GSTIN, PAN, Address, Constitution" },
-      { name: "PAN Card", icon: "🆔", fields: "PAN number, Name, Date of birth" },
+      { name: "GST Certificate", icon: "📄", fields: "Company name, GSTIN, PAN, Address, Directors/Partners, Constitution", personFields: true },
+      { name: "PAN Card", icon: "🆔", fields: "PAN number, Name, DOB (for BO KYC)", personFields: true },
       { name: "Invoice / Proforma", icon: "🧾", fields: "Invoice no, Amount, Currency, Beneficiary, SWIFT, IBAN" },
       { name: "Bank Statement / Cheque", icon: "🏦", fields: "Bank name, Account no, IFSC, Branch" },
       { name: "Travel Itinerary", icon: "✈️", fields: "Destination, Travel dates, Travelers count" }
     ] : [
-      { name: "GST Certificate", icon: "📄", fields: "Company name, GSTIN, PAN, Address, Directors, Constitution" },
-      { name: "PAN Card", icon: "🆔", fields: "PAN number, Entity name, Date of incorporation" },
+      { name: "GST Certificate", icon: "📄", fields: "Company name, GSTIN, PAN, Address, Directors/Partners with Personal PAN & DOB", personFields: true },
+      { name: "PAN Card", icon: "🆔", fields: "PAN number, Entity name, DOB/Date of incorporation", personFields: true },
       { name: "Udyam / MSME Certificate", icon: "🏢", fields: "Udyam no, Enterprise name, Type, NIC code, Owner, Mobile, Email" },
       { name: "Bank Statement / Cheque", icon: "🏦", fields: "Bank name, Account no, IFSC, Branch, Account type" },
-      { name: "Certificate of Incorporation", icon: "📜", fields: "CIN, Company name, Date of incorporation, Directors" },
+      { name: "Certificate of Incorporation", icon: "📜", fields: "CIN, Company name, Date of incorporation, Directors with DIN" },
       { name: "Board Resolution", icon: "📝", fields: "Authorized signatory, Designation" }
     ];
 
@@ -5719,7 +5809,7 @@ RULES:
       const fieldCount = info.fields.length;
       html += `<div style="border:1px solid var(--border);border-radius:8px;padding:8px;margin-bottom:6px;background:var(--bg)">
         <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:4px">
-          <strong style="font-size:0.75rem;color:var(--text-primary)">📂 ${docKey}</strong>
+          <strong style="font-size:0.75rem;color:var(--text-primary)">${docKey}</strong>
           <span style="font-size:0.68rem;background:#dcfce7;color:#166534;padding:1px 6px;border-radius:10px;font-weight:600">${fieldCount} fields</span>
         </div>
         <div style="display:flex;flex-wrap:wrap;gap:3px">
@@ -5730,6 +5820,37 @@ RULES:
     });
 
     const totalFilled = Object.values(this.docFieldCounts).reduce((s, d) => s + d.fields.length, 0);
+
+    const boGaps = this.getBoFieldGaps();
+    if (boGaps.length > 0) {
+      html += `<div style="margin-top:10px;padding:8px;background:linear-gradient(135deg,#fef3c7,#fde68a);border-radius:8px;border:1px solid #f59e0b">
+        <div style="font-size:0.75rem;font-weight:700;color:#92400e;margin-bottom:4px;display:flex;align-items:center;gap:4px">
+          <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="#92400e" stroke-width="2"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>
+          Person/BO Details Missing
+        </div>
+        ${boGaps.map(g => `<div style="font-size:0.68rem;color:#78350f;padding:1px 0">
+          <strong>${g.name}</strong>: ${g.missing.join(", ")}
+          ${g.suggestDoc ? `<span style="font-size:0.63rem;color:#b45309"> — upload ${g.suggestDoc}</span>` : ""}
+        </div>`).join("")}
+      </div>`;
+    }
+
+    const sectionFill = this.getCategoryFillStatus();
+    html += `<div style="margin-top:10px;font-size:0.78rem;font-weight:700;color:var(--text-primary);margin-bottom:6px;display:flex;align-items:center;gap:5px">
+      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#8b5cf6" stroke-width="2"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/><polyline points="22 4 12 14.01 9 11.01"/></svg>
+      Form Section Fill Status
+    </div>`;
+    sectionFill.forEach(s => {
+      const pct = s.total > 0 ? Math.round((s.filled / s.total) * 100) : 0;
+      const color = pct >= 80 ? "#059669" : pct >= 50 ? "#d97706" : "#dc2626";
+      html += `<div style="display:flex;align-items:center;gap:6px;padding:3px 0;font-size:0.72rem">
+        <div style="flex:1;font-weight:600;color:var(--text-primary)">${s.label}</div>
+        <div style="width:60px;height:6px;background:var(--border);border-radius:3px;overflow:hidden">
+          <div style="width:${pct}%;height:100%;background:${color};border-radius:3px;transition:width 0.3s"></div>
+        </div>
+        <span style="font-size:0.68rem;font-weight:700;color:${color};min-width:32px;text-align:right">${pct}%</span>
+      </div>`;
+    });
 
     html += `<div style="margin-top:10px;font-size:0.78rem;font-weight:700;color:var(--text-primary);margin-bottom:6px;display:flex;align-items:center;gap:5px">
       <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#f59e0b" stroke-width="2"><path d="M12 2L2 7l10 5 10-5-10-5zM2 17l10 5 10-5M2 12l10 5 10-5"/></svg>
@@ -5751,12 +5872,12 @@ RULES:
     const missingDocs = requiredDocs.filter(rd => !uploadedTypes.some(ut => ut.includes(rd.name.split("/")[0].trim().toLowerCase().substring(0, 6))));
     if (missingDocs.length > 0) {
       html += `<div style="margin-top:8px;padding:8px;background:linear-gradient(135deg,#eff6ff,#ede9fe);border-radius:8px;border:1px solid #c4b5fd">
-        <div style="font-size:0.72rem;font-weight:700;color:#5b21b6;margin-bottom:4px">💡 Upload these to boost accuracy:</div>
+        <div style="font-size:0.72rem;font-weight:700;color:#5b21b6;margin-bottom:4px">Upload these to boost accuracy:</div>
         ${missingDocs.map(d => `<div style="font-size:0.7rem;color:#6d28d9;padding:1px 0">${d.icon} <strong>${d.name}</strong> → ${d.fields.split(",").length} fields</div>`).join("")}
       </div>`;
     } else {
       html += `<div style="margin-top:8px;padding:8px;background:#d1fae5;border-radius:8px;text-align:center;border:1px solid #6ee7b7">
-        <div style="font-size:0.82rem;font-weight:600;color:#065f46">✓ All recommended documents uploaded!</div>
+        <div style="font-size:0.82rem;font-weight:600;color:#065f46">All recommended documents uploaded!</div>
       </div>`;
     }
 
@@ -5765,6 +5886,75 @@ RULES:
     </div>`;
 
     body.innerHTML = html;
+  }
+
+  getBoFieldGaps() {
+    const gaps = [];
+    const boRows = document.querySelectorAll("#boRows .bo-row");
+    boRows.forEach((row, idx) => {
+      const name = row.querySelector(".bo-name")?.value?.trim();
+      if (!name) return;
+      const missing = [];
+      const dob = row.querySelector(".bo-dob")?.value?.trim();
+      const pan = row.querySelector(".bo-pan")?.value?.trim();
+      const share = row.querySelector(".bo-share")?.value?.trim();
+      if (!dob) missing.push("DOB");
+      if (!pan || !/^[A-Z]{5}\d{4}[A-Z]$/.test(pan)) missing.push("PAN");
+      if (!share) missing.push("Share %");
+      if (missing.length > 0) {
+        let suggestDoc = "";
+        if (missing.includes("DOB") && missing.includes("PAN")) suggestDoc = "PAN Card / Aadhaar of " + name;
+        else if (missing.includes("DOB")) suggestDoc = "PAN Card of " + name;
+        else if (missing.includes("PAN")) suggestDoc = "PAN Card or GST Certificate (with partner PANs)";
+        gaps.push({ name, missing, suggestDoc });
+      }
+    });
+    return gaps;
+  }
+
+  getCategoryFillStatus() {
+    const naValues = new Set(["na", "n/a", "nil", "none", "-", "—", "null", "not available", "not applicable"]);
+    const isReal = (v) => v && v.trim().length > 0 && !naValues.has(v.trim().toLowerCase());
+    const sections = [
+      { label: "Company Details", sectionIdx: 1 },
+      { label: "Contact & KMP", sectionIdx: 2 },
+      { label: "Banking & Compliance", sectionIdx: 3 }
+    ];
+    const cat = this.activeFormCategory || "cifl";
+    const isTxn = cat.includes("Fit") || cat.includes("Mice") || cat.includes("fit") || cat.includes("mice");
+    if (isTxn) sections.unshift({ label: "Transaction Details", sectionIdx: 1, txnOnly: true });
+
+    const results = [];
+    sections.forEach(s => {
+      const sectionEl = document.querySelector(`.form-section[data-section="${s.sectionIdx}"]`);
+      if (!sectionEl) return;
+      let filled = 0, total = 0;
+      sectionEl.querySelectorAll(".form-input, .form-textarea").forEach(el => {
+        if (!el.id) return;
+        const isHidden = el.closest("[style*='display:none'], [style*='display: none']") && !el.closest(".form-section");
+        if (isHidden) return;
+        if (s.txnOnly && !el.id.startsWith("txn")) return;
+        if (!s.txnOnly && el.id.startsWith("txn")) return;
+        total++;
+        if (isReal(el.value)) filled++;
+      });
+      sectionEl.querySelectorAll(".radio-group").forEach(g => {
+        const isHidden = g.closest("[style*='display:none'], [style*='display: none']") && !g.closest(".form-section");
+        if (isHidden) return;
+        total++;
+        if (g.querySelector(".radio-item.selected")) filled++;
+      });
+      if (total > 0) results.push({ label: s.label, filled, total });
+    });
+
+    const boRows = document.querySelectorAll("#boRows .bo-row");
+    let boFilled = 0, boTotal = 0;
+    boRows.forEach(row => {
+      row.querySelectorAll(".form-input").forEach(el => { boTotal++; if (isReal(el.value)) boFilled++; });
+    });
+    if (boTotal > 0) results.push({ label: "Beneficial Owners", filled: boFilled, total: boTotal });
+
+    return results;
   }
 
   cleanExtractedData() {
@@ -5953,7 +6143,7 @@ RULES:
 - If bank details are missing, suggest "Cancelled Cheque" or "Bank Statement" specifically`;
 
     try {
-      const resp = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${this.geminiKey}`, {
+      const resp = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${this.geminiKey}`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
