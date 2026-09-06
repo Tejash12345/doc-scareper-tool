@@ -1108,7 +1108,11 @@ class OnboardingApp {
           this.renderCategoryDocChecklist();
           this.hideLoading();
           this.showToast(`Image processed with AI Vision - ${Object.keys(extracted).length} fields extracted`, "success");
+          this.applyLearnedCorrections();
+          this.bindCorrectionLearning();
           this.validateExtractedFields();
+          this.checkCrossFieldConsistency();
+          this.renderDocIntelligence();
           this.analyzeGapsWithGemini();
           if (this.uploadedFiles.filter(f => f.status === "success").length > 0) setTimeout(() => this.goToStep(1), 600);
           return;
@@ -1209,7 +1213,7 @@ RULES: Return ONLY valid JSON. PAN = 5 letters + 4 digits + 1 letter. GSTIN = 15
 
     try {
       const prevAccuracy = this.getAccuracyPercent();
-      const text = await this.extractPdfText(file);
+      let text = await this.extractPdfText(file);
       const guess = this.scoreDocumentType(text);
       let docType = guess.type;
       let aiProfile = null;
@@ -1230,9 +1234,23 @@ RULES: Return ONLY valid JSON. PAN = 5 letters + 4 digits + 1 letter. GSTIN = 15
       let extracted = this.extractFields(text, docType);
 
       if (this.geminiKey) {
-        this.showLoading("AI extracting data...", `Reading ${docType} — ${file.name}`);
+        const meta = this.lastPdfMeta || {};
+        let aiResult;
+        if (meta.isScanned && meta.pageImages?.length) {
+          this.showLoading("AI Vision reading scan...", `${meta.pageImages.length} page(s) — ${file.name}`);
+          aiResult = await this.extractScannedPdfWithVision(meta.pageImages, file.name, docType, aiProfile);
+          if (aiResult?._rawText && aiResult._rawText.length > text.length) {
+            text = aiResult._rawText;
+            const reScored = this.scoreDocumentType(text);
+            if (guess.confidence === "low" && reScored.confidence !== "low") docType = reScored.type;
+          }
+          delete aiResult?._rawText;
+        }
+        if (!aiResult) {
+          this.showLoading("AI extracting data...", `Reading ${docType} — ${file.name}`);
+          aiResult = await this.extractWithGemini(text, file.name, docType, aiProfile);
+        }
         this.allExtractedTexts.push({ filename: file.name, docType, text: text.substring(0, 12000) });
-        const aiResult = await this.extractWithGemini(text, file.name, docType, aiProfile);
         if (aiResult) {
           const aiConfidence = aiResult._confidence || {};
           delete aiResult._confidence;
@@ -1243,6 +1261,12 @@ RULES: Return ONLY valid JSON. PAN = 5 letters + 4 digits + 1 letter. GSTIN = 15
           const vr = this.applyVerification(verification, extracted);
           if (vr.removed || vr.corrected) {
             verifyNote = ` • AI verify: ${vr.corrected} fixed, ${vr.removed} rejected`;
+          }
+
+          const repairs = this.repairIdentifiers(extracted, docType);
+          if (repairs.length) {
+            const fixed = repairs.filter(r => !r.dropped).length;
+            if (fixed) verifyNote += ` • ${fixed} OCR code${fixed > 1 ? "s" : ""} repaired`;
           }
 
           extracted = { ...extracted, ...this.resolveWithAuthority(extracted, docType, aiConfidence) };
@@ -1269,7 +1293,10 @@ RULES: Return ONLY valid JSON. PAN = 5 letters + 4 digits + 1 letter. GSTIN = 15
       const boost = newAccuracy - prevAccuracy;
       const boostText = boost > 0 ? ` (+${boost}% accuracy)` : "";
       this.showToast(`${docType} processed - ${Object.keys(extracted).length} fields extracted${this.geminiKey ? " (AI enhanced)" : ""}${boostText}${verifyNote}`, "success");
+      this.applyLearnedCorrections();
+      this.bindCorrectionLearning();
       this.validateExtractedFields();
+      this.checkCrossFieldConsistency();
 
       if (this.geminiKey) {
         const successCount = this.uploadedFiles.filter(f => f.status === "success").length;
@@ -1293,6 +1320,59 @@ RULES: Return ONLY valid JSON. PAN = 5 letters + 4 digits + 1 letter. GSTIN = 15
     }
   }
 
+  buildLayoutText(items) {
+    const lines = new Map();
+    items.forEach(it => {
+      if (!it.str || !it.str.trim()) return;
+      const x = it.transform[4];
+      const y = it.transform[5];
+      const key = Math.round(y / 3) * 3;
+      if (!lines.has(key)) lines.set(key, []);
+      lines.get(key).push({ x, str: it.str, w: it.width || it.str.length * 4 });
+    });
+
+    return [...lines.entries()]
+      .sort((a, b) => b[0] - a[0])
+      .map(([, arr]) => {
+        arr.sort((a, b) => a.x - b.x);
+        let out = "";
+        let prevEnd = null;
+        arr.forEach(it => {
+          if (prevEnd !== null) {
+            const gap = it.x - prevEnd;
+            if (gap > 22) out += "  |  ";
+            else if (gap > 1.5) out += " ";
+          }
+          out += it.str;
+          prevEnd = it.x + it.w;
+        });
+        return out.replace(/[ \t]{2,}/g, " ").trim();
+      })
+      .filter(Boolean)
+      .join("\n");
+  }
+
+  async renderPdfPagesToImages(pdf, maxPages = 3, scale = 2.0) {
+    const images = [];
+    const count = Math.min(pdf.numPages, maxPages);
+    for (let i = 1; i <= count; i++) {
+      try {
+        const page = await pdf.getPage(i);
+        const viewport = page.getViewport({ scale });
+        const canvas = document.createElement("canvas");
+        canvas.width = viewport.width;
+        canvas.height = viewport.height;
+        const ctx = canvas.getContext("2d");
+        await page.render({ canvasContext: ctx, viewport }).promise;
+        const dataUrl = canvas.toDataURL("image/jpeg", 0.85);
+        images.push({ page: i, base64: dataUrl.split(",")[1] });
+      } catch (e) {
+        console.warn(`Page ${i} render failed:`, e.message);
+      }
+    }
+    return images;
+  }
+
   async extractPdfText(file) {
     const arrayBuffer = await new Promise((resolve, reject) => {
       const reader = new FileReader();
@@ -1302,19 +1382,36 @@ RULES: Return ONLY valid JSON. PAN = 5 letters + 4 digits + 1 letter. GSTIN = 15
     });
 
     let text = "";
+    const meta = { pageTexts: [], numPages: 0, isScanned: false, pageImages: [], layoutUsed: false, tableLines: 0 };
+    this.lastPdfMeta = meta;
 
     if (typeof pdfjsLib !== "undefined") {
       try {
         pdfjsLib.GlobalWorkerOptions.workerSrc = "https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js";
         const pdf = await pdfjsLib.getDocument({ data: new Uint8Array(arrayBuffer) }).promise;
+        meta.numPages = pdf.numPages;
         const pages = [];
         for (let i = 1; i <= pdf.numPages; i++) {
           const page = await pdf.getPage(i);
           const content = await page.getTextContent();
-          const pageText = content.items.map(item => item.str).join(" ");
+          const layout = this.buildLayoutText(content.items);
+          const flat = content.items.map(item => item.str).join(" ").replace(/\s+/g, " ").trim();
+          const pageText = layout.length >= flat.length * 0.6 ? layout : flat;
           pages.push(pageText);
+          meta.pageTexts.push(pageText);
         }
-        text = pages.join("\n").replace(/\s+/g, " ").trim();
+        text = pages.join("\n\n=== PAGE BREAK ===\n\n").trim();
+        meta.layoutUsed = true;
+        meta.tableLines = (text.match(/\|/g) || []).length;
+
+        const avgPerPage = pdf.numPages > 0 ? text.length / pdf.numPages : 0;
+        if (avgPerPage < 180) {
+          meta.isScanned = true;
+          if (this.geminiKey) {
+            this.showLoading("Scanned PDF detected...", "Rendering pages for AI Vision");
+            meta.pageImages = await this.renderPdfPagesToImages(pdf, 3, 2.0);
+          }
+        }
       } catch (e) {
         console.warn("PDF.js extraction failed, falling back:", e.message);
       }
@@ -1328,17 +1425,50 @@ RULES: Return ONLY valid JSON. PAN = 5 letters + 4 digits + 1 letter. GSTIN = 15
       } catch (e) {}
     }
 
-    if (text.length < 30 && typeof Tesseract !== "undefined") {
+    if (text.length < 30 && meta.pageImages.length === 0 && typeof Tesseract !== "undefined") {
       try {
         this.showLoading("Running OCR on scanned document...");
         const ocrText = await this.ocrPdf(arrayBuffer);
-        if (ocrText.length > text.length) text = ocrText;
+        if (ocrText.length > text.length) { text = ocrText; meta.isScanned = true; }
       } catch (e) {
         console.warn("Tesseract OCR failed:", e.message);
       }
     }
 
     return text;
+  }
+
+  async extractScannedPdfWithVision(images, filename, docType, aiProfile) {
+    if (!this.geminiKey || !images.length) return null;
+    const basePrompt = this.buildGeminiPrompt("", filename, docType, aiProfile)
+      .replace(/DOCUMENT TEXT:[\s\S]*$/, "");
+
+    const prompt = `${basePrompt}
+
+THIS IS A SCANNED DOCUMENT — you are being given ${images.length} page image(s) instead of text.
+Read every word directly from the images: headers, footers, stamps, seals, handwriting, table cells, fine print.
+Indian documents often mix English with Hindi/Marathi/Gujarati — transliterate names to English.
+Watch for OCR-prone character pairs and read them from the image shape: O vs 0, I vs 1 vs l, S vs 5, B vs 8, Z vs 2, G vs 6.
+
+Also include "_rawText" containing ALL visible text you read from the images.`;
+
+    const parts = [{ text: prompt }];
+    images.forEach(img => parts.push({ inlineData: { mimeType: "image/jpeg", data: img.base64 } }));
+
+    try {
+      const resp = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${this.geminiKey}`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ contents: [{ parts }], generationConfig: { temperature: 0.05, maxOutputTokens: 8192 } })
+      });
+      if (!resp.ok) return null;
+      const data = await resp.json();
+      const content = data.candidates?.[0]?.content?.parts?.[0]?.text || "";
+      return JSON.parse(content.replace(/```json\s*/g, "").replace(/```\s*/g, "").trim());
+    } catch (e) {
+      console.warn("Vision PDF extraction failed:", e);
+      return null;
+    }
   }
 
   async ocrPdf(arrayBuffer) {
@@ -2754,8 +2884,12 @@ RULES:
       this.cleanExtractedData();
       this.applySmartDerivations();
       if (this.allExtractedTexts.length > 0) await this.smartReExtract();
+      this.applyLearnedCorrections();
+      this.bindCorrectionLearning();
       this.validateExtractedFields();
+      this.checkCrossFieldConsistency();
       this.updateAccuracy();
+      this.renderDocIntelligence();
       const newAcc = this.getAccuracyPercent();
       const boost = newAcc - prevAcc;
       if (this.geminiKey) this.analyzeGapsWithGemini();
@@ -6092,6 +6226,225 @@ Return empty objects if everything checks out. Be strict — flag anything you c
     }
   }
 
+  loadLearnedCorrections() {
+    try { return JSON.parse(localStorage.getItem("docScraperCorrections") || "{}"); }
+    catch (e) { return {}; }
+  }
+
+  recordCorrection(fieldId, aiValue, userValue) {
+    if (!fieldId || !aiValue || !userValue) return;
+    if (String(aiValue).trim().toLowerCase() === String(userValue).trim().toLowerCase()) return;
+    const store = this.loadLearnedCorrections();
+    if (!store[fieldId]) store[fieldId] = [];
+    store[fieldId] = store[fieldId].filter(c => c.from.toLowerCase() !== String(aiValue).trim().toLowerCase());
+    store[fieldId].unshift({ from: String(aiValue).trim(), to: String(userValue).trim(), at: Date.now() });
+    store[fieldId] = store[fieldId].slice(0, 10);
+    try { localStorage.setItem("docScraperCorrections", JSON.stringify(store)); } catch (e) {}
+  }
+
+  applyLearnedCorrections() {
+    const store = this.loadLearnedCorrections();
+    if (Object.keys(store).length === 0) return 0;
+    let applied = 0;
+    Object.entries(store).forEach(([fieldId, corrections]) => {
+      const el = document.getElementById(fieldId);
+      if (!el || !el.classList.contains("auto-filled")) return;
+      const cur = el.value.trim().toLowerCase();
+      const hit = corrections.find(c => c.from.toLowerCase() === cur);
+      if (hit) {
+        el.value = hit.to;
+        el.dataset.learned = "1";
+        el.title = `Auto-corrected from "${hit.from}" — you fixed this before`;
+        el.style.borderColor = "#8b5cf6";
+        applied++;
+      }
+    });
+    if (applied > 0) this.showToast(`Applied ${applied} correction${applied > 1 ? "s" : ""} you made previously`, "info");
+    return applied;
+  }
+
+  bindCorrectionLearning() {
+    document.querySelectorAll(".form-input, .form-textarea").forEach(el => {
+      if (!el.id || el.dataset.learnBound) return;
+      el.dataset.learnBound = "1";
+      el.addEventListener("focus", () => { el.dataset.aiValue = el.classList.contains("auto-filled") ? el.value.trim() : ""; });
+      el.addEventListener("blur", () => {
+        const before = el.dataset.aiValue;
+        const after = el.value.trim();
+        if (before && after && before !== after) this.recordCorrection(el.id, before, after);
+      });
+    });
+  }
+
+  gstinCheckDigit(first14) {
+    const chars = "0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZ";
+    let sum = 0;
+    for (let i = 0; i < 14; i++) {
+      const v = chars.indexOf(first14[i]);
+      if (v < 0) return null;
+      const p = v * (i % 2 === 0 ? 1 : 2);
+      sum += Math.floor(p / 36) + (p % 36);
+    }
+    return chars[(36 - (sum % 36)) % 36];
+  }
+
+  isValidGstin(g) {
+    if (!/^\d{2}[A-Z]{5}\d{4}[A-Z]\d[A-Z\d]{2}$/.test(g)) return false;
+    const state = parseInt(g.substring(0, 2), 10);
+    if (state < 1 || state > 38) return false;
+    const cd = this.gstinCheckDigit(g.substring(0, 14));
+    return cd !== null && cd === g[14];
+  }
+
+  isValidPan(p) {
+    if (!/^[A-Z]{5}\d{4}[A-Z]$/.test(p)) return false;
+    return "ABCFGHJLPTKE".includes(p[3]);
+  }
+
+  isValidIfsc(i) {
+    return /^[A-Z]{4}0[A-Z0-9]{6}$/.test(i);
+  }
+
+  repairOcrCode(value, validator, opts = {}) {
+    if (!value) return null;
+    const v = String(value).toUpperCase().replace(/[^A-Z0-9]/g, "");
+    if (validator(v)) return v;
+
+    const toDigit = { O: "0", Q: "0", D: "0", I: "1", L: "1", Z: "2", A: "4", S: "5", B: "8", G: "6", T: "7" };
+    const toAlpha = { "0": "O", "1": "I", "2": "Z", "5": "S", "8": "B", "6": "G", "4": "A", "7": "T" };
+
+    const chars = v.split("");
+    (opts.digitPositions || []).forEach(i => { if (chars[i] && toDigit[chars[i]]) chars[i] = toDigit[chars[i]]; });
+    (opts.alphaPositions || []).forEach(i => { if (chars[i] && toAlpha[chars[i]]) chars[i] = toAlpha[chars[i]]; });
+    const coerced = chars.join("");
+    return validator(coerced) ? coerced : null;
+  }
+
+  repairIdentifiers(fields, docTypeLabel) {
+    const repairs = [];
+
+    if (fields.panNumber) {
+      const fixed = this.repairOcrCode(fields.panNumber, v => this.isValidPan(v), {
+        alphaPositions: [0, 1, 2, 3, 4, 9], digitPositions: [5, 6, 7, 8]
+      });
+      if (fixed && fixed !== fields.panNumber) { repairs.push({ field: "panNumber", from: fields.panNumber, to: fixed }); fields.panNumber = fixed; }
+      else if (!fixed && !this.isValidPan(String(fields.panNumber).toUpperCase())) {
+        repairs.push({ field: "panNumber", from: fields.panNumber, to: null, dropped: true });
+        delete fields.panNumber;
+      }
+    }
+
+    if (fields.gstNumber) {
+      const original = String(fields.gstNumber).toUpperCase().replace(/[^A-Z0-9]/g, "");
+      // GSTIN layout: 0-1 state digits | 2-11 PAN (2-6 alpha, 7-10 digit, 11 alpha)
+      // | 12 entity (alphanumeric) | 13 'Z' alpha | 14 derived check digit
+      let fixed = this.repairOcrCode(original, v => this.isValidGstin(v), {
+        digitPositions: [0, 1, 7, 8, 9, 10], alphaPositions: [2, 3, 4, 5, 6, 11, 13]
+      });
+
+      // Evidence-based repair: if we independently hold a valid entity PAN, splice it
+      // into the PAN slot. Only accepted if the checksum then passes on its own.
+      if (!fixed && original.length === 15 && fields.panNumber && this.isValidPan(fields.panNumber)) {
+        const spliced = original.substring(0, 2) + fields.panNumber + original.substring(12);
+        if (this.isValidGstin(spliced)) fixed = spliced;
+      }
+
+      if (fixed && fixed !== original) { repairs.push({ field: "gstNumber", from: original, to: fixed }); fields.gstNumber = fixed; }
+      else if (!fixed && original.length === 15 && !this.isValidGstin(original)) {
+        // Cannot determine which character is wrong — keep the value but mark it unverified
+        // rather than fabricating a checksum-valid GSTIN.
+        fields.gstNumber = original;
+        this.fieldConfidence.gstNumber = { score: 40, docType: docTypeLabel || "document", checksumFailed: true };
+      }
+    }
+
+    if (fields.bankIfsc) {
+      const fixed = this.repairOcrCode(fields.bankIfsc, v => this.isValidIfsc(v), {
+        alphaPositions: [0, 1, 2, 3], digitPositions: [4]
+      });
+      if (fixed && fixed !== fields.bankIfsc) { repairs.push({ field: "bankIfsc", from: fields.bankIfsc, to: fixed }); fields.bankIfsc = fixed; }
+    }
+
+    if (Array.isArray(fields.gstPersonPans)) {
+      fields.gstPersonPans = fields.gstPersonPans.map(p => {
+        if (!p) return "";
+        const fixed = this.repairOcrCode(p, v => this.isValidPan(v), { alphaPositions: [0, 1, 2, 3, 4, 9], digitPositions: [5, 6, 7, 8] });
+        if (fixed && fixed !== p) repairs.push({ field: "person PAN", from: p, to: fixed });
+        return fixed || "";
+      });
+    }
+
+    if (repairs.length) this.ocrRepairs = (this.ocrRepairs || []).concat(repairs);
+    return repairs;
+  }
+
+  checkCrossFieldConsistency() {
+    const issues = [];
+    const get = (id) => document.getElementById(id)?.value?.trim() || "";
+    const gst = get("gstNo").toUpperCase();
+    const pan = get("panNo").toUpperCase();
+
+    if (gst && gst.length === 15 && !this.isValidGstin(gst)) {
+      issues.push({ field: "gstNo", severity: "high", msg: "GSTIN check digit is invalid — likely a misread character" });
+    }
+    if (pan && pan.length === 10 && !this.isValidPan(pan)) {
+      issues.push({ field: "panNo", severity: "high", msg: "PAN 4th character must be a valid entity code (P/C/F/H/A/T/B/L/J/G/E)" });
+    }
+    if (gst.length === 15 && pan.length === 10 && gst.substring(2, 12) !== pan) {
+      issues.push({ field: "panNo", severity: "high", msg: `PAN inside GSTIN (${gst.substring(2, 12)}) does not match the PAN field` });
+    }
+
+    const STATE_BY_CODE = { "01": "Jammu", "02": "Himachal", "03": "Punjab", "04": "Chandigarh", "05": "Uttarakhand", "06": "Haryana", "07": "Delhi", "08": "Rajasthan", "09": "Uttar Pradesh", "10": "Bihar", "19": "West Bengal", "21": "Odisha", "22": "Chhattisgarh", "23": "Madhya Pradesh", "24": "Gujarat", "27": "Maharashtra", "29": "Karnataka", "30": "Goa", "32": "Kerala", "33": "Tamil Nadu", "36": "Telangana", "37": "Andhra Pradesh", "18": "Assam" };
+    if (gst.length === 15) {
+      const expected = STATE_BY_CODE[gst.substring(0, 2)];
+      const addr = (get("registeredAddress") || "").toLowerCase();
+      if (expected && addr.length > 15 && !addr.includes(expected.toLowerCase())) {
+        issues.push({ field: "registeredAddress", severity: "low", msg: `GSTIN state code ${gst.substring(0, 2)} indicates ${expected}, which is not in the address` });
+      }
+    }
+
+    if (pan.length === 10) {
+      const entityChar = pan[3];
+      const expectMap = { C: "Private Limited Company", P: "Proprietor", F: "Partnership", H: "HUF", T: "Trust", A: "Association of Persons", L: "Public Limited Company" };
+      const expected = expectMap[entityChar];
+      const selected = document.querySelector("#legalStatusGroup .radio-item.selected")?.dataset?.value;
+      if (expected && selected && !selected.toLowerCase().includes(expected.toLowerCase().split(" ")[0])) {
+        issues.push({ field: "legalStatus", severity: "medium", msg: `PAN 4th char "${entityChar}" indicates ${expected}, but "${selected}" is selected` });
+      }
+    }
+
+    let shareTotal = 0, shareCount = 0;
+    document.querySelectorAll("#boRows .bo-row").forEach(row => {
+      const s = row.querySelector(".bo-share")?.value?.trim();
+      if (s) { const n = parseFloat(s.replace(/[^0-9.]/g, "")); if (!isNaN(n)) { shareTotal += n; shareCount++; } }
+    });
+    if (shareCount > 0 && Math.abs(shareTotal - 100) > 0.5 && shareTotal > 0) {
+      issues.push({ field: "boShare1", severity: "medium", msg: `Beneficial owner shares total ${shareTotal}%, expected 100%` });
+    }
+
+    const parseDate = (s) => { const m = String(s).match(/(\d{1,2})\/(\d{1,2})\/(\d{4})/); return m ? new Date(+m[3], +m[2] - 1, +m[1]) : null; };
+    const from = parseDate(get("txnDateFrom")), to = parseDate(get("txnDateTo"));
+    if (from && to && from > to) issues.push({ field: "txnDateTo", severity: "high", msg: "Travel end date is before the start date" });
+    const doi = parseDate(get("dateOfIncorporation"));
+    if (doi && doi > new Date()) issues.push({ field: "dateOfIncorporation", severity: "high", msg: "Date of incorporation is in the future" });
+    if (doi && from && doi > from) issues.push({ field: "dateOfIncorporation", severity: "medium", msg: "Incorporation date is after the travel date" });
+
+    const acc = get("bankAccountNo") || get("accountNumber");
+    if (acc && !/^\d{8,20}$/.test(acc.replace(/\s/g, ""))) {
+      issues.push({ field: "bankAccountNo", severity: "medium", msg: "Account number should be 8–20 digits" });
+    }
+
+    this.consistencyIssues = issues;
+    issues.forEach(i => {
+      const el = document.getElementById(i.field);
+      if (el) {
+        el.style.borderColor = i.severity === "high" ? "#dc2626" : i.severity === "medium" ? "#f59e0b" : "#94a3b8";
+        el.title = i.msg;
+      }
+    });
+    return issues;
+  }
+
   resolveWithAuthority(newFields, docType, aiConfidence) {
     const profile = this.getDocProfile(docType);
     const authority = profile?.authority || {};
@@ -6519,11 +6872,29 @@ RULES:
         html += `<div style="font-size:0.68rem;color:#b45309;padding:1px 0">⚠ <strong>${this.conflictLog.length}</strong> conflict${this.conflictLog.length > 1 ? "s" : ""} resolved by document priority
           <span style="font-size:0.63rem;color:#92400e">(latest: ${c.field} — kept ${c.kepFrom} over ${c.discardedFrom})</span></div>`;
       }
+      if ((this.ocrRepairs || []).length > 0) {
+        const reps = this.ocrRepairs.filter(r => !r.dropped);
+        if (reps.length) {
+          html += `<div style="font-size:0.68rem;color:#0369a1;padding:1px 0">⟳ <strong>${reps.length}</strong> OCR misread${reps.length > 1 ? "s" : ""} auto-repaired by checksum</div>
+            ${reps.slice(0, 3).map(r => `<div style="font-size:0.63rem;color:#0c4a6e;padding-left:10px"><s>${r.from}</s> → <strong>${r.to}</strong> (${r.field})</div>`).join("")}`;
+        }
+      }
       if (lowConf.length > 0) {
         html += `<div style="font-size:0.68rem;color:#92400e;padding:3px 0 1px">Please double-check these low-confidence values:</div>
           ${lowConf.map(([f, c]) => `<div style="font-size:0.65rem;color:#78350f;padding:0 0 0 8px">• ${f} <span style="color:#a16207">(${c.score}% — from ${c.docType})</span></div>`).join("")}`;
       }
       html += `</div>`;
+    }
+
+    const issues = this.consistencyIssues || [];
+    if (issues.length > 0) {
+      const sev = { high: { bg: "#fef2f2", bd: "#fca5a5", fg: "#991b1b", icon: "⨯" }, medium: { bg: "#fffbeb", bd: "#fcd34d", fg: "#92400e", icon: "⚠" }, low: { bg: "#f8fafc", bd: "#cbd5e1", fg: "#475569", icon: "ⓘ" } };
+      const worst = issues.some(i => i.severity === "high") ? "high" : issues.some(i => i.severity === "medium") ? "medium" : "low";
+      const s = sev[worst];
+      html += `<div style="margin-top:10px;padding:8px;background:${s.bg};border-radius:8px;border:1px solid ${s.bd}">
+        <div style="font-size:0.75rem;font-weight:700;color:${s.fg};margin-bottom:4px">Cross-field Consistency (${issues.length})</div>
+        ${issues.slice(0, 6).map(i => `<div style="font-size:0.66rem;color:${sev[i.severity].fg};padding:1px 0">${sev[i.severity].icon} ${i.msg}</div>`).join("")}
+      </div>`;
     }
 
     const boGaps = this.getBoFieldGaps();
