@@ -848,7 +848,7 @@ class OnboardingApp {
             <h3 style="margin:0;font-size:1.1rem">&#129302; AI Extraction Settings</h3>
             <button onclick="app.closeSettings()" style="background:none;border:none;cursor:pointer;font-size:1.3rem;color:var(--text-secondary)">&times;</button>
           </div>
-          <p style="font-size:0.82rem;color:var(--text-secondary);margin-bottom:14px">Enable AI-powered extraction for <strong>near 100% accuracy</strong>. Uses Google Gemini 2.5 Flash to intelligently read your documents and analyze missing fields.</p>
+          <p style="font-size:0.82rem;color:var(--text-secondary);margin-bottom:14px">Enable AI-powered extraction for <strong>near 100% accuracy</strong>. Uses Google Gemini to intelligently read your documents and analyze missing fields &mdash; the best model your key supports is detected automatically.</p>
           <div style="background:linear-gradient(135deg,#dbeafe,#ede9fe);border-radius:10px;padding:14px;margin-bottom:14px">
             <div style="font-size:0.82rem;font-weight:700;color:var(--gray-800);margin-bottom:8px">&#128272; How to get your free API key:</div>
             <div style="font-size:0.78rem;color:var(--gray-700);line-height:1.6">
@@ -865,7 +865,8 @@ class OnboardingApp {
             <input id="geminiKeyInput" type="password" class="form-input" placeholder="AIzaSy..." style="width:100%;font-family:monospace">
           </div>
           <div id="geminiStatus" style="display:none;margin-bottom:12px;padding:8px 12px;border-radius:6px;font-size:0.8rem"></div>
-          <div style="display:flex;gap:8px;justify-content:flex-end">
+          <div style="display:flex;gap:8px;justify-content:flex-end;align-items:center;flex-wrap:wrap">
+            <button class="btn btn-outline" onclick="app.retryModelDiscovery()" style="font-size:0.75rem" title="Forget previously rejected models and check again">&#8635; Re-detect models</button>
             <button class="btn btn-outline" onclick="app.testGeminiKey()">&#9889; Test Key</button>
             <button class="btn btn-primary" onclick="app.saveSettings()">&#128190; Save</button>
           </div>
@@ -6047,9 +6048,22 @@ RULES:
 
   saveSettings() {
     const key = document.getElementById("geminiKeyInput").value.trim();
+    const keyChanged = key !== this.geminiKey;
     this.geminiKey = key;
     if (key) localStorage.setItem("geminiApiKey", key);
     else localStorage.removeItem("geminiApiKey");
+
+    // Model access is per-key, so a different key must be re-probed from scratch
+    // rather than inheriting the previous key's cached choice and rejections.
+    if (keyChanged) {
+      this.resolvedModel = null;
+      this.modelCandidates = null;
+      try {
+        localStorage.removeItem("geminiModel");
+        localStorage.removeItem("geminiBadModels");
+      } catch (e) {}
+    }
+
     this.closeSettings();
     this.showToast(key ? "AI extraction enabled!" : "AI extraction disabled", key ? "success" : "info");
   }
@@ -6071,32 +6085,109 @@ RULES:
     return score;
   }
 
-  async discoverGeminiModel(key, force) {
-    const useKey = key || this.geminiKey;
-    if (!useKey) return null;
-    if (!force) {
-      if (this.resolvedModel) return this.resolvedModel;
-      const cached = localStorage.getItem("geminiModel");
-      if (cached) { this.resolvedModel = cached; return cached; }
+  loadModelBlocklist() {
+    try { return JSON.parse(localStorage.getItem("geminiBadModels") || "[]"); }
+    catch (e) { return []; }
+  }
+
+  blocklistModel(name, reason) {
+    if (!name) return;
+    const list = this.loadModelBlocklist();
+    if (!list.includes(name)) {
+      list.push(name);
+      try { localStorage.setItem("geminiBadModels", JSON.stringify(list)); } catch (e) {}
     }
+    if (localStorage.getItem("geminiModel") === name) localStorage.removeItem("geminiModel");
+    if (this.resolvedModel === name) this.resolvedModel = null;
+    console.warn(`[AI] Model ${name} unusable (${reason}); will not retry it.`);
+  }
+
+  // ListModels advertises models the key may still not be permitted to CALL — Google
+  // returns e.g. "no longer available to new users" only at generateContent time. So
+  // the candidate list must be walked in order, blocklisting each one that fails.
+  async getGeminiModelCandidates(key, force) {
+    const useKey = key || this.geminiKey;
+    if (!useKey) return [];
+    if (!force && Array.isArray(this.modelCandidates) && this.modelCandidates.length) return this.modelCandidates;
+
     const resp = await fetch(`https://generativelanguage.googleapis.com/v1beta/models?key=${useKey}`);
     if (!resp.ok) {
       const err = await resp.json().catch(() => ({}));
       throw new Error(err.error?.message || `Could not list models (${resp.status})`);
     }
     const data = await resp.json();
-    const usable = (data.models || [])
+    const bad = this.loadModelBlocklist();
+    const ranked = (data.models || [])
       .filter(m => (m.supportedGenerationMethods || []).includes("generateContent"))
-      .map(m => ({ name: (m.name || "").replace(/^models\//, ""), score: this.scoreModelName((m.name || "").replace(/^models\//, "")) }))
-      .filter(m => m.name && m.score > 0)
-      .sort((a, b) => b.score - a.score);
+      .map(m => (m.name || "").replace(/^models\//, ""))
+      .filter(Boolean)
+      .map(name => ({ name, score: this.scoreModelName(name) }))
+      .filter(m => m.score > 0 && !bad.includes(m.name))
+      .sort((a, b) => b.score - a.score)
+      .map(m => m.name);
 
-    if (usable.length === 0) throw new Error("Your API key has no models that support generateContent");
-    const chosen = usable[0].name;
-    this.resolvedModel = chosen;
-    this.availableModels = usable.map(m => m.name);
-    try { localStorage.setItem("geminiModel", chosen); } catch (e) {}
-    return chosen;
+    this.modelCandidates = ranked;
+    this.availableModels = ranked;
+    return ranked;
+  }
+
+  async discoverGeminiModel(key, force) {
+    const useKey = key || this.geminiKey;
+    if (!useKey) return null;
+    const bad = this.loadModelBlocklist();
+    if (!force) {
+      if (this.resolvedModel && !bad.includes(this.resolvedModel)) return this.resolvedModel;
+      const cached = localStorage.getItem("geminiModel");
+      if (cached && !bad.includes(cached)) { this.resolvedModel = cached; return cached; }
+    }
+    const candidates = await this.getGeminiModelCandidates(key, force);
+    if (!candidates.length) {
+      throw new Error("No usable model found for this API key. Create a new key at Google AI Studio, or check that the Generative Language API is enabled for your project.");
+    }
+    this.resolvedModel = candidates[0];
+    try { localStorage.setItem("geminiModel", candidates[0]); } catch (e) {}
+    return candidates[0];
+  }
+
+  isModelUnavailableError(msg, status) {
+    return status === 404 ||
+      /no longer available|not available|not found|is not supported|unsupported|deprecat|does not exist|not permitted|permission denied/i.test(msg || "");
+  }
+
+  // Verifies a model can actually be invoked, blocklisting and stepping down the
+  // ranked list until one responds. Returns the model that works.
+  async resolveWorkingModel(key, statusCb) {
+    const useKey = key || this.geminiKey;
+    let candidates = await this.getGeminiModelCandidates(useKey, true);
+    if (!candidates.length) {
+      throw new Error("No usable model found for this API key. Create a new key at Google AI Studio, or check that the Generative Language API is enabled for your project.");
+    }
+    const tried = [];
+    for (const model of candidates.slice(0, 8)) {
+      if (statusCb) statusCb(model);
+      try {
+        const resp = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${useKey}`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ contents: [{ parts: [{ text: "Reply with just: OK" }] }] })
+        });
+        if (resp.ok) {
+          this.resolvedModel = model;
+          try { localStorage.setItem("geminiModel", model); } catch (e) {}
+          return model;
+        }
+        const err = await resp.json().catch(() => ({}));
+        const msg = err.error?.message || resp.statusText;
+        tried.push(`${model}: ${msg}`);
+        if (this.isModelUnavailableError(msg, resp.status)) { this.blocklistModel(model, msg); continue; }
+        // A key/quota/billing problem is not model-specific — stop and report it.
+        throw new Error(msg);
+      } catch (e) {
+        if (e instanceof TypeError) throw new Error("Network error reaching Google's API");
+        if (!tried.length || !this.isModelUnavailableError(e.message)) throw e;
+      }
+    }
+    throw new Error(`None of the available models could be used. Tried — ${tried.slice(0, 3).join(" | ")}`);
   }
 
   async testGeminiKey() {
@@ -6112,31 +6203,29 @@ RULES:
     status.style.display = "block";
     status.style.background = "#e3f2fd";
     status.style.color = "#1565c0";
-    status.textContent = "Finding the best available model for your key...";
+    status.textContent = "Checking which models your key can use...";
     try {
-      const model = await this.discoverGeminiModel(key, true);
-      status.textContent = `Testing ${model}...`;
-      const resp = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${key}`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ contents: [{ parts: [{ text: "Reply with just: OK" }] }] })
-      });
-      if (resp.ok) {
-        status.style.background = "#e8f5e9";
-        status.style.color = "#2e7d32";
-        status.innerHTML = `Connection successful — using <strong>${model}</strong>.<br>
-          <span style="font-size:0.75rem">${(this.availableModels || []).length} compatible model(s) found on your key.</span>`;
-      } else {
-        const err = await resp.json().catch(() => ({}));
-        status.style.background = "#ffebee";
-        status.style.color = "#c62828";
-        status.textContent = `Failed on ${model}: ${err.error?.message || resp.statusText}`;
-      }
+      const model = await this.resolveWorkingModel(key, (m) => { status.textContent = `Trying ${m}...`; });
+      const skipped = this.loadModelBlocklist();
+      status.style.background = "#e8f5e9";
+      status.style.color = "#2e7d32";
+      status.innerHTML = `Connection successful — using <strong>${model}</strong>.<br>
+        <span style="font-size:0.75rem">${(this.availableModels || []).length} model(s) offered by your key${skipped.length ? `; skipped ${skipped.length} your key cannot call` : ""}.</span>`;
     } catch (e) {
       status.style.background = "#ffebee";
       status.style.color = "#c62828";
-      status.textContent = `Failed: ${e.message}`;
+      status.innerHTML = `Failed: ${e.message}`;
     }
+  }
+
+  async retryModelDiscovery() {
+    const status = document.getElementById("geminiStatus");
+    try { localStorage.removeItem("geminiBadModels"); } catch (e) {}
+    this.resolvedModel = null;
+    this.modelCandidates = null;
+    try { localStorage.removeItem("geminiModel"); } catch (e) {}
+    if (status) { status.style.display = "block"; status.style.background = "#e3f2fd"; status.style.color = "#1565c0"; status.textContent = "Cleared. Re-checking models..."; }
+    await this.testGeminiKey();
   }
 
   buildGeminiPrompt(text, filename, docType, aiProfile) {
@@ -6305,22 +6394,25 @@ ${text.substring(0, 20000)}`;
       body: JSON.stringify({ contents: [{ parts }], generationConfig: { temperature, maxOutputTokens: maxTokens } })
     });
 
+    // Walk down the ranked candidates: a model that ListModels advertises can still
+    // refuse the call ("no longer available to new users"), so blocklist and step on
+    // rather than retrying the same name.
     let resp = await send(model);
-    if (!resp.ok) {
+    let attempts = 0;
+    while (!resp.ok && attempts < 6) {
       const err = await resp.json().catch(() => ({}));
       const msg = err.error?.message || resp.statusText;
-      // A retired/unavailable model is recoverable: re-discover once and retry.
-      if (/not available|not found|not supported|unsupported|deprecat/i.test(msg) || resp.status === 404) {
-        const fresh = await this.discoverGeminiModel(null, true);
-        if (fresh && fresh !== model) {
-          model = fresh;
-          resp = await send(model);
-        }
-      }
-      if (!resp.ok) {
-        const err2 = await resp.json().catch(() => ({}));
-        throw new Error(err2.error?.message || msg);
-      }
+      if (!this.isModelUnavailableError(msg, resp.status)) throw new Error(msg);
+      this.blocklistModel(model, msg);
+      const next = await this.discoverGeminiModel(null, true).catch(() => null);
+      if (!next || next === model) throw new Error(msg);
+      model = next;
+      resp = await send(model);
+      attempts++;
+    }
+    if (!resp.ok) {
+      const err = await resp.json().catch(() => ({}));
+      throw new Error(err.error?.message || resp.statusText);
     }
     const data = await resp.json();
     const cand = data.candidates?.[0];
