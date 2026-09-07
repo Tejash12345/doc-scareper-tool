@@ -1193,24 +1193,12 @@ Return this structure (use "" for not found):
 RULES: Return ONLY valid JSON. PAN = 5 letters + 4 digits + 1 letter. GSTIN = 15 chars. Dates = DD/MM/YYYY. Amounts = numbers only.`;
 
     try {
-      const resp = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${this.geminiKey}`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          contents: [{ parts: [
-            { text: prompt },
-            { inlineData: { mimeType, data: base64 } }
-          ]}],
-          generationConfig: { temperature: 0.05, maxOutputTokens: 4096 }
-        })
-      });
-      if (!resp.ok) return null;
-      const data = await resp.json();
-      const content = data.candidates?.[0]?.content?.parts?.[0]?.text || "";
-      const jsonStr = content.replace(/```json\s*/g, "").replace(/```\s*/g, "").trim();
-      return JSON.parse(jsonStr);
+      return await this.geminiRequest([
+        { text: prompt },
+        { inlineData: { mimeType, data: base64 } }
+      ], 8192);
     } catch (e) {
-      console.warn("Gemini Vision extraction failed:", e);
+      this.recordAiFailure("image vision", e.message);
       return null;
     }
   }
@@ -1228,6 +1216,8 @@ RULES: Return ONLY valid JSON. PAN = 5 letters + 4 digits + 1 letter. GSTIN = 15
       let docType = guess.type;
       let aiProfile = null;
       let verifyNote = "";
+      let aiUsed = false;
+      this.lastAiError = null;
 
       if (this.geminiKey) {
         this.showLoading("Identifying document...", `AI is classifying ${file.name}`);
@@ -1262,6 +1252,7 @@ RULES: Return ONLY valid JSON. PAN = 5 letters + 4 digits + 1 letter. GSTIN = 15
         }
         this.allExtractedTexts.push({ filename: file.name, docType, text: text.substring(0, 12000) });
         if (aiResult) {
+          aiUsed = true;
           const aiConfidence = aiResult._confidence || {};
           delete aiResult._confidence;
           extracted = this.mergeAiExtraction(extracted, aiResult);
@@ -1283,11 +1274,13 @@ RULES: Return ONLY valid JSON. PAN = 5 letters + 4 digits + 1 letter. GSTIN = 15
         }
       }
 
+      const aiWorked = !!aiUsed;
       const idx = this.uploadedFiles.findIndex(f => f.id === fileId);
       if (idx >= 0) {
         this.uploadedFiles[idx].status = "success";
-        this.uploadedFiles[idx].docType = docType + (this.geminiKey ? " + AI" : "");
+        this.uploadedFiles[idx].docType = docType + (aiWorked ? " + AI" : this.geminiKey ? " (AI failed)" : "");
         this.uploadedFiles[idx].fieldsExtracted = Object.keys(extracted).length;
+        this.uploadedFiles[idx].textChars = text.length;
       }
 
       Object.assign(this.extractedData, extracted);
@@ -1302,7 +1295,22 @@ RULES: Return ONLY valid JSON. PAN = 5 letters + 4 digits + 1 letter. GSTIN = 15
       const newAccuracy = this.getAccuracyPercent();
       const boost = newAccuracy - prevAccuracy;
       const boostText = boost > 0 ? ` (+${boost}% accuracy)` : "";
-      this.showToast(`${docType} processed - ${Object.keys(extracted).length} fields extracted${this.geminiKey ? " (AI enhanced)" : ""}${boostText}${verifyNote}`, "success");
+      const fieldCount = Object.keys(extracted).length;
+
+      // Never leave a "0 fields" result unexplained — say which stage actually failed.
+      if (fieldCount === 0) {
+        let why;
+        if (text.length < 30) why = "No text could be read from this file. It may be an image-only scan or password-protected.";
+        else if (this.geminiKey && this.lastAiError) why = `AI extraction failed: ${this.lastAiError}`;
+        else if (!this.geminiKey) why = "No AI key set — only basic pattern matching ran. Add a Gemini key in Settings for full extraction.";
+        else why = `Read ${text.length} characters but found no recognisable fields.`;
+        this.showToast(`${docType}: 0 fields — ${why}`, "error", 9000);
+      } else {
+        this.showToast(`${docType} processed - ${fieldCount} fields extracted${aiWorked ? " (AI enhanced)" : ""}${boostText}${verifyNote}`, "success");
+        if (this.geminiKey && !aiWorked && this.lastAiError) {
+          this.showToast(`AI unavailable (${this.lastAiError}) — used pattern matching only`, "warning", 8000);
+        }
+      }
       this.applyLearnedCorrections();
       this.bindCorrectionLearning();
       this.validateExtractedFields();
@@ -1423,6 +1431,12 @@ RULES: Return ONLY valid JSON. PAN = 5 letters + 4 digits + 1 letter. GSTIN = 15
           }
         }
       } catch (e) {
+        // Bank statements are frequently password-protected; say so plainly instead
+        // of reporting an unexplained "0 fields".
+        if (e && (e.name === "PasswordException" || /password/i.test(e.message || ""))) {
+          meta.passwordProtected = true;
+          throw new Error("This PDF is password-protected. Please remove the password (open it in a PDF reader and re-save without protection) and upload again.");
+        }
         console.warn("PDF.js extraction failed, falling back:", e.message);
       }
     }
@@ -1466,17 +1480,9 @@ Also include "_rawText" containing ALL visible text you read from the images.`;
     images.forEach(img => parts.push({ inlineData: { mimeType: "image/jpeg", data: img.base64 } }));
 
     try {
-      const resp = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${this.geminiKey}`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ contents: [{ parts }], generationConfig: { temperature: 0.05, maxOutputTokens: 8192 } })
-      });
-      if (!resp.ok) return null;
-      const data = await resp.json();
-      const content = data.candidates?.[0]?.content?.parts?.[0]?.text || "";
-      return JSON.parse(content.replace(/```json\s*/g, "").replace(/```\s*/g, "").trim());
+      return await this.geminiRequest(parts, 8192);
     } catch (e) {
-      console.warn("Vision PDF extraction failed:", e);
+      this.recordAiFailure("scanned PDF vision", e.message);
       return null;
     }
   }
@@ -1562,27 +1568,69 @@ RULES:
 - "containsData" must reflect what is ACTUALLY in the text, not what the doc type usually has`;
 
     try {
-      const resp = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${this.geminiKey}`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ contents: [{ parts: [{ text: prompt }] }], generationConfig: { temperature: 0, maxOutputTokens: 800 } })
-      });
-      if (!resp.ok) return null;
-      const data = await resp.json();
-      const content = data.candidates?.[0]?.content?.parts?.[0]?.text || "";
-      return JSON.parse(content.replace(/```json\s*/g, "").replace(/```\s*/g, "").trim());
+      return await this.callGemini(prompt, 800, 0);
     } catch (e) {
-      console.warn("AI classification failed:", e);
+      this.recordAiFailure("classification", e.message);
       return null;
     }
+  }
+
+  // Pulls a registered entity name out of arbitrary document text. Needed because a
+  // customer who cannot supply a GST certificate must still be identified from
+  // whatever they did upload (deed, AOA, invoice, licence, bank statement, letterhead).
+  extractEntityName(text) {
+    const t = String(text).replace(/\s+/g, " ");
+    // Longest-first so "PRIVATE LIMITED" wins over the bare "LIMITED" inside it.
+    const SUFFIX = "(?:PRIVATE\\s+LIMITED|PVT\\.?\\s*LTD\\.?|PUBLIC\\s+LIMITED|LIMITED\\s+LIABILITY\\s+PARTNERSHIP|L\\.L\\.P\\.?|LLP|LIMITED|LTD\\.?|ENTERPRISES?|HOLIDAYS?|TRAVELS?|TOURS?|FOUNDATION|SOCIETY|TRUST)";
+    const WORD = "[A-Za-z0-9&.'()\\-]+";
+    // A name is up to 7 words followed by a legal suffix. Case-insensitive so
+    // mixed-case names ("Sunrise Tours And Travels") match, not just ALL-CAPS ones.
+    // The lookbehind stops a match starting mid-token — without it "M/s Acme Ltd"
+    // begins matching at the "s" of "M/s" and yields "s Acme Ltd".
+    const rx = new RegExp(`(?<![\\/A-Za-z0-9])((?:${WORD}\\s+){0,7}${SUFFIX})(?![A-Za-z])`, "gi");
+
+    const NOISE = /^(?:THE|THIS|AND|FOR|WITH|FROM|OF|TO|BY|IN|ON|AT|IS|WAS|SHALL|NAME|SUB|RE|DEED|ARTICLES|MEMORANDUM|CERTIFICATE|INVOICE|STATEMENT|ACCOUNT|REGISTERED|OFFICE)\b/i;
+    const LEAD = /^(?:.*?\b(?:ARTICLES|MEMORANDUM)\s+OF\s+ASSOCIATION\s+OF\s+|.*?\bCERTIFICATE\s+OF\s+INCORPORATION\s+OF\s+|.*?\b(?:DEED\s+OF\s+PARTNERSHIP|PARTNERSHIP\s+DEED)\s+OF\s+|.*?\bIN\s+THE\s+(?:NAME|MATTER)\s+OF\s+|.*?\bNAME\s+OF\s+(?:THE\s+)?(?:BUSINESS|COMPANY|FIRM|ENTITY)\s*[:\-]?\s*|M\/s\.?\s+)/i;
+
+    const candidates = [];
+    let m;
+    while ((m = rx.exec(t)) !== null) {
+      let cand = m[1].replace(LEAD, "").trim();
+      // Drop leading filler words that regex greediness pulled in.
+      while (NOISE.test(cand)) {
+        const next = cand.replace(/^\S+\s+/, "");
+        if (next === cand) break;
+        cand = next;
+      }
+      cand = cand.replace(/^s\s+/i, "")   // orphan "s" left over from an "M/s" prefix
+        .replace(/\s{2,}/g, " ").replace(/^[^A-Za-z0-9]+/, "").replace(/[,;:\s]+$/, "").trim();
+      if (cand.length >= 5 && cand.length <= 120 && /[A-Za-z]{3}/.test(cand) && !NOISE.test(cand)) {
+        candidates.push(cand);
+      }
+    }
+    if (!candidates.length) return null;
+    // Prefer the most specific match: a longer name carries more of the real title
+    // ("Sunrise Tours And Travels" over "Sunrise Tours").
+    candidates.sort((a, b) => b.length - a.length);
+    return candidates[0];
   }
 
   extractFields(text, docType) {
     const fields = {};
     const t = text.replace(/\s+/g, " ");
 
-    const panGlobal = t.match(/\b([A-Z]{5}\d{4}[A-Z])\b/);
-    if (panGlobal) fields.panNumber = panGlobal[1];
+    // PAN's 4th character encodes the holder type: "P" = individual, others = entity.
+    // On a company document, an individual's PAN belongs to a director/subscriber,
+    // not to the entity — assigning it as the entity PAN produces a wrong KYC record.
+    const panMatches = [...new Set((t.match(/\b[A-Z]{5}\d{4}[A-Z]\b/g) || []))];
+    if (panMatches.length) {
+      const entityPan = panMatches.find(p => p[3] !== "P");
+      const personPan = panMatches.find(p => p[3] === "P");
+      const looksCorporate = /PRIVATE\s+LIMITED|PVT\.?\s*LTD|PUBLIC\s+LIMITED|\bLLP\b|LIMITED\s+LIABILITY|\bCIN\b|[LUu]\d{5}[A-Za-z]{2}\d{4}[A-Za-z]{3}\d{6}/i.test(t);
+      if (entityPan) fields.panNumber = entityPan;
+      else if (personPan && !looksCorporate) fields.panNumber = personPan;
+      if (personPan) fields.personPanFromDoc = personPan;
+    }
 
     const gstGlobal = t.match(/\b(\d{2}[A-Z]{5}\d{4}[A-Z]\d[A-Z\d]{2})\b/);
     if (gstGlobal) fields.gstNumber = gstGlobal[1];
@@ -1601,6 +1649,55 @@ RULES:
 
     const globalDobMatch = t.match(/(?:Date\s*of\s*Birth|DOB|D\.O\.B|Birth\s*Date)\s*[:\-]?\s*(\d{2}[\/\-]\d{2}[\/\-]\d{4})/i);
     if (globalDobMatch) fields.globalDob = globalDobMatch[1].replace(/-/g, "/");
+
+    // ---- Universal identity patterns ----
+    // These run for EVERY document type so that a customer who cannot supply a GST
+    // certificate still gets their entity identified from whatever they do upload.
+    const cinMatch = t.match(/\b([LUu]\d{5}[A-Za-z]{2}\d{4}[A-Za-z]{3}\d{6})\b/);
+    if (cinMatch) fields.cinNumber = cinMatch[1].toUpperCase();
+
+    const llpinMatch = t.match(/\b([A-Z]{3}-?\d{4})\b(?=[\s\S]{0,40}(?:llp|limited\s*liability))/i);
+    if (llpinMatch && /llp|limited\s*liability/i.test(t)) fields.llpin = llpinMatch[1].toUpperCase();
+
+    if (!fields.udyamNumber) {
+      const ud = t.match(/\b(UDYAM[\s\-]?[A-Z]{2}[\s\-]?\d{2}[\s\-]?\d{7})\b/i);
+      if (ud) fields.udyamNumber = ud[1].toUpperCase().replace(/\s/g, "-");
+    }
+
+    const iecMatch = t.match(/(?:IEC|Importer[\s\-]*Exporter\s*Code)\s*(?:No\.?|Number|:)?\s*([A-Z0-9]{10})\b/i);
+    if (iecMatch) fields.iecNumber = iecMatch[1].toUpperCase();
+
+    if (!fields.bankIfsc) {
+      const ifsc = t.match(/\b([A-Z]{4}0[A-Z0-9]{6})\b/);
+      if (ifsc && this.isValidIfsc(ifsc[1])) fields.bankIfsc = ifsc[1];
+    }
+
+    // Entity name from a legal-suffix pattern — works on letterheads, deeds,
+    // invoices, AOA/MOA, licences, anything with the registered name printed.
+    if (!fields.genericName) {
+      const entityName = this.extractEntityName(t);
+      if (entityName) fields.genericName = entityName;
+    }
+
+    // Constitution inferred from the entity name suffix when no GST cert states it.
+    if (!fields.gstConstitution) {
+      const nameForType = (fields.genericName || fields.companyName || "").toUpperCase();
+      if (/\bLLP\b|LIMITED\s+LIABILITY/.test(nameForType)) fields.inferredConstitution = "LLP";
+      else if (/PRIVATE\s+LIMITED|PVT\.?\s*LTD/.test(nameForType)) fields.inferredConstitution = "Private Limited Company";
+      else if (/PUBLIC\s+LIMITED/.test(nameForType)) fields.inferredConstitution = "Public Limited Company";
+      else if (/\bLIMITED\b|\bLTD\b/.test(nameForType)) fields.inferredConstitution = "Limited Company";
+      else if (/\bTRUST\b/.test(nameForType)) fields.inferredConstitution = "Trust";
+      else if (/\bSOCIETY\b/.test(nameForType)) fields.inferredConstitution = "Society";
+      else if (/\b(?:AND\s+)?(?:CO|COMPANY)\.?$|ENTERPRISES?$/.test(nameForType)) fields.inferredConstitution = "Partnership";
+      else if (/PARTNERSHIP|\bFIRM\b/.test(t.toUpperCase())) fields.inferredConstitution = "Partnership";
+      else if (/PROPRIETOR/.test(t.toUpperCase())) fields.inferredConstitution = "Proprietor";
+    }
+
+    const turnoverMatch = t.match(/(?:Turnover|Revenue\s*from\s*Operations|Gross\s*Total\s*Income|Total\s*Income)\s*[:\-]?\s*(?:Rs\.?|INR|₹)?\s*([\d,]{4,})/i);
+    if (turnoverMatch) fields.annualTurnover = turnoverMatch[1].replace(/,/g, "");
+
+    const websiteMatch = t.match(/\b((?:https?:\/\/)?www\.[A-Za-z0-9\-]+\.[A-Za-z]{2,}(?:\.[A-Za-z]{2,})?)\b/);
+    if (websiteMatch) fields.companyWebsite = websiteMatch[1].replace(/^(?!https?:\/\/)/, "https://");
 
     if (docType === "Bank Statement") {
       const namePatterns = [
@@ -2551,6 +2648,9 @@ RULES:
       if (c.includes("society")) return "Society";
       if (c.includes("huf")) return "HUF";
     }
+    // No GST certificate: fall back to the constitution inferred from the entity's
+    // legal-name suffix or deed wording found in whatever document was uploaded.
+    if (d.inferredConstitution) return d.inferredConstitution;
     const name = (companyName || "").toLowerCase();
     if (d.enterpriseType === "Micro" || d.enterpriseType === "Small") return "Proprietor";
     if (/\bprivate\s*limited\b/i.test(name) || /\bpvt\b/i.test(name)) return "Private Limited Company";
@@ -5954,6 +6054,51 @@ RULES:
     this.showToast(key ? "AI extraction enabled!" : "AI extraction disabled", key ? "success" : "info");
   }
 
+  scoreModelName(name) {
+    const n = name.toLowerCase();
+    // Reject models that cannot do general text/vision generateContent work.
+    if (/embedding|aqa|imagen|veo|tts|audio|native-audio|live|image-generation/.test(n)) return -1;
+    let score = 0;
+    // Prefer the newest major version present in the name (e.g. 3.6 > 2.5 > 1.5).
+    const ver = n.match(/gemini-(\d+)(?:\.(\d+))?/);
+    if (ver) score += parseInt(ver[1], 10) * 100 + (ver[2] ? parseInt(ver[2], 10) * 10 : 0);
+    if (/flash/.test(n)) score += 40;          // fast + cheap, ideal for extraction
+    if (/pro/.test(n)) score += 25;
+    if (/lite/.test(n)) score -= 15;
+    if (/preview|exp|experimental/.test(n)) score -= 30;
+    if (/thinking/.test(n)) score -= 20;
+    if (/latest/.test(n)) score += 5;
+    return score;
+  }
+
+  async discoverGeminiModel(key, force) {
+    const useKey = key || this.geminiKey;
+    if (!useKey) return null;
+    if (!force) {
+      if (this.resolvedModel) return this.resolvedModel;
+      const cached = localStorage.getItem("geminiModel");
+      if (cached) { this.resolvedModel = cached; return cached; }
+    }
+    const resp = await fetch(`https://generativelanguage.googleapis.com/v1beta/models?key=${useKey}`);
+    if (!resp.ok) {
+      const err = await resp.json().catch(() => ({}));
+      throw new Error(err.error?.message || `Could not list models (${resp.status})`);
+    }
+    const data = await resp.json();
+    const usable = (data.models || [])
+      .filter(m => (m.supportedGenerationMethods || []).includes("generateContent"))
+      .map(m => ({ name: (m.name || "").replace(/^models\//, ""), score: this.scoreModelName((m.name || "").replace(/^models\//, "")) }))
+      .filter(m => m.name && m.score > 0)
+      .sort((a, b) => b.score - a.score);
+
+    if (usable.length === 0) throw new Error("Your API key has no models that support generateContent");
+    const chosen = usable[0].name;
+    this.resolvedModel = chosen;
+    this.availableModels = usable.map(m => m.name);
+    try { localStorage.setItem("geminiModel", chosen); } catch (e) {}
+    return chosen;
+  }
+
   async testGeminiKey() {
     const key = document.getElementById("geminiKeyInput").value.trim();
     const status = document.getElementById("geminiStatus");
@@ -5967,9 +6112,11 @@ RULES:
     status.style.display = "block";
     status.style.background = "#e3f2fd";
     status.style.color = "#1565c0";
-    status.textContent = "Testing connection...";
+    status.textContent = "Finding the best available model for your key...";
     try {
-      const resp = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${key}`, {
+      const model = await this.discoverGeminiModel(key, true);
+      status.textContent = `Testing ${model}...`;
+      const resp = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${key}`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ contents: [{ parts: [{ text: "Reply with just: OK" }] }] })
@@ -5977,17 +6124,18 @@ RULES:
       if (resp.ok) {
         status.style.background = "#e8f5e9";
         status.style.color = "#2e7d32";
-        status.textContent = "Connection successful! Gemini AI is ready.";
+        status.innerHTML = `Connection successful — using <strong>${model}</strong>.<br>
+          <span style="font-size:0.75rem">${(this.availableModels || []).length} compatible model(s) found on your key.</span>`;
       } else {
         const err = await resp.json().catch(() => ({}));
         status.style.background = "#ffebee";
         status.style.color = "#c62828";
-        status.textContent = `Failed: ${err.error?.message || resp.statusText}`;
+        status.textContent = `Failed on ${model}: ${err.error?.message || resp.statusText}`;
       }
     } catch (e) {
       status.style.background = "#ffebee";
       status.style.color = "#c62828";
-      status.textContent = `Network error: ${e.message}`;
+      status.textContent = `Failed: ${e.message}`;
     }
   }
 
@@ -6148,22 +6296,58 @@ DOCUMENT TEXT:
 ${text.substring(0, 20000)}`;
   }
 
-  async callGemini(prompt, maxTokens = 4096, temperature = 0.05) {
-    const resp = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${this.geminiKey}`, {
+  async geminiRequest(parts, maxTokens = 4096, temperature = 0.05) {
+    if (!this.geminiKey) throw new Error("No API key set");
+    let model = await this.discoverGeminiModel();
+    const send = async (m) => fetch(`https://generativelanguage.googleapis.com/v1beta/models/${m}:generateContent?key=${this.geminiKey}`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        contents: [{ parts: [{ text: prompt }] }],
-        generationConfig: { temperature, maxOutputTokens: maxTokens }
-      })
+      body: JSON.stringify({ contents: [{ parts }], generationConfig: { temperature, maxOutputTokens: maxTokens } })
     });
+
+    let resp = await send(model);
     if (!resp.ok) {
       const err = await resp.json().catch(() => ({}));
-      throw new Error(err.error?.message || resp.statusText);
+      const msg = err.error?.message || resp.statusText;
+      // A retired/unavailable model is recoverable: re-discover once and retry.
+      if (/not available|not found|not supported|unsupported|deprecat/i.test(msg) || resp.status === 404) {
+        const fresh = await this.discoverGeminiModel(null, true);
+        if (fresh && fresh !== model) {
+          model = fresh;
+          resp = await send(model);
+        }
+      }
+      if (!resp.ok) {
+        const err2 = await resp.json().catch(() => ({}));
+        throw new Error(err2.error?.message || msg);
+      }
     }
     const data = await resp.json();
-    const content = data.candidates?.[0]?.content?.parts?.[0]?.text || "";
-    return JSON.parse(content.replace(/```json\s*/g, "").replace(/```\s*/g, "").trim());
+    const cand = data.candidates?.[0];
+    if (!cand) throw new Error(data.promptFeedback?.blockReason ? `Blocked: ${data.promptFeedback.blockReason}` : "Empty response from Gemini");
+    if (cand.finishReason === "MAX_TOKENS") throw new Error("Response hit the token limit — document too long for one pass");
+    const content = cand.content?.parts?.[0]?.text || "";
+    if (!content.trim()) throw new Error("Gemini returned no text");
+    const cleaned = content.replace(/```json\s*/g, "").replace(/```\s*/g, "").trim();
+    try {
+      return JSON.parse(cleaned);
+    } catch (e) {
+      // Models sometimes wrap or prepend prose; salvage the outermost JSON object.
+      const s = cleaned.indexOf("{"), t = cleaned.lastIndexOf("}");
+      if (s >= 0 && t > s) return JSON.parse(cleaned.substring(s, t + 1));
+      throw new Error("Gemini returned unparseable JSON");
+    }
+  }
+
+  async callGemini(prompt, maxTokens = 4096, temperature = 0.05) {
+    return this.geminiRequest([{ text: prompt }], maxTokens, temperature);
+  }
+
+  recordAiFailure(stage, message) {
+    this.aiFailures = this.aiFailures || [];
+    this.aiFailures.push({ stage, message, at: Date.now() });
+    this.lastAiError = message;
+    console.warn(`[AI ${stage}] ${message}`);
   }
 
   async extractWithGemini(text, filename, docType, aiProfile) {
@@ -6192,7 +6376,7 @@ ${text.substring(0, 20000)}`;
       if (results.length === 0) return null;
       return this.mergeChunkResults(results);
     } catch (e) {
-      console.warn("Gemini extraction failed:", e);
+      this.recordAiFailure("extraction", e.message);
       return null;
     }
   }
@@ -6752,19 +6936,7 @@ RULES:
 - Mobile: 10 digits only`;
 
     try {
-      const resp = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${this.geminiKey}`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          contents: [{ parts: [{ text: prompt }] }],
-          generationConfig: { temperature: 0.05, maxOutputTokens: 2048 }
-        })
-      });
-      if (!resp.ok) return;
-      const data = await resp.json();
-      const content = data.candidates?.[0]?.content?.parts?.[0]?.text || "";
-      const jsonStr = content.replace(/```json\s*/g, "").replace(/```\s*/g, "").trim();
-      const result = JSON.parse(jsonStr);
+      const result = await this.callGemini(prompt, 2048);
       let filled = 0;
 
       if (Array.isArray(result.boPersonData)) {
@@ -7322,22 +7494,10 @@ RULES:
 - If bank details are missing, suggest "Cancelled Cheque" or "Bank Statement" specifically`;
 
     try {
-      const resp = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${this.geminiKey}`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          contents: [{ parts: [{ text: prompt }] }],
-          generationConfig: { temperature: 0.2, maxOutputTokens: 2048 }
-        })
-      });
-      if (!resp.ok) return;
-      const data = await resp.json();
-      const content = data.candidates?.[0]?.content?.parts?.[0]?.text || "";
-      const jsonStr = content.replace(/```json\s*/g, "").replace(/```\s*/g, "").trim();
-      const insights = JSON.parse(jsonStr);
+      const insights = await this.callGemini(prompt, 2048, 0.2);
       this.renderAiInsights(insights);
     } catch (e) {
-      console.warn("Gemini gap analysis failed:", e);
+      this.recordAiFailure("gap analysis", e.message);
     }
   }
 
