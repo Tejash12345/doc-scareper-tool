@@ -1057,6 +1057,7 @@ class OnboardingApp {
       return;
     }
     const supported = ["application/pdf", "image/png", "image/jpeg", "image/webp"];
+    const queue = [];
     for (const file of files) {
       if (!supported.includes(file.type)) {
         this.showToast("Supported: PDF, PNG, JPG, WEBP", "error");
@@ -1066,11 +1067,63 @@ class OnboardingApp {
         this.showToast(`${file.name} already uploaded`, "warning");
         continue;
       }
-      if (file.type.startsWith("image/")) {
-        await this.processImageFile(file);
-      } else {
-        await this.processFile(file);
-      }
+      queue.push(file);
+    }
+    if (queue.length === 0) return;
+
+    const runOne = (file) => file.type.startsWith("image/")
+      ? this.processImageFile(file)
+      : this.processFile(file);
+
+    // Process a few documents at once instead of strictly one-by-one. Kept small so
+    // we stay under Gemini's free-tier rate limit (15 req/min) — going wider trades
+    // one bottleneck for 429s, which lose data rather than just time.
+    const CONCURRENCY = 3;
+    if (queue.length === 1) {
+      await runOne(queue[0]);
+    } else {
+      let cursor = 0;
+      const worker = async () => {
+        while (cursor < queue.length) {
+          const file = queue[cursor++];
+          try { await runOne(file); } catch (e) { console.warn(`${file.name} failed:`, e.message); }
+        }
+      };
+      await Promise.all(Array.from({ length: Math.min(CONCURRENCY, queue.length) }, worker));
+    }
+
+    await this.runPostUploadAnalysis();
+  }
+
+  // Batch work that only makes sense once every document is in: reconcile values
+  // across documents, then analyse what is still missing.
+  async runPostUploadAnalysis() {
+    const done = this.uploadedFiles.filter(f => f.status === "success").length;
+    if (done === 0) return;
+
+    this.cleanExtractedData();
+    this.applySmartDerivations();
+    this.autoFillForm();
+
+    if (this.geminiKey && done >= 2 && this.allExtractedTexts.length >= 2) {
+      this.showLoading("Cross-checking all documents...", `Filling gaps from ${done} documents`);
+      try { await this.smartReExtract(); } catch (e) { this.recordAiFailure("cross-reference", e.message); }
+    }
+
+    this.applyLearnedCorrections();
+    this.bindCorrectionLearning();
+    this.validateExtractedFields();
+    this.checkCrossFieldConsistency();
+    this.updateAccuracy();
+    this.renderDocIntelligence();
+    this.renderCategoryDocChecklist();
+    this.hideLoading();
+
+    if (this.geminiKey) this.analyzeGapsWithGemini();
+
+    const failed = this.uploadedFiles.filter(f => f.status === "error").length;
+    if (done > 1) {
+      this.showToast(`All ${done} document${done > 1 ? "s" : ""} processed — ${this.getAccuracyPercent()}% of the form filled${failed ? ` (${failed} failed)` : ""}`, failed ? "warning" : "success", 7000);
     }
   }
 
@@ -1220,23 +1273,15 @@ RULES: Return ONLY valid JSON. PAN = 5 letters + 4 digits + 1 letter. GSTIN = 15
       let aiUsed = false;
       this.lastAiError = null;
 
-      if (this.geminiKey) {
-        this.showLoading("Identifying document...", `AI is classifying ${file.name}`);
-        aiProfile = await this.classifyDocumentWithAi(text, file.name, guess);
-        if (aiProfile?.documentType) {
-          const aiConfident = aiProfile.confidence === "high" || aiProfile.confidence === "medium";
-          if (guess.confidence === "low" || (aiConfident && aiProfile.documentType !== docType && aiProfile.isKnownType)) {
-            docType = aiProfile.documentType;
-          }
-        }
-        this.docProfiles.push({ filename: file.name, docType, guess, aiProfile });
-      }
-
       let extracted = this.extractFields(text, docType);
 
       if (this.geminiKey) {
         const meta = this.lastPdfMeta || {};
         let aiResult;
+        // ONE AI call per document. Document identification is folded into the
+        // extraction response (_documentType) rather than spent on a separate
+        // classification round-trip — the free tier allows only 15 requests/min,
+        // so extra per-file calls cost both latency and successful extractions.
         if (meta.isScanned && meta.pageImages?.length) {
           this.showLoading("AI Vision reading scan...", `${meta.pageImages.length} page(s) — ${file.name}`);
           aiResult = await this.extractScannedPdfWithVision(meta.pageImages, file.name, docType, aiProfile);
@@ -1245,24 +1290,39 @@ RULES: Return ONLY valid JSON. PAN = 5 letters + 4 digits + 1 letter. GSTIN = 15
             const reScored = this.scoreDocumentType(text);
             if (guess.confidence === "low" && reScored.confidence !== "low") docType = reScored.type;
           }
-          delete aiResult?._rawText;
+          if (aiResult) delete aiResult._rawText;
         }
         if (!aiResult) {
-          this.showLoading("AI extracting data...", `Reading ${docType} — ${file.name}`);
+          this.showLoading("AI extracting data...", `Reading ${file.name}`);
           aiResult = await this.extractWithGemini(text, file.name, docType, aiProfile);
         }
         this.allExtractedTexts.push({ filename: file.name, docType, text: text.substring(0, 12000) });
         if (aiResult) {
           aiUsed = true;
           const aiConfidence = aiResult._confidence || {};
+          // The AI names the document itself; trust it when our regex was unsure.
+          if (aiResult._documentType && guess.confidence !== "high") {
+            docType = String(aiResult._documentType).trim().substring(0, 60) || docType;
+          }
           delete aiResult._confidence;
+          delete aiResult._documentType;
+          this.docProfiles.push({ filename: file.name, docType, guess });
           extracted = this.mergeAiExtraction(extracted, aiResult);
 
-          this.showLoading("Verifying accuracy...", `Cross-checking values against ${file.name}`);
-          const verification = await this.verifyExtraction(aiResult, text, file.name);
-          const vr = this.applyVerification(verification, extracted);
-          if (vr.removed || vr.corrected) {
-            verifyNote = ` • AI verify: ${vr.corrected} fixed, ${vr.removed} rejected`;
+          // Verification is a second round-trip, so only spend it when something
+          // actually looks shaky: a critical identifier the model was unsure of,
+          // or a checksum that does not validate.
+          const CRITICAL = ["panNumber", "gstNumber", "cinNumber", "bankAccountNumber", "bankIfsc", "invoiceAmount", "swiftCode"];
+          const shaky = CRITICAL.some(k => aiResult[k] && (aiConfidence[k] ?? 100) < 80) ||
+            (aiResult.gstNumber && !this.isValidGstin(String(aiResult.gstNumber).toUpperCase())) ||
+            (aiResult.panNumber && !this.isValidPan(String(aiResult.panNumber).toUpperCase()));
+          if (shaky) {
+            this.showLoading("Double-checking values...", `Verifying ${file.name}`);
+            const verification = await this.verifyExtraction(aiResult, text, file.name);
+            const vr = this.applyVerification(verification, extracted);
+            if (vr.removed || vr.corrected) {
+              verifyNote = ` • AI verify: ${vr.corrected} fixed, ${vr.removed} rejected`;
+            }
           }
 
           const repairs = this.repairIdentifiers(extracted, docType);
@@ -1317,14 +1377,11 @@ RULES: Return ONLY valid JSON. PAN = 5 letters + 4 digits + 1 letter. GSTIN = 15
       this.validateExtractedFields();
       this.checkCrossFieldConsistency();
 
-      if (this.geminiKey) {
-        const successCount = this.uploadedFiles.filter(f => f.status === "success").length;
-        if (successCount === 1) this.suggestFormCategory(docType, extracted);
-        if (successCount >= 2 && this.allExtractedTexts.length >= 2) {
-          await this.smartReExtract();
-          this.renderDocIntelligence();
-        }
-        this.analyzeGapsWithGemini();
+      // Cross-document reconciliation and gap analysis are batch concerns — running
+      // them per file repeated the same work N times and multiplied the request count.
+      // handleFiles() now runs them once after the whole upload finishes.
+      if (this.geminiKey && this.uploadedFiles.filter(f => f.status === "success").length === 1) {
+        this.suggestFormCategory(docType, extracted);
       }
 
       if (this.uploadedFiles.filter(f => f.status === "success").length > 0) {
@@ -1428,7 +1485,9 @@ RULES: Return ONLY valid JSON. PAN = 5 letters + 4 digits + 1 letter. GSTIN = 15
           meta.isScanned = true;
           if (this.geminiKey) {
             this.showLoading("Scanned PDF detected...", "Rendering pages for AI Vision");
-            meta.pageImages = await this.renderPdfPagesToImages(pdf, 3, 2.0);
+            // 2 pages at 1.7x keeps KYC scans legible while roughly halving the
+            // base64 payload versus 3 pages at 2x — the dominant cost for scans.
+            meta.pageImages = await this.renderPdfPagesToImages(pdf, 2, 1.7);
           }
         }
       } catch (e) {
@@ -6377,12 +6436,13 @@ CRITICAL RULES:
 - NEVER invent data. If a field is not in the document, return "". A wrong value is far worse than an empty one.
 - If OCR text is garbled, only extract values you can read with certainty
 
-ALSO return a "_confidence" object scoring how sure you are of each non-empty field, 0-100:
+ALSO return these two metadata keys:
+"_documentType": "what this document actually IS — e.g. GST Certificate, PAN Card, Udyam Registration Certificate, Bank Statement, Cancelled Cheque, Invoice, MOA / AOA, Partnership Deed, Certificate of Incorporation, Board Resolution, IEC Certificate, ITR Acknowledgment, Financial Statement, Rent Agreement, Trade License, Passport, Aadhaar Card, Share Certificate, Travel Itinerary — or a precise name of your own if none fit",
 "_confidence": {"panNumber": 95, "companyName": 80, ...}
 Score 90+ only when the value is printed explicitly and unambiguously. Score below 60 when you inferred, guessed, or read poor OCR.
 
 DOCUMENT TEXT:
-${text.substring(0, 20000)}`;
+${text.substring(0, 12000)}`;
   }
 
   async geminiRequest(parts, maxTokens = 4096, temperature = 0.05) {
@@ -6399,9 +6459,25 @@ ${text.substring(0, 20000)}`;
     // rather than retrying the same name.
     let resp = await send(model);
     let attempts = 0;
+    let rateRetries = 0;
     while (!resp.ok && attempts < 6) {
       const err = await resp.json().catch(() => ({}));
       const msg = err.error?.message || resp.statusText;
+
+      // Free tier allows 15 requests/min. A 429 is not a failure — wait and retry,
+      // otherwise a multi-document upload silently loses whole documents.
+      if (resp.status === 429 || /quota|rate limit|too many requests|resource_exhausted/i.test(msg)) {
+        if (rateRetries >= 3) throw new Error("Gemini rate limit reached (free tier allows 15 requests/minute). Wait a minute and use 'Re-analyze with AI', or upload fewer files at once.");
+        const retryInfo = (err.error?.details || []).find(d => /RetryInfo/i.test(d["@type"] || ""));
+        const parsed = retryInfo?.retryDelay ? parseFloat(String(retryInfo.retryDelay)) : null;
+        const waitMs = Math.min(Math.max((parsed || (5 * (rateRetries + 1))) * 1000, 2000), 30000);
+        rateRetries++;
+        this.showLoading("Rate limit — waiting...", `Google's free tier is throttling. Retrying in ${Math.round(waitMs / 1000)}s (${rateRetries}/3)`);
+        await new Promise(r => setTimeout(r, waitMs));
+        resp = await send(model);
+        continue;
+      }
+
       if (!this.isModelUnavailableError(msg, resp.status)) throw new Error(msg);
       this.blocklistModel(model, msg);
       const next = await this.discoverGeminiModel(null, true).catch(() => null);
@@ -6444,16 +6520,18 @@ ${text.substring(0, 20000)}`;
 
   async extractWithGemini(text, filename, docType, aiProfile) {
     if (!this.geminiKey) return null;
-    const CHUNK_LIMIT = 20000;
+    const CHUNK_LIMIT = 12000;
 
     try {
       if (text.length <= CHUNK_LIMIT) {
         return await this.callGemini(this.buildGeminiPrompt(text, filename, docType || "Unknown", aiProfile));
       }
 
+      // Cap the split: each chunk is a separate request, and past ~3 the extra
+      // pages rarely hold form-relevant data while the latency and quota cost is real.
       const chunks = [];
-      const step = CHUNK_LIMIT - 2000;
-      for (let i = 0; i < text.length && chunks.length < 5; i += step) {
+      const step = CHUNK_LIMIT - 1500;
+      for (let i = 0; i < text.length && chunks.length < 3; i += step) {
         chunks.push(text.substring(i, i + CHUNK_LIMIT));
       }
 
@@ -6516,7 +6594,7 @@ ${JSON.stringify(toCheck, null, 2)}
 ${dirs.length > 0 ? `\nEXTRACTED PERSONS:\n${JSON.stringify(dirs.map(d => ({ name: d.name, pan: d.pan, dob: d.dob })), null, 2)}` : ""}
 
 SOURCE DOCUMENT ("${filename}"):
-${text.substring(0, 18000)}
+${text.substring(0, 9000)}
 
 For EACH value, check character-by-character that it literally appears in the source (or is a valid derivation, e.g. entity PAN = GSTIN chars 3-12).
 
