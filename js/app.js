@@ -1105,7 +1105,7 @@ class OnboardingApp {
     this.applySmartDerivations();
     this.autoFillForm();
 
-    if (this.geminiKey && done >= 2 && this.allExtractedTexts.length >= 2) {
+    if (this.isAiAvailable() && done >= 2 && this.allExtractedTexts.length >= 2) {
       this.showLoading("Cross-checking all documents...", `Filling gaps from ${done} documents`);
       try { await this.smartReExtract(); } catch (e) { this.recordAiFailure("cross-reference", e.message); }
     }
@@ -1117,13 +1117,19 @@ class OnboardingApp {
     this.updateAccuracy();
     this.renderDocIntelligence();
     this.renderCategoryDocChecklist();
+    this.renderOfflineBanner();
     this.hideLoading();
 
-    if (this.geminiKey) this.analyzeGapsWithGemini();
+    if (this.isAiAvailable()) this.analyzeGapsWithGemini();
 
     const failed = this.uploadedFiles.filter(f => f.status === "error").length;
-    if (done > 1) {
-      this.showToast(`All ${done} document${done > 1 ? "s" : ""} processed — ${this.getAccuracyPercent()}% of the form filled${failed ? ` (${failed} failed)` : ""}`, failed ? "warning" : "success", 7000);
+    const offlineCount = this.uploadedFiles.filter(f => f.offlineOnly).length;
+    if (done > 1 || offlineCount) {
+      const suffix = offlineCount
+        ? ` — ${offlineCount} read offline (AI quota); press "Retry with AI" in ${this.quotaSecondsLeft()}s to fill the rest`
+        : "";
+      this.showToast(`${done} document${done > 1 ? "s" : ""} processed — ${this.getAccuracyPercent()}% of the form filled${failed ? `, ${failed} failed` : ""}${suffix}`,
+        (failed || offlineCount) ? "warning" : "success", offlineCount ? 10000 : 7000);
     }
   }
 
@@ -1273,9 +1279,18 @@ RULES: Return ONLY valid JSON. PAN = 5 letters + 4 digits + 1 letter. GSTIN = 15
       let aiUsed = false;
       this.lastAiError = null;
 
+      // Offline pass always runs first: it is free, instant, and becomes the whole
+      // result when the AI quota is gone.
       let extracted = this.extractFields(text, docType);
+      const offline = this.offlineExtract(text, docType);
+      Object.keys(offline).forEach(k => { if (extracted[k] == null || extracted[k] === "") extracted[k] = offline[k]; });
+      const offlineCount = Object.keys(extracted).length;
 
-      if (this.geminiKey) {
+      if (this.geminiKey && !this.isAiAvailable()) {
+        this.showLoading("Offline extraction...", `AI quota reached — pattern-reading ${file.name}`);
+      }
+
+      if (this.isAiAvailable()) {
         const meta = this.lastPdfMeta || {};
         let aiResult;
         // ONE AI call per document. Document identification is folded into the
@@ -1336,12 +1351,14 @@ RULES: Return ONLY valid JSON. PAN = 5 letters + 4 digits + 1 letter. GSTIN = 15
       }
 
       const aiWorked = !!aiUsed;
+      const offlineOnly = !aiWorked && this.offlineMode;
       const idx = this.uploadedFiles.findIndex(f => f.id === fileId);
       if (idx >= 0) {
         this.uploadedFiles[idx].status = "success";
-        this.uploadedFiles[idx].docType = docType + (aiWorked ? " + AI" : this.geminiKey ? " (AI failed)" : "");
+        this.uploadedFiles[idx].docType = docType + (aiWorked ? " + AI" : offlineOnly ? " (offline)" : this.geminiKey ? " (AI failed)" : "");
         this.uploadedFiles[idx].fieldsExtracted = Object.keys(extracted).length;
         this.uploadedFiles[idx].textChars = text.length;
+        this.uploadedFiles[idx].offlineOnly = offlineOnly;
       }
 
       Object.assign(this.extractedData, extracted);
@@ -1366,6 +1383,8 @@ RULES: Return ONLY valid JSON. PAN = 5 letters + 4 digits + 1 letter. GSTIN = 15
         else if (!this.geminiKey) why = "No AI key set — only basic pattern matching ran. Add a Gemini key in Settings for full extraction.";
         else why = `Read ${text.length} characters but found no recognisable fields.`;
         this.showToast(`${docType}: 0 fields — ${why}`, "error", 9000);
+      } else if (offlineOnly) {
+        this.showToast(`${docType} read offline — ${fieldCount} fields${boostText}. AI retry available in ${this.quotaSecondsLeft()}s.`, "warning", 7000);
       } else {
         this.showToast(`${docType} processed - ${fieldCount} fields extracted${aiWorked ? " (AI enhanced)" : ""}${boostText}${verifyNote}`, "success");
         if (this.geminiKey && !aiWorked && this.lastAiError) {
@@ -1673,6 +1692,248 @@ RULES:
     // ("Sunrise Tours And Travels" over "Sunrise Tours").
     candidates.sort((a, b) => b.length - a.length);
     return candidates[0];
+  }
+
+  // Label -> form-field dictionary for offline extraction. Order matters: the more
+  // specific label must come first so "Legal Name of Business" is not eaten by "Name".
+  static get OFFLINE_LABELS() {
+    return [
+      // Identity
+      [/legal\s*name(?:\s*of\s*business)?/i, "gstLegalName"],
+      [/trade\s*name(?:,?\s*if\s*any)?/i, "gstTradeName"],
+      [/(?:name\s*of\s*)?enterprise(?:\s*name)?/i, "enterpriseName"],
+      [/name\s*of\s*(?:the\s*)?(?:company|firm|entity|applicant|organisation|organization)/i, "companyName"],
+      [/(?:account\s*(?:holder|name)|a\/c\s*name|customer\s*name)/i, "bankAccountName"],
+      [/constitution\s*(?:of\s*business)?/i, "gstConstitution"],
+      [/type\s*of\s*(?:enterprise|organisation|organization)/i, "enterpriseType"],
+      // Identifiers
+      [/(?:gstin|gst\s*(?:identification\s*)?(?:no|number)|registration\s*number)/i, "gstNumber"],
+      [/(?:permanent\s*account\s*number|pan(?:\s*card)?(?:\s*(?:no|number))?)/i, "panNumber"],
+      [/(?:cin|corporate\s*identity\s*(?:number|no))/i, "cinNumber"],
+      [/udyam\s*registration\s*(?:number|no)/i, "udyamNumber"],
+      [/(?:iec|importer[\s\-]*exporter\s*code)/i, "iecNumber"],
+      // Address
+      [/(?:address\s*of\s*)?principal\s*place\s*of\s*business/i, "genericAddress"],
+      [/registered\s*(?:office\s*)?address/i, "genericAddress"],
+      [/(?:^|\b)address(?:\s*line\s*1)?/i, "genericAddress"],
+      [/(?:pin|pincode|pin\s*code|postal\s*code)/i, "pin"],
+      [/state/i, "state"],
+      [/(?:city|town|district)/i, "city"],
+      // People
+      [/(?:owner|proprietor)\s*name|name\s*of\s*(?:owner|proprietor)/i, "ownerName"],
+      [/father'?s?\s*name/i, "fatherName"],
+      [/date\s*of\s*birth|dob/i, "globalDob"],
+      [/designation(?:\/status)?/i, "aiDesignation"],
+      [/(?:mobile|phone|contact)\s*(?:no|number)?/i, "extractedMobile"],
+      [/e-?mail(?:\s*(?:id|address))?/i, "extractedEmail"],
+      // Business
+      [/(?:major|main|nature\s*of)\s*(?:activity|business|objects?)/i, "nicDescription"],
+      [/nic\s*(?:code|5\s*digit)/i, "nic5Code"],
+      [/date\s*of\s*(?:incorporation|registration|commencement)/i, "dateOfIncorporation"],
+      [/(?:annual\s*)?turnover|revenue\s*from\s*operations/i, "annualTurnover"],
+      [/website|web\s*site/i, "companyWebsite"],
+      // Bank
+      [/(?:bank\s*name|name\s*of\s*(?:the\s*)?bank)/i, "bankName"],
+      [/(?:account|a\/c)\s*(?:no|number)/i, "bankAccountNumber"],
+      [/(?:ifsc|ifs\s*code|rtgs)/i, "bankIfsc"],
+      [/branch(?:\s*name)?/i, "bankBranch"],
+      [/(?:account|a\/c)\s*type/i, "bankAccountType"],
+      [/micr/i, "bankMicr"],
+      // Transaction
+      [/(?:invoice|bill|proforma)\s*(?:no|number)/i, "invoiceNumber"],
+      [/invoice\s*date/i, "invoiceDate"],
+      [/(?:grand\s*total|total\s*amount|amount\s*payable|net\s*payable|total)/i, "invoiceAmount"],
+      [/currency(?:\s*name)?/i, "invoiceCurrency"],
+      [/currency\s*quantity/i, "invoiceAmount"],
+      [/beneficiary\s*name/i, "invoiceBeneficiary"],
+      [/beneficiary\s*bank\s*name/i, "invoiceBankName"],
+      [/beneficiary\s*(?:account|a\/c)\s*(?:no|number)/i, "invoiceAccountNo"],
+      [/beneficiary\s*bank\s*address/i, "invoiceBenefBankAddr"],
+      [/beneficiary\s*address/i, "invoiceBenefAddr"],
+      [/(?:swift|bic)(?:\s*code)?/i, "invoiceSwift"],
+      [/iban/i, "invoiceIban"],
+      [/destination(?:\s*country)?/i, "invoiceDestination"],
+      [/(?:purpose\s*of\s*remittance|purpose)/i, "purposeOfRemittance"],
+      [/(?:no\.?\s*of\s*)?(?:travel?ers?|passengers?|pax)/i, "invoicePax"]
+    ];
+  }
+
+  // Full offline extraction: no AI, no network. Reads "Label: value", "Label | value"
+  // (from the layout-aware PDF pass) and label-above-value column layouts, then
+  // validates every candidate before accepting it. This is the fallback whenever the
+  // AI quota is exhausted, so it has to stand on its own.
+  offlineExtract(rawText, docType) {
+    const fields = {};
+    if (!rawText) return fields;
+    const labels = OnboardingApp.OFFLINE_LABELS;
+
+    const NOISE = /^(?:n\/?a|nil|none|not\s*(?:available|applicable)|--?|—|:|\?+)$/i;
+    const clean = (v) => String(v || "")
+      .replace(/^[\s:|\-–—.]+/, "")
+      .replace(/[\s:|]+$/, "")
+      .replace(/\s{2,}/g, " ")
+      .trim();
+
+    const assign = (key, value) => {
+      const v = clean(value);
+      if (!v || v.length < 2 || v.length > 300 || NOISE.test(v)) return;
+      // Validate the value shape per field so a mis-split line cannot poison the form.
+      if (key === "panNumber" || key === "gstPersonPans") {
+        const up = v.toUpperCase().replace(/[^A-Z0-9]/g, "");
+        if (!this.isValidPan(up)) return; fields[key] = up; return;
+      }
+      if (key === "gstNumber") {
+        const up = v.toUpperCase().replace(/[^A-Z0-9]/g, "");
+        if (up.length !== 15) return; fields[key] = up; return;
+      }
+      if (key === "bankIfsc") {
+        const up = v.toUpperCase().replace(/[^A-Z0-9]/g, "");
+        if (!this.isValidIfsc(up)) return; fields[key] = up; return;
+      }
+      if (key === "cinNumber") {
+        const up = v.toUpperCase().replace(/[^A-Z0-9]/g, "");
+        if (!/^[LU]\d{5}[A-Z]{2}\d{4}[A-Z]{3}\d{6}$/.test(up)) return; fields[key] = up; return;
+      }
+      if (key === "extractedMobile") {
+        const d = v.replace(/[^0-9]/g, "").slice(-10);
+        if (!/^[6-9]\d{9}$/.test(d)) return; fields[key] = d; return;
+      }
+      if (key === "extractedEmail") {
+        const m = v.match(/[a-zA-Z0-9._%+\-]+@[a-zA-Z0-9.\-]+\.[a-zA-Z]{2,}/);
+        if (!m) return; fields[key] = m[0].toLowerCase(); return;
+      }
+      if (key === "pin") {
+        const m = v.match(/\b\d{6}\b/);
+        if (!m) return; fields[key] = m[0]; return;
+      }
+      if (key === "globalDob" || key === "dateOfIncorporation" || key === "invoiceDate") {
+        const m = v.match(/\b(\d{1,2})[\/\-.](\d{1,2})[\/\-.](\d{4})\b/);
+        if (!m) return;
+        fields[key] = `${m[1].padStart(2, "0")}/${m[2].padStart(2, "0")}/${m[3]}`;
+        return;
+      }
+      if (key === "invoiceAmount" || key === "annualTurnover") {
+        const m = v.replace(/,/g, "").match(/\d+(?:\.\d{1,2})?/);
+        if (!m) return; fields[key] = m[0]; return;
+      }
+      if (key === "invoicePax") {
+        const m = v.match(/\b\d{1,4}\b/);
+        if (!m) return; fields[key] = m[0]; return;
+      }
+      if (key === "invoiceSwift") {
+        const up = v.toUpperCase().replace(/[^A-Z0-9]/g, "");
+        if (!/^[A-Z]{6}[A-Z0-9]{2,5}$/.test(up)) return; fields[key] = up; return;
+      }
+      if (key === "invoiceCurrency") {
+        const m = v.toUpperCase().match(/\b(USD|EUR|GBP|AED|THB|SGD|JPY|AUD|CAD|CHF|HKD|MYR|IDR|INR|NZD|SAR|QAR|OMR|KWD|ZAR|CNY|LKR|NPR|VND|KRW|TRY|RUB)\b/);
+        if (!m) return; fields[key] = m[1]; return;
+      }
+      // A designation must be an actual business role. GST certificates carry the
+      // issuing tax officer's designation ("Jurisdictional Office"), which must not
+      // be written into the company contact's designation.
+      if (key === "aiDesignation") {
+        if (!/director|partner|proprietor|trustee|signator|manager|karta|member|secretary|ceo|cfo|chairman|president|owner/i.test(v)) return;
+        if (!fields[key]) fields[key] = v.replace(/\b\w+/g, w => w[0].toUpperCase() + w.slice(1).toLowerCase());
+        return;
+      }
+      // Free-text fields: reject values that are obviously another label.
+      if (/^(?:sr\.?\s*no|particulars|details|s\.?\s*no)$/i.test(v)) return;
+      if (!fields[key]) fields[key] = v;
+    };
+
+    // Work line by line so table rows and "Label | value" survive.
+    const lines = String(rawText).split(/\r?\n/).map(l => l.trim()).filter(Boolean);
+    for (let i = 0; i < lines.length; i++) {
+      const line = lines[i];
+      // Split on the column separator emitted by buildLayoutText, or on a colon.
+      let parts = line.includes("|") ? line.split("|").map(s => s.trim()) : null;
+      if (!parts) {
+        const c = line.match(/^([^:]{2,60}?)\s*:\s*(.+)$/);
+        if (c) parts = [c[1], c[2]];
+      }
+
+      if (parts && parts.length >= 2) {
+        // Drop a leading row number cell ("1", "2.") so the label is found.
+        if (/^\d{1,2}[.)]?$/.test(parts[0]) && parts.length >= 3) parts = parts.slice(1);
+        const labelCell = parts[0].replace(/^\d{1,2}[.)]\s*/, "");
+        const valueCell = parts.slice(1).join(" ").trim();
+        for (const [rx, key] of labels) {
+          if (rx.test(labelCell) && labelCell.length <= 70) { assign(key, valueCell); break; }
+        }
+        continue;
+      }
+
+      // Label alone on its line, value on the next (common in stacked PDF layouts).
+      const bare = line.replace(/^\d{1,2}[.)]\s*/, "").replace(/\s*:$/, "");
+      if (bare.length <= 60 && i + 1 < lines.length && !lines[i + 1].includes("|")) {
+        for (const [rx, key] of labels) {
+          if (rx.test(bare) && new RegExp(`^\\s*${rx.source}\\s*:?\\s*$`, "i").test(bare)) {
+            assign(key, lines[i + 1]);
+            break;
+          }
+        }
+      }
+    }
+
+    const people = [];
+
+    // Stacked person blocks. GST REG-06 lists directors/partners as:
+    //   Details of Managing / Whole-time Directors and Key Managerial Persons
+    //   1 | Name | SAVIO PAUL PEREIRA
+    //   Designation/Status | DIRECTOR
+    //   Resident of State | Maharashtra
+    // The attributes follow the name on their own lines rather than sharing a row,
+    // so a row-wise scan alone misses every one of them.
+    for (let i = 0; i < lines.length; i++) {
+      const nameRow = lines[i].match(/^(?:\d{1,2}\s*[|.)]\s*)?Name\s*\|\s*(.+)$/i);
+      if (!nameRow) continue;
+      const name = clean(nameRow[1]);
+      if (!/^[A-Za-z][A-Za-z .'\-]{3,60}$/.test(name)) continue;
+      const person = { name, pan: "", dob: "", designation: "", state: "" };
+      // Consume the attribute lines that belong to this person.
+      for (let j = i + 1; j < Math.min(i + 6, lines.length); j++) {
+        const l = lines[j];
+        if (/^(?:\d{1,2}\s*[|.)]\s*)?Name\s*\|/i.test(l)) break;
+        const desig = l.match(/^Designation(?:\/Status)?\s*\|\s*(.+)$/i);
+        if (desig) { person.designation = clean(desig[1]); continue; }
+        const st = l.match(/^Resident\s*of\s*State\s*\|\s*(.+)$/i);
+        if (st) { person.state = clean(st[1]); continue; }
+        const p = (l.toUpperCase().match(/\b[A-Z]{5}\d{4}[A-Z]\b/) || [])[0];
+        if (p && this.isValidPan(p)) { person.pan = p; continue; }
+        const d = (l.match(/\b\d{1,2}[\/\-.]\d{1,2}[\/\-.]\d{4}\b/) || [])[0];
+        if (d) { person.dob = d.replace(/[-.]/g, "/"); continue; }
+      }
+      if (!people.find(x => x.name.toLowerCase() === person.name.toLowerCase())) people.push(person);
+    }
+
+    // Person rows: a table line carrying a name plus a personal PAN and/or a DOB.
+    for (const line of lines) {
+      if (!line.includes("|")) continue;
+      const cells = line.split("|").map(s => s.trim()).filter(Boolean);
+      if (cells.length < 2) continue;
+      const pan = cells.map(c => (c.toUpperCase().match(/\b[A-Z]{5}\d{4}[A-Z]\b/) || [])[0]).find(Boolean);
+      const dob = cells.map(c => (c.match(/\b\d{1,2}[\/\-.]\d{1,2}[\/\-.]\d{4}\b/) || [])[0]).find(Boolean);
+      if (!pan && !dob) continue;
+      const name = cells.find(c => /^[A-Za-z][A-Za-z .'\-]{4,60}$/.test(c) && !/^(name|designation|pan|dob|sr|no|date)/i.test(c));
+      if (!name) continue;
+      const desig = cells.find(c => /director|partner|proprietor|trustee|shareholder|signator|karta|member/i.test(c)) || "";
+      if (!people.find(p => p.name.toLowerCase() === name.toLowerCase())) {
+        people.push({ name, pan: pan || "", dob: dob ? dob.replace(/[-.]/g, "/") : "", designation: desig });
+      }
+    }
+    if (people.length) {
+      const roleText = people.map(p => p.designation).join(" ");
+      const isDir = /director/i.test(roleText) ||
+        (!/partner/i.test(roleText) && /director|company|private|limited|llp/i.test((fields.gstConstitution || "") + " " + (docType || "")));
+      const names = people.map(p => p.name);
+      if (isDir) fields.gstDirectors = names; else fields.gstPartners = names;
+      if (people.some(p => p.pan)) fields.gstPersonPans = people.map(p => p.pan);
+      if (people.some(p => p.dob)) fields.personDobs = people.map(p => p.dob);
+      if (people.some(p => p.designation)) fields.gstPersonDesignations = people.map(p => p.designation);
+      if (!fields.ownerName) fields.ownerName = names[0];
+    }
+
+    return fields;
   }
 
   extractFields(text, docType) {
@@ -6464,16 +6725,22 @@ ${text.substring(0, 12000)}`;
       const err = await resp.json().catch(() => ({}));
       const msg = err.error?.message || resp.statusText;
 
-      // Free tier allows 15 requests/min. A 429 is not a failure — wait and retry,
-      // otherwise a multi-document upload silently loses whole documents.
+      // Free tier allows 15 requests/min. Retry briefly, but do NOT stall a whole
+      // batch: after one short retry we give up on AI and let the caller fall back
+      // to offline extraction, which is far better than minutes of spinner.
       if (resp.status === 429 || /quota|rate limit|too many requests|resource_exhausted/i.test(msg)) {
-        if (rateRetries >= 3) throw new Error("Gemini rate limit reached (free tier allows 15 requests/minute). Wait a minute and use 'Re-analyze with AI', or upload fewer files at once.");
         const retryInfo = (err.error?.details || []).find(d => /RetryInfo/i.test(d["@type"] || ""));
         const parsed = retryInfo?.retryDelay ? parseFloat(String(retryInfo.retryDelay)) : null;
-        const waitMs = Math.min(Math.max((parsed || (5 * (rateRetries + 1))) * 1000, 2000), 30000);
+        const waitSec = Math.min(Math.max(parsed || 6, 2), 12);
+        if (rateRetries >= 1 || waitSec > 12) {
+          this.markQuotaExhausted(msg);
+          const e = new Error("AI quota reached — switched to offline extraction");
+          e.isRateLimit = true;
+          throw e;
+        }
         rateRetries++;
-        this.showLoading("Rate limit — waiting...", `Google's free tier is throttling. Retrying in ${Math.round(waitMs / 1000)}s (${rateRetries}/3)`);
-        await new Promise(r => setTimeout(r, waitMs));
+        this.showLoading("AI is throttled — retrying...", `Waiting ${waitSec}s, then falling back to offline extraction if still limited`);
+        await new Promise(r => setTimeout(r, waitSec * 1000));
         resp = await send(model);
         continue;
       }
@@ -6509,6 +6776,77 @@ ${text.substring(0, 12000)}`;
 
   async callGemini(prompt, maxTokens = 4096, temperature = 0.05) {
     return this.geminiRequest([{ text: prompt }], maxTokens, temperature);
+  }
+
+  // Once the quota is gone it stays gone for the next minute, so remember it and let
+  // every remaining document go straight to offline extraction instead of each one
+  // paying its own retry wait.
+  markQuotaExhausted(message) {
+    this.quotaExhaustedUntil = Date.now() + 65000;
+    this.offlineMode = true;
+    this.lastAiError = message || "AI quota reached";
+    this.renderOfflineBanner();
+  }
+
+  isAiAvailable() {
+    if (!this.geminiKey) return false;
+    if (this.quotaExhaustedUntil && Date.now() < this.quotaExhaustedUntil) return false;
+    if (this.quotaExhaustedUntil && Date.now() >= this.quotaExhaustedUntil) {
+      this.quotaExhaustedUntil = null;
+      this.offlineMode = false;
+    }
+    return true;
+  }
+
+  quotaSecondsLeft() {
+    if (!this.quotaExhaustedUntil) return 0;
+    return Math.max(0, Math.ceil((this.quotaExhaustedUntil - Date.now()) / 1000));
+  }
+
+  renderOfflineBanner() {
+    let el = document.getElementById("offlineBanner");
+    const secs = this.quotaSecondsLeft();
+    if (!this.offlineMode || secs === 0) {
+      if (el) el.remove();
+      if (this._offlineTimer) { clearInterval(this._offlineTimer); this._offlineTimer = null; }
+      return;
+    }
+    if (!el) {
+      el = document.createElement("div");
+      el.id = "offlineBanner";
+      el.style.cssText = "margin:0 0 12px;padding:10px 14px;border-radius:8px;background:linear-gradient(135deg,#fff7ed,#ffedd5);border:1px solid #fdba74;display:flex;align-items:center;gap:10px;flex-wrap:wrap";
+      const content = document.getElementById("contentArea");
+      if (content) content.insertBefore(el, content.firstChild);
+    }
+    el.innerHTML = `
+      <span style="font-size:1.1rem">&#128246;</span>
+      <div style="flex:1;min-width:200px">
+        <div style="font-size:0.82rem;font-weight:700;color:#9a3412">Offline extraction mode</div>
+        <div style="font-size:0.72rem;color:#c2410c">Google's free AI tier is rate-limited (15 requests/min). Documents are being read with pattern matching, which fills the well-labelled fields. AI available again in <strong id="offlineCountdown">${secs}</strong>s.</div>
+      </div>
+      <button onclick="app.retryAiNow()" id="offlineRetryBtn" style="background:#ea580c;color:#fff;border:none;padding:7px 14px;border-radius:7px;font-size:0.78rem;font-weight:600;cursor:pointer;opacity:0.55" disabled>Retry with AI</button>`;
+    if (this._offlineTimer) clearInterval(this._offlineTimer);
+    this._offlineTimer = setInterval(() => {
+      const left = this.quotaSecondsLeft();
+      const c = document.getElementById("offlineCountdown");
+      const b = document.getElementById("offlineRetryBtn");
+      if (c) c.textContent = left;
+      if (left === 0) {
+        clearInterval(this._offlineTimer); this._offlineTimer = null;
+        this.quotaExhaustedUntil = null; this.offlineMode = false;
+        if (b) { b.disabled = false; b.style.opacity = "1"; b.textContent = "Retry with AI now"; }
+        const c2 = document.getElementById("offlineCountdown");
+        if (c2 && c2.parentElement) c2.parentElement.innerHTML = "AI is available again — press <strong>Retry with AI now</strong> to re-read your documents and fill the remaining fields.";
+      }
+    }, 1000);
+  }
+
+  async retryAiNow() {
+    this.quotaExhaustedUntil = null;
+    this.offlineMode = false;
+    this.renderOfflineBanner();
+    if (!this.geminiKey) { this.showToast("Add a Gemini API key in Settings first", "error"); return; }
+    await this.reAnalyzeWithAi();
   }
 
   recordAiFailure(stage, message) {
